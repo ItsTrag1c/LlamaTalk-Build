@@ -169,7 +169,7 @@ export async function askMasked(prompt) {
 // --- Shortcut hint ---
 
 export function printShortcutHint() {
-  const hint = "Enter to send  ·  Shift+Tab mode  ·  Esc cancel  ·  Ctrl+C exit  ·  /help";
+  const hint = "Enter to send  ·  /mode to switch  ·  Esc cancel  ·  Ctrl+C exit  ·  /help";
   const termWidth = process.stdout.columns || 80;
   const pad = " ".repeat(Math.max(0, Math.floor((termWidth - hint.length) / 2)));
   process.stdout.write(pad + DIM + hint + RESET + "\n");

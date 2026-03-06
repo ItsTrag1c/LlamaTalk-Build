@@ -143,31 +143,13 @@ export async function runAgent(rl, config, encKey, opts = {}) {
   // Agent mode: accept (default), build (auto-approve), plan (plan first)
   let agentMode = "accept";
 
-  // Build prompt string (extracted so Shift+Tab can update it live)
+  // Build prompt string
   const buildPromptStr = () => {
     const modelName = config.modelNickname?.[config.selectedModel] || config.selectedModel || "no model";
     const modeColor = MODE_COLORS[agentMode];
     const modeLabel = MODE_LABELS[agentMode];
     return `\n  ${ORANGE}${config.profileName || "You"}${RESET} ${DIM}[${modelName}]${RESET} ${modeColor}(${modeLabel})${RESET} ${BOLD}>${RESET} `;
   };
-
-  // Intercept Shift+Tab to cycle agent mode
-  const originalTtyWrite = rl._ttyWrite?.bind(rl);
-  if (originalTtyWrite) {
-    rl._ttyWrite = function (s, key) {
-      if (key && key.name === "tab" && key.shift) {
-        const idx = MODES.indexOf(agentMode);
-        agentMode = MODES[(idx + 1) % MODES.length];
-        const color = MODE_COLORS[agentMode];
-        const label = MODE_LABELS[agentMode];
-        process.stdout.write(`\r\x1b[2K  ${color}● ${label} Mode${RESET}\n`);
-        rl.setPrompt(buildPromptStr());
-        rl._refreshLine();
-        return;
-      }
-      return originalTtyWrite(s, key);
-    };
-  }
 
   // Ask function using rl
   const ask = (prompt) => new Promise((resolve) => rl.question(prompt, resolve));

@@ -1,6 +1,14 @@
 # Changelog — LlamaTalk Build
 
-Last updated: 2026-03-06 (v0.4.0)
+Last updated: 2026-03-06 (v0.5.0)
+
+---
+
+## v0.5.0 — 2026-03-06
+
+### Mode Switching
+- **Removed Shift+Tab mode switching** — `/mode` is now the only way to cycle agent modes (Accept/Build/Plan). Simplifies input handling and avoids terminal compatibility issues with Shift+Tab.
+- **Updated hints and help text** — shortcut hint bar and `--help` output now reference `/mode` instead of Shift+Tab.
 
 ---
 

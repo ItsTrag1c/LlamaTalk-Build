@@ -9,7 +9,7 @@ import { detectBackend, getAllLocalModels } from "./src/providers/router.js";
 import { printBanner } from "./src/ui/banner.js";
 import { askMasked, printShortcutHint, ORANGE, RED, RESET, BOLD, DIM } from "./src/ui/ui.js";
 
-const VERSION = "0.4.0";
+const VERSION = "0.5.0";
 
 // ---------------------------------------------------------------------------
 // CLI argument parser
@@ -67,12 +67,9 @@ ${BOLD}Options${RESET}
   ${ORANGE}    --no-banner${RESET}           Skip the banner
   ${ORANGE}    --trust${RESET}               Auto-approve all tool confirmations
 
-${BOLD}Shortcuts${RESET}
-  ${ORANGE}Shift+Tab${RESET}                 Cycle agent mode (Accept/Build/Plan)
-
 ${BOLD}Slash commands${RESET}
   /help       Full command reference
-  /mode       Cycle agent mode
+  /mode       Cycle agent mode (Accept/Build/Plan)
   /model      Show/switch model
   /models     List available models
   /memory     Manage memories
