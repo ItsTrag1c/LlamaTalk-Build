@@ -1,6 +1,16 @@
 # Changelog — LlamaTalk Build
 
-Last updated: 2026-03-06 (v0.1.1)
+Last updated: 2026-03-06 (v0.2.0)
+
+---
+
+## v0.2.0 — 2026-03-06
+
+### Self-Update
+- **`/update` command** — pulls latest source from the public GitHub repo (`ItsTrag1c/LlamaTalk-Build`), compares versions, runs `npm install` + `npm run build`, and replaces the installed EXE in-place. Prompts to restart after a successful update. When running from source, reports the path to the built artifacts instead.
+
+### Repository
+- **GitHub repo made public** — `ItsTrag1c/LlamaTalk-Build` is now a public repository, enabling `/update` to work without authentication on end-user machines.
 
 ---
 
@@ -64,4 +74,4 @@ Initial release of LlamaTalk Build, the agentic coding assistant for the LlamaTa
 
 ---
 
-Last updated: 2026-03-06 (v0.1.1)
+Last updated: 2026-03-06 (v0.2.0)
