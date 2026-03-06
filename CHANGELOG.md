@@ -1,6 +1,14 @@
 # Changelog — LlamaTalk Build
 
-Last updated: 2026-03-06 (v0.5.0)
+Last updated: 2026-03-06 (v0.5.1)
+
+---
+
+## v0.5.1 — 2026-03-06
+
+### Self-Update Fixes
+- **Auto-restart after update** — `/update` now automatically relaunches with the new EXE instead of asking the user to restart manually.
+- **Old version cleanup** — after a successful update, old `.old.exe` backups and previous versioned setup/standalone EXEs are removed from the install directory.
 
 ---
 

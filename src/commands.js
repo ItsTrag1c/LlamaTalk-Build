@@ -1,8 +1,8 @@
 import { saveConfig, saveConfigWithKey, getMemoryDir } from "./config.js";
 import { detectBackend, getAllLocalModels, getOllamaModels, getOpenAICompatModels, CLOUD_MODELS } from "./providers/router.js";
-import { writeFileSync, readFileSync, existsSync, unlinkSync, mkdtempSync, rmSync, copyFileSync, renameSync } from "fs";
+import { writeFileSync, readFileSync, existsSync, unlinkSync, mkdtempSync, rmSync, copyFileSync, renameSync, readdirSync } from "fs";
 import { join, relative, dirname } from "path";
-import { execSync } from "child_process";
+import { execSync, spawn } from "child_process";
 import { tmpdir } from "os";
 import {
   ORANGE, RED, GREEN, YELLOW, DIM, BOLD, RESET,
@@ -364,8 +364,29 @@ async function handleUpdate(currentVersion) {
         } catch { /* non-critical */ }
       }
 
+      // Clean up old versions
+      try {
+        if (existsSync(oldExe)) unlinkSync(oldExe);
+        // Remove old setup/standalone EXEs (not current version)
+        for (const f of readdirSync(installDir)) {
+          const isOldSetup = f.startsWith("LlamaTalk Build_") && f.endsWith("_setup.exe") && !f.includes(remoteVersion);
+          const isOldStandalone = f.startsWith("LlamaTalkBuild_") && f.endsWith(".exe") && !f.includes(remoteVersion);
+          if (isOldSetup || isOldStandalone) {
+            try { unlinkSync(join(installDir, f)); } catch { /* in use or locked */ }
+          }
+        }
+      } catch { /* non-critical cleanup */ }
+
       console.log(GREEN + BOLD + `\n  Updated to v${remoteVersion}!` + RESET);
-      console.log(YELLOW + "  Please restart LlamaTalk Build to use the new version." + RESET);
+      console.log(DIM + "  Restarting..." + RESET);
+
+      // Auto-restart with the new EXE
+      const child = spawn(currentExe, process.argv.slice(2), {
+        stdio: "inherit",
+        detached: true,
+      });
+      child.unref();
+      process.exit(0);
     } else {
       // Running from source — just report that the build is ready
       console.log(GREEN + BOLD + `\n  Built v${remoteVersion} successfully.` + RESET);
