@@ -42,6 +42,7 @@ ${ORANGE}/set provider enable|disable <p>${RESET}  Toggle provider
 ${ORANGE}/set temp <0.0-1.0>${RESET}      Set temperature
 ${ORANGE}/set pin${RESET}                 Set or change PIN
 ${ORANGE}/mode${RESET}                    Cycle agent mode (Auto-Accept/Build/Plan)
+${ORANGE}/sidebar${RESET}                 Toggle code changes panel
 ${ORANGE}/trust${RESET}                   Toggle auto-approve for session
 ${ORANGE}/compact${RESET}                 Toggle compact output
 ${ORANGE}/update${RESET}                   Pull latest & rebuild from GitHub
@@ -249,6 +250,16 @@ ${BOLD}Settings${RESET}
       agent.setMode(next);
       const color = MODE_COLORS[next];
       console.log(`  ${color}● ${MODE_LABELS[next]} Mode${RESET}`);
+      return { handled: true };
+    }
+
+    case "/sidebar": {
+      if (!agent?.sidebar) {
+        console.log(DIM + "  Sidebar not available." + RESET);
+        return { handled: true };
+      }
+      const on = agent.sidebar.toggle();
+      console.log(`  ${ORANGE}● Sidebar${RESET} ${on ? GREEN + "enabled" + RESET + DIM + " — file changes will show a code preview panel" + RESET : DIM + "disabled" + RESET}`);
       return { handled: true };
     }
 

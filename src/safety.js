@@ -83,14 +83,16 @@ export function requireConfirmation(tool, args, config, agentMode = "accept") {
 
 /**
  * Prompt user for confirmation. Returns true if approved.
- * "always" option remembers approval for the session.
+ * "always" option remembers approval for the session (disabled in Build mode).
  */
-export async function promptConfirmation(tool, args, config) {
+export async function promptConfirmation(tool, args, config, rl, agentMode) {
   const message = tool.formatConfirmation
     ? tool.formatConfirmation(args)
     : `Allow ${tool.definition.name}?`;
 
-  const result = await confirm(message);
+  // Build mode: always prompt individually, no "always" shortcut
+  const allowAlways = agentMode !== "build";
+  const result = await confirm(message, rl, { allowAlways });
 
   if (result === "always") {
     // Remember approval for this safety level for the session

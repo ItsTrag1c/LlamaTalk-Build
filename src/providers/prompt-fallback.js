@@ -68,34 +68,70 @@ export class PromptFallbackProvider {
     const toolBlock = this.formatToolsAsPrompt(tools);
     const augmentedPrompt = (systemPrompt || "") + toolBlock;
 
-    // Stream via underlying provider (no native tools)
+    // Stream text progressively. Buffer only when we might be inside a <tool_call> tag
+    // so the user sees output immediately instead of waiting for the full response.
     let fullText = "";
-    const events = [];
+    let buffer = "";
+    const otherEvents = [];
 
     for await (const event of this.inner.stream(messages, augmentedPrompt, null, signal)) {
       if (event.type === "text") {
-        fullText += event.content;
-        // Don't yield text yet — need to strip tool_call blocks
+        buffer += event.content;
+
+        // Check if buffer contains a complete or partial <tool_call> opening
+        const tagIdx = buffer.indexOf("<tool_call>");
+        if (tagIdx >= 0) {
+          // Flush everything before the tag
+          if (tagIdx > 0) {
+            const before = buffer.slice(0, tagIdx);
+            fullText += before;
+            yield { type: "text", content: before };
+          }
+          // Hold back from <tool_call> onwards (will be parsed at the end)
+          buffer = buffer.slice(tagIdx);
+        } else {
+          // Check for a partial '<' that might be start of <tool_call>
+          const lastLt = buffer.lastIndexOf("<");
+          if (lastLt >= 0 && buffer.length - lastLt < "<tool_call>".length) {
+            // Might be a partial tag — flush before it, hold the rest
+            if (lastLt > 0) {
+              const safe = buffer.slice(0, lastLt);
+              fullText += safe;
+              yield { type: "text", content: safe };
+              buffer = buffer.slice(lastLt);
+            }
+          } else {
+            // No potential tag — flush all
+            fullText += buffer;
+            yield { type: "text", content: buffer };
+            buffer = "";
+          }
+        }
       } else {
-        events.push(event);
+        otherEvents.push(event);
       }
     }
 
-    // Parse tool calls from collected text
+    // Flush any remaining buffer
+    fullText += buffer;
+
+    // Parse tool calls from full text
     const { cleanText, toolCalls } = this.parseToolCalls(fullText);
 
-    // Yield clean text
-    if (cleanText) {
-      yield { type: "text", content: cleanText };
+    // If tool calls were found, yield a clean_text event so the caller
+    // can replace the displayed text in conversation history
+    if (toolCalls.length > 0) {
+      yield { type: "clean_text", content: cleanText, rawText: fullText };
+    } else if (buffer) {
+      // Remaining buffer had no tool calls — yield it as text
+      yield { type: "text", content: buffer };
     }
 
-    // Yield parsed tool calls
     for (const tc of toolCalls) {
       yield { type: "tool_call", ...tc };
     }
 
-    // Yield remaining events (usage, done)
-    for (const event of events) {
+    for (const event of otherEvents) {
       yield event;
     }
   }

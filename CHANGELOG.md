@@ -1,6 +1,24 @@
 # Changelog — LlamaTalk Build
 
-Last updated: 2026-03-06 (v0.7.0)
+Last updated: 2026-03-06 (v0.8.0)
+
+---
+
+## v0.8.0 — 2026-03-06
+
+### Bug Fixes
+- **Fixed Plan mode getting stuck after accepting** — pressing Y to proceed with a plan now properly switches to Build mode. Previously the system prompt wasn't rebuilt after the mode transition, causing the model to keep planning instead of executing.
+- **Fixed doubled key inputs** — resolved an issue where keystrokes could be processed twice during streaming or confirmation prompts. The escape key watcher now properly pauses the main readline interface, and confirmation dialogs reuse the existing readline instead of creating a conflicting second instance.
+- **Fixed generation appearing stuck (prompt fallback)** — models using XML tool-call fallback (non-native tool calling) now stream text progressively instead of buffering the entire response. Previously nothing appeared on screen until generation completed.
+
+### Build Mode
+- **Individual confirmation for every action** — Build mode no longer shows the "always" option in confirmation prompts. Each file write, edit, and git operation must be individually approved with `(y/n)`, ensuring full control over every change.
+
+### Code Changes Sidebar
+- **New `/sidebar` command** — toggles an inline code preview panel that appears after each file modification. Shows a bordered view of the changed file with line numbers (for writes) or a colored diff (for edits). Long files are truncated with a summary.
+
+### Session Logging
+- **Automatic session log** — every tool execution is now recorded in `.llamabuild-session.md` in the project root. Each session gets a timestamped section listing all actions taken. New sessions prepend at the top. The file is only written when changes actually occur.
 
 ---
 

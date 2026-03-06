@@ -95,13 +95,26 @@ export function printDiff(filePath, oldContent, newContent) {
 
 // --- Confirmation prompt ---
 
-export async function confirm(message) {
+export async function confirm(message, existingRl, { allowAlways = true } = {}) {
+  const suffix = allowAlways ? `${DIM}(y/n/always)${RESET} ` : `${DIM}(y/n)${RESET} `;
+  const prompt = `  ${YELLOW}${message}${RESET} ${suffix}`;
+
+  if (existingRl) {
+    return new Promise((resolve) => {
+      existingRl.question(prompt, (answer) => {
+        const a = answer.trim().toLowerCase();
+        if (allowAlways && a === "always") resolve("always");
+        else resolve(a === "y" || a === "yes");
+      });
+    });
+  }
+
   return new Promise((resolve) => {
     const rl = createInterface({ input: process.stdin, output: process.stdout });
-    rl.question(`  ${YELLOW}${message}${RESET} ${DIM}(y/n/always)${RESET} `, (answer) => {
+    rl.question(prompt, (answer) => {
       rl.close();
       const a = answer.trim().toLowerCase();
-      if (a === "always") resolve("always");
+      if (allowAlways && a === "always") resolve("always");
       else resolve(a === "y" || a === "yes");
     });
   });
@@ -178,7 +191,7 @@ export async function askMasked(prompt) {
 // --- Shortcut hint ---
 
 export function printShortcutHint() {
-  const hint = "Enter to send  ·  /mode to switch  ·  Esc cancel  ·  Ctrl+C exit  ·  /help";
+  const hint = "Enter to send  ·  /mode to switch  ·  /sidebar  ·  Esc cancel  ·  Ctrl+C exit  ·  /help";
   const termWidth = process.stdout.columns || 80;
   const pad = " ".repeat(Math.max(0, Math.floor((termWidth - hint.length) / 2)));
   process.stdout.write(pad + DIM + hint + RESET + "\n");

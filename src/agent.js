@@ -12,6 +12,8 @@ import {
   startThinking, stopThinking,
   printToolCall, printToolResult, printUsage, printError, printContextClearing,
 } from "./ui/ui.js";
+import { sidebar } from "./ui/sidebar.js";
+import { SessionLog } from "./session-log.js";
 
 // --- Agent modes ---
 const MODES = ["accept", "build", "plan"];
@@ -108,13 +110,15 @@ function createToolRegistry() {
 }
 
 // --- Esc key watcher for cancellation ---
-function startEscWatch(signal, controller) {
+function startEscWatch(signal, controller, rl) {
   const onData = (data) => {
     if (data[0] === 0x1b) {
       controller.abort();
     }
   };
   try {
+    // Pause the main readline so it doesn't double-process keystrokes
+    if (rl) rl.pause();
     if (process.stdin.isTTY) {
       process.stdin.setRawMode(true);
       process.stdin.resume();
@@ -126,6 +130,8 @@ function startEscWatch(signal, controller) {
     try {
       process.stdin.removeListener("data", onData);
       if (process.stdin.isTTY) process.stdin.setRawMode(false);
+      // Resume the main readline
+      if (rl) rl.resume();
     } catch { /* non-fatal */ }
   };
 }
@@ -164,6 +170,7 @@ export async function runAgent(rl, config, encKey, opts = {}) {
   const memory = new MemoryManager(config);
   const conversationId = randomUUID();
   const messages = []; // conversation history (internal format)
+  const sessionLog = new SessionLog(projectRoot);
 
   // Track file changes for /undo and /diff
   const sessionChanges = [];
@@ -211,6 +218,7 @@ export async function runAgent(rl, config, encKey, opts = {}) {
         memory,
         sessionChanges,
         conversationId,
+        sidebar,
         getMode: () => agentMode,
         setMode: (m) => { agentMode = m; },
       });
@@ -226,7 +234,6 @@ export async function runAgent(rl, config, encKey, opts = {}) {
     if (config.memoryEnabled && !opts.noMemory) {
       memoryBlock = memory.buildMemoryBlock(trimmed, projectRoot);
     }
-    const systemPrompt = buildSystemPrompt(config, projectRoot, memoryBlock, projectContext, agentMode);
 
     // Get provider
     const { provider, providerName, formatAssistantToolUse, formatToolResult } = getProviderForModel(config);
@@ -239,6 +246,9 @@ export async function runAgent(rl, config, encKey, opts = {}) {
     const CONTEXT_THRESHOLD = config.contextThreshold || 80; // % at which to compress
 
     while (iterationCount < (config.maxIterations || 50)) {
+      // Rebuild system prompt each iteration (mode may have changed)
+      const systemPrompt = buildSystemPrompt(config, projectRoot, memoryBlock, projectContext, agentMode);
+
       // Check context usage and compress if needed
       if (lastUsage && lastUsage.promptTokens > 0) {
         contextPercent = Math.round((lastUsage.promptTokens / contextLimit) * 100);
@@ -253,7 +263,7 @@ export async function runAgent(rl, config, encKey, opts = {}) {
         }
       }
       const controller = new AbortController();
-      const stopEsc = startEscWatch(controller.signal, controller);
+      const stopEsc = startEscWatch(controller.signal, controller, rl);
 
       if (opts.showThinking !== false && config.showThinking) {
         startThinking();
@@ -283,6 +293,9 @@ export async function runAgent(rl, config, encKey, opts = {}) {
               firstToken = false;
             }
             toolCalls.push(event);
+          } else if (event.type === "clean_text") {
+            // Prompt fallback: replace responseText with cleaned version (XML tags stripped)
+            responseText = event.content;
           } else if (event.type === "usage") {
             lastUsage = event;
           }
@@ -349,7 +362,7 @@ export async function runAgent(rl, config, encKey, opts = {}) {
 
           // Check confirmation
           if (requireConfirmation(tool, tc.arguments, config, agentMode)) {
-            const approved = await promptConfirmation(tool, tc.arguments, config);
+            const approved = await promptConfirmation(tool, tc.arguments, config, rl, agentMode);
             if (!approved) {
               const msg = "User denied this action.";
               printToolResult(tc.name, false, msg);
@@ -376,9 +389,27 @@ export async function runAgent(rl, config, encKey, opts = {}) {
             const summary = result.split("\n")[0].slice(0, 100);
             printToolResult(tc.name, true, summary);
             messages.push(formatToolResult(tc.id, truncated, tc.name));
+
+            // Session log: record what the agent did
+            sessionLog.addStep(`${tc.name}: ${summary}`);
+
+            // Sidebar: show code preview for file modifications
+            if (tc.name === "write_file" || tc.name === "edit_file") {
+              try {
+                const { resolve } = await import("path");
+                const { readFileSync } = await import("fs");
+                const filePath = resolve(projectRoot, tc.arguments.path);
+                const newContent = readFileSync(filePath, "utf8");
+                // For edits, find the old content from sessionChanges
+                const lastChange = sessionChanges[sessionChanges.length - 1];
+                const oldContent = lastChange?.oldContent || null;
+                sidebar.show(tc.arguments.path, newContent, tc.name === "edit_file" ? oldContent : null);
+              } catch { /* non-fatal */ }
+            }
           } catch (err) {
             printToolResult(tc.name, false, err.message);
             messages.push(formatToolResult(tc.id, `Error: ${err.message}`, tc.name));
+            sessionLog.addStep(`${tc.name}: ERROR — ${err.message}`);
           }
 
           iterationCount++;
@@ -407,9 +438,10 @@ export async function runAgent(rl, config, encKey, opts = {}) {
         const answer = await ask(`\n  ${YELLOW}Proceed with Plan?${RESET} ${DIM}(y/n)${RESET} `);
         if (answer.trim().toLowerCase() === "y" || answer.trim().toLowerCase() === "yes") {
           agentMode = "build";
-          messages.push({ role: "user", content: "Proceed with the plan." });
+          messages.push({ role: "user", content: "Proceed with the plan. Execute each step, confirming before each file change or git operation." });
           console.log(`\n  ${GREEN}● Build Mode${RESET} ${DIM}— executing plan step by step${RESET}`);
-          continue;
+          sessionLog.addStep("Plan approved — switched to Build mode");
+          continue; // system prompt is rebuilt at top of inner loop
         }
       }
 
@@ -423,6 +455,11 @@ export async function runAgent(rl, config, encKey, opts = {}) {
     // Save conversation
     try {
       saveConversation(conversationId, messages, encKey);
+    } catch { /* non-fatal */ }
+
+    // Save session log (only writes if steps were recorded)
+    try {
+      sessionLog.save();
     } catch { /* non-fatal */ }
   }
 }
