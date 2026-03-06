@@ -41,6 +41,7 @@ ${ORANGE}/set api-key <provider> <key>${RESET}  Set API key
 ${ORANGE}/set provider enable|disable <p>${RESET}  Toggle provider
 ${ORANGE}/set temp <0.0-1.0>${RESET}      Set temperature
 ${ORANGE}/set pin${RESET}                 Set or change PIN
+${ORANGE}/mode${RESET}                    Cycle agent mode (Accept/Build/Plan)
 ${ORANGE}/trust${RESET}                   Toggle auto-approve for session
 ${ORANGE}/compact${RESET}                 Toggle compact output
 ${ORANGE}/update${RESET}                   Pull latest & rebuild from GitHub
@@ -234,6 +235,23 @@ ${BOLD}Settings${RESET}
       return { handled: true };
     }
 
+    case "/mode": {
+      if (!agent?.getMode || !agent?.setMode) {
+        console.log(DIM + "  Mode switching not available." + RESET);
+        return { handled: true };
+      }
+      const MODES = ["accept", "build", "plan"];
+      const MODE_LABELS = { accept: "Accept", build: "Build", plan: "Plan" };
+      const MODE_COLORS = { accept: ORANGE, build: GREEN, plan: YELLOW };
+      const current = agent.getMode();
+      const idx = MODES.indexOf(current);
+      const next = MODES[(idx + 1) % MODES.length];
+      agent.setMode(next);
+      const color = MODE_COLORS[next];
+      console.log(`  ${color}● ${MODE_LABELS[next]} Mode${RESET}`);
+      return { handled: true };
+    }
+
     case "/trust": {
       config.autoApprove = { safe: true, moderate: true, dangerous: true };
       console.log(YELLOW + "  Auto-approve enabled for all tool safety levels this session." + RESET);
@@ -288,7 +306,7 @@ async function handleUpdate(currentVersion) {
     console.log(`  Remote: v${remoteVersion}`);
 
     if (remoteVersion === currentVersion) {
-      console.log(GREEN + "\n  Already up to date." + RESET);
+      console.log(GREEN + `\n  LlamaTalk Build v${currentVersion} is already up to date.` + RESET);
       rmSync(tmpDir, { recursive: true, force: true });
       return { handled: true };
     }

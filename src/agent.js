@@ -8,10 +8,15 @@ import { MemoryManager } from "./memory/memory.js";
 import { ContextManager } from "./context/context.js";
 import { saveConversation } from "./config.js";
 import {
-  ORANGE, RED, GREEN, DIM, BOLD, RESET, GOLD,
+  ORANGE, RED, GREEN, YELLOW, DIM, BOLD, RESET, GOLD,
   startThinking, stopThinking,
   printToolCall, printToolResult, printUsage, printError,
 } from "./ui/ui.js";
+
+// --- Agent modes ---
+const MODES = ["accept", "build", "plan"];
+const MODE_LABELS = { accept: "Accept", build: "Build", plan: "Plan" };
+const MODE_COLORS = { accept: ORANGE, build: GREEN, plan: YELLOW };
 
 // Tool imports
 import { readFileTool } from "./tools/read-file.js";
@@ -57,8 +62,18 @@ const BASE_SYSTEM_PROMPT = `You are LlamaTalk Build, an agentic coding assistant
 - Keep the user informed of what you're doing and why
 - Be concise — lead with actions, not explanations`;
 
-function buildSystemPrompt(config, projectRoot, memoryBlock, projectContext) {
+function buildSystemPrompt(config, projectRoot, memoryBlock, projectContext, agentMode) {
   let prompt = BASE_SYSTEM_PROMPT;
+
+  if (agentMode === "plan") {
+    prompt += `\n\n## Mode: Plan
+You are in Plan Mode. Before making ANY changes:
+1. Read and explore the relevant files to fully understand the codebase
+2. Present a complete, numbered plan of ALL changes you intend to make
+3. List each file that will be created, modified, or deleted with a summary of what changes
+4. Wait for the user to explicitly confirm the plan before executing any modifications
+5. Only after receiving approval, proceed with the planned changes in order`;
+  }
 
   if (memoryBlock) {
     prompt += `\n\n${memoryBlock}`;
@@ -125,6 +140,26 @@ export async function runAgent(rl, config, encKey, opts = {}) {
   // Track file changes for /undo and /diff
   const sessionChanges = [];
 
+  // Agent mode: accept (default), build (auto-approve), plan (plan first)
+  let agentMode = "accept";
+
+  // Intercept Shift+Tab to cycle agent mode
+  const originalTtyWrite = rl._ttyWrite?.bind(rl);
+  if (originalTtyWrite) {
+    rl._ttyWrite = function (s, key) {
+      if (key && key.name === "tab" && key.shift) {
+        const idx = MODES.indexOf(agentMode);
+        agentMode = MODES[(idx + 1) % MODES.length];
+        const color = MODE_COLORS[agentMode];
+        const label = MODE_LABELS[agentMode];
+        process.stdout.write(`\r\x1b[2K  ${color}● ${label} Mode${RESET}\n`);
+        rl._refreshLine();
+        return;
+      }
+      return originalTtyWrite(s, key);
+    };
+  }
+
   // Ask function using rl
   const ask = (prompt) => new Promise((resolve) => rl.question(prompt, resolve));
 
@@ -139,7 +174,9 @@ export async function runAgent(rl, config, encKey, opts = {}) {
   while (true) {
     // Show prompt
     const modelName = config.modelNickname?.[config.selectedModel] || config.selectedModel || "no model";
-    const promptStr = `\n  ${ORANGE}${config.profileName || "You"}${RESET} ${DIM}[${modelName}]${RESET} ${BOLD}>${RESET} `;
+    const modeColor = MODE_COLORS[agentMode];
+    const modeLabel = MODE_LABELS[agentMode];
+    const promptStr = `\n  ${ORANGE}${config.profileName || "You"}${RESET} ${DIM}[${modelName}]${RESET} ${modeColor}(${modeLabel})${RESET} ${BOLD}>${RESET} `;
 
     let userInput;
     try {
@@ -158,6 +195,8 @@ export async function runAgent(rl, config, encKey, opts = {}) {
         memory,
         sessionChanges,
         conversationId,
+        getMode: () => agentMode,
+        setMode: (m) => { agentMode = m; },
       });
       if (result?.exit) break;
       if (result?.handled) continue;
@@ -171,7 +210,7 @@ export async function runAgent(rl, config, encKey, opts = {}) {
     if (config.memoryEnabled && !opts.noMemory) {
       memoryBlock = memory.buildMemoryBlock(trimmed, projectRoot);
     }
-    const systemPrompt = buildSystemPrompt(config, projectRoot, memoryBlock, projectContext);
+    const systemPrompt = buildSystemPrompt(config, projectRoot, memoryBlock, projectContext, agentMode);
 
     // Get provider
     const { provider, providerName, formatAssistantToolUse, formatToolResult } = getProviderForModel(config);
@@ -262,7 +301,7 @@ export async function runAgent(rl, config, encKey, opts = {}) {
           }
 
           // Check confirmation
-          if (requireConfirmation(tool, tc.arguments, config)) {
+          if (requireConfirmation(tool, tc.arguments, config, agentMode)) {
             const approved = await promptConfirmation(tool, tc.arguments, config);
             if (!approved) {
               const msg = "User denied this action.";
