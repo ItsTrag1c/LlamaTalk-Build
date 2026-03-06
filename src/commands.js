@@ -1,7 +1,9 @@
 import { saveConfig, saveConfigWithKey, getMemoryDir } from "./config.js";
 import { detectBackend, getAllLocalModels, getOllamaModels, getOpenAICompatModels, CLOUD_MODELS } from "./providers/router.js";
-import { writeFileSync, readFileSync, existsSync, unlinkSync } from "fs";
-import { join, relative } from "path";
+import { writeFileSync, readFileSync, existsSync, unlinkSync, mkdtempSync, rmSync, copyFileSync, renameSync } from "fs";
+import { join, relative, dirname } from "path";
+import { execSync } from "child_process";
+import { tmpdir } from "os";
 import {
   ORANGE, RED, GREEN, YELLOW, DIM, BOLD, RESET,
   printError, askMasked,
@@ -41,6 +43,7 @@ ${ORANGE}/set temp <0.0-1.0>${RESET}      Set temperature
 ${ORANGE}/set pin${RESET}                 Set or change PIN
 ${ORANGE}/trust${RESET}                   Toggle auto-approve for session
 ${ORANGE}/compact${RESET}                 Toggle compact output
+${ORANGE}/update${RESET}                   Pull latest & rebuild from GitHub
 ${ORANGE}/quit${RESET} ${ORANGE}/exit${RESET}              Exit
 `);
       return { handled: true };
@@ -244,6 +247,10 @@ ${BOLD}Settings${RESET}
       return { handled: true };
     }
 
+    case "/update": {
+      return await handleUpdate(version);
+    }
+
     case "/set": {
       return await handleSet(args, config, rl, encKey);
     }
@@ -253,6 +260,112 @@ ${BOLD}Settings${RESET}
       return { handled: true };
     }
   }
+}
+
+const REPO_URL = "https://github.com/ItsTrag1c/LlamaTalk-Build.git";
+
+async function handleUpdate(currentVersion) {
+  const isPackaged = process.execPath.endsWith(".exe") && !process.execPath.includes("node");
+  const installDir = isPackaged ? dirname(process.execPath) : null;
+
+  console.log(`\n  ${BOLD}Checking for updates...${RESET}`);
+
+  // Create temp working directory
+  const tmpDir = mkdtempSync(join(tmpdir(), "llamabuild-update-"));
+
+  try {
+    // Clone the repo
+    console.log(DIM + "  Cloning repository..." + RESET);
+    execSync(`git clone --depth 1 "${REPO_URL}" "${tmpDir}/repo"`, {
+      stdio: "pipe",
+    });
+
+    // Read remote version
+    const remotePkg = JSON.parse(readFileSync(join(tmpDir, "repo", "package.json"), "utf8"));
+    const remoteVersion = remotePkg.version;
+
+    console.log(`  Local:  v${currentVersion}`);
+    console.log(`  Remote: v${remoteVersion}`);
+
+    if (remoteVersion === currentVersion) {
+      console.log(GREEN + "\n  Already up to date." + RESET);
+      rmSync(tmpDir, { recursive: true, force: true });
+      return { handled: true };
+    }
+
+    console.log(ORANGE + `\n  New version available: v${remoteVersion}` + RESET);
+
+    // Install dependencies
+    console.log(DIM + "  Installing dependencies..." + RESET);
+    execSync("npm install", {
+      cwd: join(tmpDir, "repo"),
+      stdio: "pipe",
+    });
+
+    // Build
+    console.log(DIM + "  Building..." + RESET);
+    execSync("npm run build", {
+      cwd: join(tmpDir, "repo"),
+      stdio: "pipe",
+      timeout: 300000,
+    });
+
+    const builtExe = join(tmpDir, "repo", "dist", `LlamaTalkBuild_${remoteVersion}.exe`);
+    const builtSetup = join(tmpDir, "repo", "dist", `LlamaTalk Build_${remoteVersion}_setup.exe`);
+
+    if (!existsSync(builtExe)) {
+      console.log(RED + "  Build failed: output EXE not found." + RESET);
+      rmSync(tmpDir, { recursive: true, force: true });
+      return { handled: true };
+    }
+
+    if (isPackaged && installDir) {
+      // Replace the running EXE (rename old, copy new)
+      const currentExe = join(installDir, "LlamaTalkBuild.exe");
+      const oldExe = join(installDir, "LlamaTalkBuild.old.exe");
+
+      try {
+        // Remove previous .old if it exists
+        if (existsSync(oldExe)) unlinkSync(oldExe);
+        // Rename running EXE (Windows allows renaming a running EXE)
+        renameSync(currentExe, oldExe);
+        // Copy new EXE
+        copyFileSync(builtExe, currentExe);
+        console.log(GREEN + `  Updated EXE in ${installDir}` + RESET);
+      } catch (err) {
+        console.log(RED + `  Could not replace EXE: ${err.message}` + RESET);
+        console.log(DIM + `  Built EXE available at: ${builtExe}` + RESET);
+        return { handled: true };
+      }
+
+      // Copy installer too if it exists
+      if (existsSync(builtSetup)) {
+        const destSetup = join(installDir, `LlamaTalk Build_${remoteVersion}_setup.exe`);
+        try {
+          copyFileSync(builtSetup, destSetup);
+        } catch { /* non-critical */ }
+      }
+
+      console.log(GREEN + BOLD + `\n  Updated to v${remoteVersion}!` + RESET);
+      console.log(YELLOW + "  Please restart LlamaTalk Build to use the new version." + RESET);
+    } else {
+      // Running from source — just report that the build is ready
+      console.log(GREEN + BOLD + `\n  Built v${remoteVersion} successfully.` + RESET);
+      console.log(DIM + `  Standalone EXE: ${builtExe}` + RESET);
+      if (existsSync(builtSetup)) {
+        console.log(DIM + `  Installer:      ${builtSetup}` + RESET);
+      }
+    }
+
+    console.log("");
+  } catch (err) {
+    console.log(RED + `  Update failed: ${err.message}` + RESET);
+  } finally {
+    // Clean up temp dir (best-effort)
+    try { rmSync(tmpDir, { recursive: true, force: true }); } catch {}
+  }
+
+  return { handled: true };
 }
 
 async function handleSet(args, config, rl, encKey) {
