@@ -1,6 +1,16 @@
 # Changelog — LlamaTalk Build
 
-Last updated: 2026-03-06 (v0.5.1)
+Last updated: 2026-03-06 (v0.6.0)
+
+---
+
+## v0.6.0 — 2026-03-06
+
+### Context Management
+- **Context usage indicator** — usage line now shows context window utilization percentage after each response (e.g. `42% context`). Color-coded: dim below 80%, yellow at 80%+, red at 95%+.
+- **Automatic context compression** — when context usage exceeds 80% (configurable via `contextThreshold`), the conversation is automatically compressed: older messages are summarized and condensed so the agent can continue working without interruption.
+- **Error recovery** — if the model returns a context-length error, messages are compressed and the request is retried automatically instead of crashing.
+- **Clearing Context banner** — displays `⟳ Clearing Context` when compression is triggered so users know what's happening.
 
 ---
 

@@ -1,6 +1,6 @@
 {
   "name": "llamatalkbuild",
-  "version": "0.5.1",
+  "version": "0.6.0",
   "author": "ItsTrag1c",
   "type": "module",
   "bin": {

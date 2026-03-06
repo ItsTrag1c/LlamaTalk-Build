@@ -9,7 +9,7 @@ import { detectBackend, getAllLocalModels } from "./src/providers/router.js";
 import { printBanner } from "./src/ui/banner.js";
 import { askMasked, printShortcutHint, ORANGE, RED, RESET, BOLD, DIM } from "./src/ui/ui.js";
 
-const VERSION = "0.5.1";
+const VERSION = "0.6.0";
 
 // ---------------------------------------------------------------------------
 // CLI argument parser

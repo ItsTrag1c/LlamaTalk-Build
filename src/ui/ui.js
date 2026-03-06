@@ -109,7 +109,7 @@ export async function confirm(message) {
 
 // --- Usage display ---
 
-export function printUsage(usage, iterationCount) {
+export function printUsage(usage, iterationCount, contextPercent) {
   if (!usage) return;
   const tokens = (usage.promptTokens || 0) + (usage.outputTokens || 0);
   let tks = "";
@@ -118,7 +118,16 @@ export function printUsage(usage, iterationCount) {
     tks = ` · ${(usage.outputTokens / secs).toFixed(1)} tk/s`;
   }
   const iters = iterationCount > 0 ? ` · ${iterationCount} tool call${iterationCount > 1 ? "s" : ""}` : "";
-  process.stdout.write(`\n  ${GOLD}●${RESET}  ${DIM}${tokens.toLocaleString()} tokens${tks}${iters}${RESET}\n`);
+  let ctx = "";
+  if (contextPercent != null) {
+    const color = contextPercent >= 95 ? RED : contextPercent >= 80 ? YELLOW : DIM;
+    ctx = ` · ${color}${contextPercent}% context${RESET}${DIM}`;
+  }
+  process.stdout.write(`\n  ${GOLD}●${RESET}  ${DIM}${tokens.toLocaleString()} tokens${tks}${iters}${ctx}${RESET}\n`);
+}
+
+export function printContextClearing() {
+  process.stdout.write(`\n  ${YELLOW}⟳ Clearing Context${RESET} ${DIM}— summarizing conversation to free space${RESET}\n`);
 }
 
 // --- Error display ---

@@ -10,7 +10,7 @@ import { saveConversation } from "./config.js";
 import {
   ORANGE, RED, GREEN, YELLOW, DIM, BOLD, RESET, GOLD,
   startThinking, stopThinking,
-  printToolCall, printToolResult, printUsage, printError,
+  printToolCall, printToolResult, printUsage, printError, printContextClearing,
 } from "./ui/ui.js";
 
 // --- Agent modes ---
@@ -130,6 +130,34 @@ function startEscWatch(signal, controller) {
   };
 }
 
+/**
+ * Compress conversation messages when context is running low.
+ * Keeps the first user message and last N messages, replaces the middle
+ * with a summary message so the model retains key context.
+ */
+function compressMessages(messages, keepLast = 6) {
+  if (messages.length <= keepLast + 2) return messages; // nothing to compress
+
+  const first = messages[0]; // first user message
+  const kept = messages.slice(-keepLast);
+
+  // Gather summaries from dropped messages
+  const dropped = messages.slice(1, -keepLast);
+  const summaryParts = [];
+  for (const m of dropped) {
+    if (m.role === "user") {
+      summaryParts.push(`- User asked: ${typeof m.content === "string" ? m.content.slice(0, 150) : "[complex]"}`);
+    } else if (m.role === "assistant" && typeof m.content === "string") {
+      summaryParts.push(`- Assistant: ${m.content.slice(0, 150)}`);
+    }
+    // Skip tool results/calls in summary to save space
+  }
+
+  const summaryText = `[Context was compressed to free space. Summary of earlier conversation:\n${summaryParts.slice(0, 20).join("\n")}\n...${dropped.length} messages condensed]`;
+
+  return [first, { role: "user", content: summaryText }, { role: "assistant", content: "Understood, I have the context from our earlier conversation. Let me continue." }, ...kept];
+}
+
 export async function runAgent(rl, config, encKey, opts = {}) {
   const projectRoot = process.cwd();
   const toolRegistry = createToolRegistry();
@@ -206,8 +234,24 @@ export async function runAgent(rl, config, encKey, opts = {}) {
     // Agent loop: keep going until no more tool calls
     let iterationCount = 0;
     let lastUsage = null;
+    let contextPercent = null;
+    const contextLimit = provider.contextWindow();
+    const CONTEXT_THRESHOLD = config.contextThreshold || 80; // % at which to compress
 
     while (iterationCount < (config.maxIterations || 50)) {
+      // Check context usage and compress if needed
+      if (lastUsage && lastUsage.promptTokens > 0) {
+        contextPercent = Math.round((lastUsage.promptTokens / contextLimit) * 100);
+        if (contextPercent >= CONTEXT_THRESHOLD) {
+          printContextClearing();
+          const compressed = compressMessages(messages);
+          messages.length = 0;
+          messages.push(...compressed);
+          // Reset so we don't immediately re-compress
+          lastUsage = null;
+          contextPercent = null;
+        }
+      }
       const controller = new AbortController();
       const stopEsc = startEscWatch(controller.signal, controller);
 
@@ -249,9 +293,19 @@ export async function runAgent(rl, config, encKey, opts = {}) {
         if (controller.signal.aborted) {
           process.stdout.write(`\n${DIM}  Cancelled.${RESET}\n`);
           cancelled = true;
-        } else {
-          printError(err.message);
+          break;
         }
+        // Check if this is a context length error — compress and retry
+        const msg = (err.message || "").toLowerCase();
+        if ((msg.includes("context") || msg.includes("token") || msg.includes("length")) &&
+            (msg.includes("exceed") || msg.includes("limit") || msg.includes("too long") || msg.includes("maximum"))) {
+          printContextClearing();
+          const compressed = compressMessages(messages);
+          messages.length = 0;
+          messages.push(...compressed);
+          continue; // retry this iteration with compressed messages
+        }
+        printError(err.message);
         break;
       }
 
@@ -335,8 +389,13 @@ export async function runAgent(rl, config, encKey, opts = {}) {
       }
       process.stdout.write("\n");
 
+      // Calculate final context % for display
+      if (lastUsage && lastUsage.promptTokens > 0) {
+        contextPercent = Math.round((lastUsage.promptTokens / contextLimit) * 100);
+      }
+
       // Show usage
-      printUsage(lastUsage, iterationCount);
+      printUsage(lastUsage, iterationCount, contextPercent);
 
       break;
     }
