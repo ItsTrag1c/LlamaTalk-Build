@@ -1,0 +1,67 @@
+# Changelog — LlamaTalk Build
+
+Last updated: 2026-03-06 (v0.1.1)
+
+---
+
+## v0.1.1 — 2026-03-06
+
+### Interface
+- **"Llama Agent" response label** — agent responses now display "Llama Agent >" in orange before the streamed text, matching the user prompt style.
+- **ASCII banner fix** — fixed missing character in the large "LlamaBuild" ASCII art (second `a` in "Llama" was incomplete).
+
+---
+
+## v0.1.0 — 2026-03-06
+
+Initial release of LlamaTalk Build, the agentic coding assistant for the LlamaTalk Suite.
+
+### Agent
+- **ReAct-style agent loop** — iterative reason-and-act cycle: LLM reasons about the task, calls tools, observes results, and repeats until the task is complete or a text-only response is given.
+- **12 built-in tools** — read_file, write_file, edit_file, list_directory, search_files, glob_files, bash, git, web_fetch, web_search, npm_install, pip_install.
+- **3-tier safety system** — tools classified as Safe (auto-approved), Moderate (confirm unless auto-approve enabled), or Dangerous (always confirm unless `--trust` flag is set). Confirmations show exactly what will happen before executing.
+- **Session change tracking** — all file modifications tracked in-session for `/undo` (restore last change) and `/diff` (list all changes).
+
+### Providers
+- **Multi-provider support** — Ollama, llama.cpp, LM Studio, vLLM, Anthropic Claude, Google Gemini, and OpenAI.
+- **Native tool-calling** — each provider adapter handles its own streaming format and tool-call protocol (Anthropic SSE tool_use blocks, OpenAI SSE delta.tool_calls, Ollama NDJSON, Gemini SSE functionCall).
+- **XML prompt fallback** — models without native tool support get tool descriptions injected into the system prompt as XML; tool calls parsed from `<tool_call>` blocks in text output.
+- **Multi-server aggregation** — connect to multiple local model servers simultaneously; models auto-discovered and routed to the correct server.
+- **Auto-detect running model** — on startup, queries backends for the currently loaded model and selects it automatically.
+
+### Memory
+- **Persistent memory system** — global `MEMORY.md` (always loaded), topic `.md` files (keyword-matched against user messages), and per-project `.llamabuild.md` (auto-loaded from working directory).
+- **Keyword-based retrieval** — extracts keywords from user input, scores topic files by filename and header relevance, injects top 3 matches into system prompt.
+- **Memory commands** — `/memory` shows status, `/memory list` shows all files, `/memory save <topic>` creates a new topic file.
+
+### Security
+- **PIN login** — optional PIN with PBKDF2 hashing (100k iterations, random salt).
+- **AES-256-GCM encryption** — API keys encrypted at rest in config, decrypted in-memory after PIN entry.
+- **Path traversal prevention** — all file tools validate paths don't escape the project root; symlinks checked.
+- **Destructive command blocking** — bash tool blocks dangerous commands (`rm -rf /`, `format`, `shutdown`, etc.).
+- **Link-local IP blocking** — server URLs validated against 169.254.x.x and other unsafe addresses.
+
+### Interface
+- **Interactive REPL** — readline-based prompt with conversation history.
+- **Streaming responses** — token-by-token display from all providers.
+- **Slash commands** — `/help`, `/model`, `/models`, `/settings`, `/tools`, `/context`, `/memory`, `/undo`, `/diff`, `/trust`, `/compact`, `/clear`, `/set`, `/quit`.
+- **First-run onboarding** — interactive wizard for name, PIN, server URL, cloud API keys, and model selection.
+- **ASCII banner** — auto-centered "LlamaBuild" banner with large/small variants based on terminal width.
+
+### Build
+- **Standalone Windows EXE** — esbuild bundles to CJS, pkg compiles to ~36 MB EXE (node18-win-x64). No runtime dependencies required.
+- **CLI flags** — `--version`, `--help`, `--model`, `--continue`, `--compact`, `--no-memory`, `--no-banner`, `--trust`.
+
+---
+
+## Upcoming
+
+- Conversation persistence across sessions
+- Esc cancellation during generation
+- Token counting and TK/S display
+- Context window management and truncation
+- macOS / Linux support
+
+---
+
+Last updated: 2026-03-06 (v0.1.1)

@@ -1,0 +1,159 @@
+import { readFileSync, writeFileSync, readdirSync, existsSync, mkdirSync } from "fs";
+import { join, basename, extname } from "path";
+import { getMemoryDir } from "../config.js";
+
+const STOPWORDS = new Set([
+  "the", "a", "an", "is", "are", "was", "were", "be", "been", "being",
+  "have", "has", "had", "do", "does", "did", "will", "would", "could",
+  "should", "may", "might", "can", "shall", "to", "of", "in", "for",
+  "on", "with", "at", "by", "from", "as", "into", "through", "during",
+  "before", "after", "above", "below", "between", "and", "but", "or",
+  "not", "no", "all", "each", "every", "both", "few", "more", "most",
+  "other", "some", "such", "than", "too", "very", "just", "about",
+  "if", "then", "so", "because", "while", "although", "this", "that",
+  "these", "those", "it", "its", "my", "your", "our", "their", "his",
+  "her", "i", "me", "we", "you", "he", "she", "they", "them", "what",
+  "which", "who", "how", "when", "where", "why", "please", "help",
+  "want", "need", "make", "get", "use", "let", "also",
+]);
+
+export class MemoryManager {
+  constructor(config) {
+    this.globalDir = getMemoryDir();
+    this.ensureDir();
+  }
+
+  ensureDir() {
+    if (!existsSync(this.globalDir)) {
+      mkdirSync(this.globalDir, { recursive: true });
+    }
+  }
+
+  /** Load the global MEMORY.md file */
+  loadGlobal() {
+    const path = join(this.globalDir, "MEMORY.md");
+    if (!existsSync(path)) return null;
+    try {
+      return readFileSync(path, "utf8");
+    } catch {
+      return null;
+    }
+  }
+
+  /** Load project-local .llamabuild.md */
+  loadProject(projectRoot) {
+    const path = join(projectRoot, ".llamabuild.md");
+    if (!existsSync(path)) return null;
+    try {
+      return readFileSync(path, "utf8");
+    } catch {
+      return null;
+    }
+  }
+
+  /** List all topic memory files (excluding MEMORY.md) */
+  listTopics() {
+    try {
+      return readdirSync(this.globalDir)
+        .filter((f) => f.endsWith(".md") && f !== "MEMORY.md")
+        .map((f) => f.replace(/\.md$/, ""));
+    } catch {
+      return [];
+    }
+  }
+
+  /** Load a specific topic memory */
+  loadTopic(topicName) {
+    const path = join(this.globalDir, `${topicName}.md`);
+    if (!existsSync(path)) return null;
+    try {
+      return readFileSync(path, "utf8");
+    } catch {
+      return null;
+    }
+  }
+
+  /** Find relevant topic memories by keyword matching */
+  findRelevant(userMessage) {
+    const keywords = this.extractKeywords(userMessage);
+    if (keywords.length === 0) return [];
+
+    const topics = this.listTopics();
+    const scored = [];
+
+    for (const topic of topics) {
+      let score = 0;
+
+      // Match against filename
+      const topicLower = topic.toLowerCase();
+      for (const kw of keywords) {
+        if (topicLower.includes(kw)) score += 3;
+      }
+
+      // Match against first 10 lines (headers/tags)
+      const content = this.loadTopic(topic);
+      if (content) {
+        const header = content.split("\n").slice(0, 10).join(" ").toLowerCase();
+        for (const kw of keywords) {
+          if (header.includes(kw)) score += 1;
+        }
+      }
+
+      if (score > 0) {
+        scored.push({ topic, score, content });
+      }
+    }
+
+    // Sort by score, return top 3
+    scored.sort((a, b) => b.score - a.score);
+    return scored.slice(0, 3).map((s) => ({
+      topic: s.topic,
+      content: s.content,
+    }));
+  }
+
+  /** Extract keywords from a message */
+  extractKeywords(text) {
+    return text
+      .toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, " ")
+      .split(/\s+/)
+      .filter((w) => w.length > 2 && !STOPWORDS.has(w));
+  }
+
+  /** Save global memory */
+  saveGlobal(content) {
+    this.ensureDir();
+    writeFileSync(join(this.globalDir, "MEMORY.md"), content, "utf8");
+  }
+
+  /** Save a topic memory */
+  saveTopic(topicName, content) {
+    this.ensureDir();
+    writeFileSync(join(this.globalDir, `${topicName}.md`), content, "utf8");
+  }
+
+  /** Build the memory block for system prompt injection */
+  buildMemoryBlock(userMessage, projectRoot) {
+    const sections = [];
+
+    const global = this.loadGlobal();
+    if (global) {
+      sections.push(`## Global Memory\n${global}`);
+    }
+
+    const project = this.loadProject(projectRoot);
+    if (project) {
+      sections.push(`## Project Memory\n${project}`);
+    }
+
+    const relevant = this.findRelevant(userMessage);
+    if (relevant.length > 0) {
+      const topicBlock = relevant.map((r) => `### ${r.topic}\n${r.content}`).join("\n\n");
+      sections.push(`## Relevant Context\n${topicBlock}`);
+    }
+
+    if (sections.length === 0) return "";
+    return `# Memory\n\n${sections.join("\n\n")}`;
+  }
+}

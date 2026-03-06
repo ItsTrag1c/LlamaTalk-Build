@@ -1,0 +1,326 @@
+import { createInterface } from "readline";
+import { randomUUID } from "crypto";
+import { getProviderForModel } from "./providers/router.js";
+import { ToolRegistry } from "./tools/registry.js";
+import { requireConfirmation, promptConfirmation } from "./safety.js";
+import { handleCommand } from "./commands.js";
+import { MemoryManager } from "./memory/memory.js";
+import { ContextManager } from "./context/context.js";
+import { saveConversation } from "./config.js";
+import {
+  ORANGE, RED, GREEN, DIM, BOLD, RESET, GOLD,
+  startThinking, stopThinking,
+  printToolCall, printToolResult, printUsage, printError,
+} from "./ui/ui.js";
+
+// Tool imports
+import { readFileTool } from "./tools/read-file.js";
+import { writeFileTool } from "./tools/write-file.js";
+import { editFileTool } from "./tools/edit-file.js";
+import { listDirectoryTool } from "./tools/list-directory.js";
+import { searchFilesTool } from "./tools/search-files.js";
+import { globFilesTool } from "./tools/glob-files.js";
+import { bashTool } from "./tools/bash.js";
+import { gitTool } from "./tools/git.js";
+import { webFetchTool } from "./tools/web-fetch.js";
+import { webSearchTool } from "./tools/web-search.js";
+import { npmInstallTool } from "./tools/npm-install.js";
+import { pipInstallTool } from "./tools/pip-install.js";
+
+const BASE_SYSTEM_PROMPT = `You are LlamaTalk Build, an agentic coding assistant. You help users accomplish coding tasks by planning and executing multi-step operations using tools.
+
+## Behavior
+- Think step-by-step about the task before acting
+- Use tools to explore the codebase before making changes
+- Read relevant files first to understand context
+- Make targeted, minimal edits rather than rewriting entire files
+- After making changes, verify they work (run tests if available)
+- Explain what you did and why
+
+## Tool Usage
+- Use read_file to understand code before modifying it
+- Use search_files and glob_files to find relevant code
+- Use edit_file for targeted changes (preferred over write_file for existing files)
+- Use write_file only for new files or complete rewrites
+- Use bash for running tests, builds, and other commands
+- Use git for version control operations
+
+## Memory
+- When you discover user preferences, project conventions, or important patterns, consider saving them to memory for future sessions
+- You can write memory files to the memory directory using write_file
+
+## Rules
+- Never modify files outside the project root unless explicitly asked
+- Always read a file before editing it
+- When editing, use the exact text that appears in the file for old_text
+- If a tool call fails, try a different approach rather than repeating
+- Keep the user informed of what you're doing and why
+- Be concise — lead with actions, not explanations`;
+
+function buildSystemPrompt(config, projectRoot, memoryBlock, projectContext) {
+  let prompt = BASE_SYSTEM_PROMPT;
+
+  if (memoryBlock) {
+    prompt += `\n\n${memoryBlock}`;
+  }
+
+  if (projectContext) {
+    prompt += `\n\n## Project Context\n${projectContext}`;
+  }
+
+  prompt += `\n\n## Environment\n- Project root: ${projectRoot}`;
+  prompt += `\n- Platform: ${process.platform}`;
+  prompt += `\n- Date: ${new Date().toISOString().split("T")[0]}`;
+
+  return prompt;
+}
+
+function createToolRegistry() {
+  const registry = new ToolRegistry();
+  registry.register(readFileTool);
+  registry.register(writeFileTool);
+  registry.register(editFileTool);
+  registry.register(listDirectoryTool);
+  registry.register(searchFilesTool);
+  registry.register(globFilesTool);
+  registry.register(bashTool);
+  registry.register(gitTool);
+  registry.register(webFetchTool);
+  registry.register(webSearchTool);
+  registry.register(npmInstallTool);
+  registry.register(pipInstallTool);
+  return registry;
+}
+
+// --- Esc key watcher for cancellation ---
+function startEscWatch(signal, controller) {
+  const onData = (data) => {
+    if (data[0] === 0x1b) {
+      controller.abort();
+    }
+  };
+  try {
+    if (process.stdin.isTTY) {
+      process.stdin.setRawMode(true);
+      process.stdin.resume();
+      process.stdin.on("data", onData);
+    }
+  } catch { /* non-fatal */ }
+
+  return () => {
+    try {
+      process.stdin.removeListener("data", onData);
+      if (process.stdin.isTTY) process.stdin.setRawMode(false);
+    } catch { /* non-fatal */ }
+  };
+}
+
+export async function runAgent(rl, config, encKey, opts = {}) {
+  const projectRoot = process.cwd();
+  const toolRegistry = createToolRegistry();
+  const memory = new MemoryManager(config);
+  const conversationId = randomUUID();
+  const messages = []; // conversation history (internal format)
+
+  // Track file changes for /undo and /diff
+  const sessionChanges = [];
+
+  // Ask function using rl
+  const ask = (prompt) => new Promise((resolve) => rl.question(prompt, resolve));
+
+  // Detect project context
+  let projectContext = "";
+  try {
+    const { detectProjectContext } = await import("./context/context.js");
+    projectContext = detectProjectContext(projectRoot);
+  } catch { /* context detection not critical */ }
+
+  // Main interaction loop
+  while (true) {
+    // Show prompt
+    const modelName = config.modelNickname?.[config.selectedModel] || config.selectedModel || "no model";
+    const promptStr = `\n  ${ORANGE}${config.profileName || "You"}${RESET} ${DIM}[${modelName}]${RESET} ${BOLD}>${RESET} `;
+
+    let userInput;
+    try {
+      userInput = await ask(promptStr);
+    } catch {
+      break; // readline closed
+    }
+
+    if (!userInput?.trim()) continue;
+    const trimmed = userInput.trim();
+
+    // Handle slash commands
+    if (trimmed.startsWith("/")) {
+      const result = await handleCommand(trimmed, config, rl, messages, opts.version, encKey, {
+        toolRegistry,
+        memory,
+        sessionChanges,
+        conversationId,
+      });
+      if (result?.exit) break;
+      if (result?.handled) continue;
+    }
+
+    // Add user message
+    messages.push({ role: "user", content: trimmed });
+
+    // Build system prompt with memory injection
+    let memoryBlock = "";
+    if (config.memoryEnabled && !opts.noMemory) {
+      memoryBlock = memory.buildMemoryBlock(trimmed, projectRoot);
+    }
+    const systemPrompt = buildSystemPrompt(config, projectRoot, memoryBlock, projectContext);
+
+    // Get provider
+    const { provider, providerName, formatAssistantToolUse, formatToolResult } = getProviderForModel(config);
+
+    // Agent loop: keep going until no more tool calls
+    let iterationCount = 0;
+    let lastUsage = null;
+
+    while (iterationCount < (config.maxIterations || 50)) {
+      const controller = new AbortController();
+      const stopEsc = startEscWatch(controller.signal, controller);
+
+      if (opts.showThinking !== false && config.showThinking) {
+        startThinking();
+      }
+
+      let responseText = "";
+      const toolCalls = [];
+      let cancelled = false;
+
+      try {
+        const toolDefs = toolRegistry.getDefinitions();
+        const stream = provider.stream(messages, systemPrompt, toolDefs, controller.signal);
+
+        let firstToken = true;
+        for await (const event of stream) {
+          if (event.type === "text") {
+            if (firstToken) {
+              stopThinking();
+              process.stdout.write(`\n  ${ORANGE}Llama Agent${RESET} ${BOLD}>${RESET} `);
+              firstToken = false;
+            }
+            responseText += event.content;
+            process.stdout.write(event.content);
+          } else if (event.type === "tool_call") {
+            if (firstToken) {
+              stopThinking();
+              firstToken = false;
+            }
+            toolCalls.push(event);
+          } else if (event.type === "usage") {
+            lastUsage = event;
+          }
+        }
+      } catch (err) {
+        stopThinking();
+        stopEsc();
+        if (controller.signal.aborted) {
+          process.stdout.write(`\n${DIM}  Cancelled.${RESET}\n`);
+          cancelled = true;
+        } else {
+          printError(err.message);
+        }
+        break;
+      }
+
+      stopEsc();
+
+      if (cancelled) break;
+
+      // If there are tool calls, execute them
+      if (toolCalls.length > 0) {
+        // Add the assistant message with tool calls to history
+        messages.push(formatAssistantToolUse(responseText, toolCalls));
+
+        let allToolsExecuted = true;
+
+        for (const tc of toolCalls) {
+          const tool = toolRegistry.get(tc.name);
+          if (!tool) {
+            const errMsg = `Unknown tool: ${tc.name}`;
+            printToolResult(tc.name, false, errMsg);
+            messages.push(formatToolResult(tc.id, errMsg, tc.name));
+            continue;
+          }
+
+          // Show tool call
+          if (config.showToolCalls) {
+            printToolCall(tc.name, tc.arguments);
+          }
+
+          // Validate
+          const validation = tool.validate(tc.arguments, { projectRoot, config });
+          if (!validation.ok) {
+            printToolResult(tc.name, false, validation.error);
+            messages.push(formatToolResult(tc.id, `Error: ${validation.error}`, tc.name));
+            continue;
+          }
+
+          // Check confirmation
+          if (requireConfirmation(tool, tc.arguments, config)) {
+            const approved = await promptConfirmation(tool, tc.arguments, config);
+            if (!approved) {
+              const msg = "User denied this action.";
+              printToolResult(tc.name, false, msg);
+              messages.push(formatToolResult(tc.id, msg, tc.name));
+              allToolsExecuted = false;
+              continue;
+            }
+          }
+
+          // Execute
+          try {
+            const result = await tool.execute(tc.arguments, {
+              projectRoot,
+              config,
+              signal: controller.signal,
+              sessionChanges,
+            });
+
+            // Truncate large results
+            const truncated = result.length > 30000
+              ? result.slice(0, 30000) + `\n... [truncated, ${result.length - 30000} more chars]`
+              : result;
+
+            const summary = result.split("\n")[0].slice(0, 100);
+            printToolResult(tc.name, true, summary);
+            messages.push(formatToolResult(tc.id, truncated, tc.name));
+          } catch (err) {
+            printToolResult(tc.name, false, err.message);
+            messages.push(formatToolResult(tc.id, `Error: ${err.message}`, tc.name));
+          }
+
+          iterationCount++;
+        }
+
+        // Continue the agent loop — LLM will see tool results
+        continue;
+      }
+
+      // No tool calls — agent turn complete
+      if (responseText) {
+        messages.push({ role: "assistant", content: responseText });
+      }
+      process.stdout.write("\n");
+
+      // Show usage
+      printUsage(lastUsage, iterationCount);
+
+      break;
+    }
+
+    if (iterationCount >= (config.maxIterations || 50)) {
+      printError(`Reached maximum iterations (${config.maxIterations || 50}). Stopping.`);
+    }
+
+    // Save conversation
+    try {
+      saveConversation(conversationId, messages, encKey);
+    } catch { /* non-fatal */ }
+  }
+}
