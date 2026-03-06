@@ -1,6 +1,21 @@
 # Changelog — LlamaTalk Build
 
-Last updated: 2026-03-06 (v0.2.0)
+Last updated: 2026-03-06 (v0.3.0)
+
+---
+
+## v0.3.0 — 2026-03-06
+
+### Agent Modes
+- **Shift+Tab mode switching** — cycle between three agent modes at any time during a session:
+  - **Accept Mode** (default) — prompts to accept each change based on safety level.
+  - **Build Mode** — auto-approves all tool calls for uninterrupted execution.
+  - **Plan Mode** — agent presents a full numbered plan of all changes before executing; always confirms moderate/dangerous tools regardless of session auto-approve.
+- **`/mode` slash command** — alternative to Shift+Tab for cycling agent modes.
+- **Mode indicator in prompt** — current mode displayed inline: `You [model] (Accept) >`.
+
+### Self-Update
+- **Version-match guard on `/update`** — when the remote version matches the installed version, `/update` now reports "LlamaTalk Build vX.Y.Z is already up to date" and skips the build entirely.
 
 ---
 
