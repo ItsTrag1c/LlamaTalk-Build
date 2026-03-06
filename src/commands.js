@@ -41,7 +41,7 @@ ${ORANGE}/set api-key <provider> <key>${RESET}  Set API key
 ${ORANGE}/set provider enable|disable <p>${RESET}  Toggle provider
 ${ORANGE}/set temp <0.0-1.0>${RESET}      Set temperature
 ${ORANGE}/set pin${RESET}                 Set or change PIN
-${ORANGE}/mode${RESET}                    Cycle agent mode (Accept/Build/Plan)
+${ORANGE}/mode${RESET}                    Cycle agent mode (Auto-Accept/Build/Plan)
 ${ORANGE}/trust${RESET}                   Toggle auto-approve for session
 ${ORANGE}/compact${RESET}                 Toggle compact output
 ${ORANGE}/update${RESET}                   Pull latest & rebuild from GitHub
@@ -241,7 +241,7 @@ ${BOLD}Settings${RESET}
         return { handled: true };
       }
       const MODES = ["accept", "build", "plan"];
-      const MODE_LABELS = { accept: "Accept", build: "Build", plan: "Plan" };
+      const MODE_LABELS = { accept: "Auto-Accept", build: "Build", plan: "Plan" };
       const MODE_COLORS = { accept: ORANGE, build: GREEN, plan: YELLOW };
       const current = agent.getMode();
       const idx = MODES.indexOf(current);
@@ -364,28 +364,21 @@ async function handleUpdate(currentVersion) {
         } catch { /* non-critical */ }
       }
 
-      // Clean up old versions
+      // Clean up old versions (skip files that are locked/in use)
       try {
-        if (existsSync(oldExe)) unlinkSync(oldExe);
         // Remove old setup/standalone EXEs (not current version)
         for (const f of readdirSync(installDir)) {
+          const isOldExe = f === "LlamaTalkBuild.old.exe";
           const isOldSetup = f.startsWith("LlamaTalk Build_") && f.endsWith("_setup.exe") && !f.includes(remoteVersion);
-          const isOldStandalone = f.startsWith("LlamaTalkBuild_") && f.endsWith(".exe") && !f.includes(remoteVersion);
-          if (isOldSetup || isOldStandalone) {
-            try { unlinkSync(join(installDir, f)); } catch { /* in use or locked */ }
+          const isOldStandalone = f.startsWith("LlamaTalkBuild_") && f.endsWith(".exe") && f !== "LlamaTalkBuild.exe" && !f.includes(remoteVersion);
+          if (isOldExe || isOldSetup || isOldStandalone) {
+            try { unlinkSync(join(installDir, f)); } catch { /* in use or locked — cleaned on next launch */ }
           }
         }
       } catch { /* non-critical cleanup */ }
 
       console.log(GREEN + BOLD + `\n  Updated to v${remoteVersion}!` + RESET);
-      console.log(DIM + "  Restarting..." + RESET);
-
-      // Auto-restart with the new EXE
-      const child = spawn(currentExe, process.argv.slice(2), {
-        stdio: "inherit",
-        detached: true,
-      });
-      child.unref();
+      console.log(DIM + "  Please restart LlamaTalk Build to use the new version." + RESET);
       process.exit(0);
     } else {
       // Running from source — just report that the build is ready

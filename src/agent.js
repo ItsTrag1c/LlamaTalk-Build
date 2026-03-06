@@ -15,7 +15,7 @@ import {
 
 // --- Agent modes ---
 const MODES = ["accept", "build", "plan"];
-const MODE_LABELS = { accept: "Accept", build: "Build", plan: "Plan" };
+const MODE_LABELS = { accept: "Auto-Accept", build: "Build", plan: "Plan" };
 const MODE_COLORS = { accept: ORANGE, build: GREEN, plan: YELLOW };
 
 // Tool imports
@@ -297,12 +297,17 @@ export async function runAgent(rl, config, encKey, opts = {}) {
         }
         // Check if this is a context length error — compress and retry
         const msg = (err.message || "").toLowerCase();
-        if ((msg.includes("context") || msg.includes("token") || msg.includes("length")) &&
-            (msg.includes("exceed") || msg.includes("limit") || msg.includes("too long") || msg.includes("maximum"))) {
+        const isContextError =
+          ((msg.includes("context") || msg.includes("token") || msg.includes("length") || msg.includes("content")) &&
+           (msg.includes("exceed") || msg.includes("limit") || msg.includes("too long") || msg.includes("maximum") || msg.includes("overflow"))) ||
+          (contextPercent != null && contextPercent >= CONTEXT_THRESHOLD);
+        if (isContextError) {
           printContextClearing();
           const compressed = compressMessages(messages);
           messages.length = 0;
           messages.push(...compressed);
+          lastUsage = null;
+          contextPercent = null;
           continue; // retry this iteration with compressed messages
         }
         printError(err.message);
@@ -396,6 +401,17 @@ export async function runAgent(rl, config, encKey, opts = {}) {
 
       // Show usage
       printUsage(lastUsage, iterationCount, contextPercent);
+
+      // Plan mode: offer to proceed with the plan
+      if (agentMode === "plan") {
+        const answer = await ask(`\n  ${YELLOW}Proceed with Plan?${RESET} ${DIM}(y/n)${RESET} `);
+        if (answer.trim().toLowerCase() === "y" || answer.trim().toLowerCase() === "yes") {
+          agentMode = "build";
+          messages.push({ role: "user", content: "Proceed with the plan." });
+          console.log(`\n  ${GREEN}● Build Mode${RESET} ${DIM}— executing plan step by step${RESET}`);
+          continue;
+        }
+      }
 
       break;
     }

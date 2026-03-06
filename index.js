@@ -8,8 +8,27 @@ import { runAgent } from "./src/agent.js";
 import { detectBackend, getAllLocalModels } from "./src/providers/router.js";
 import { printBanner } from "./src/ui/banner.js";
 import { askMasked, printShortcutHint, ORANGE, RED, RESET, BOLD, DIM } from "./src/ui/ui.js";
+import { existsSync, readdirSync, unlinkSync } from "fs";
+import { dirname, join } from "path";
 
-const VERSION = "0.6.0";
+const VERSION = "0.7.0";
+
+// Clean up leftover files from previous /update (old EXEs that couldn't be deleted while running)
+function startupCleanup() {
+  try {
+    const isPackaged = process.execPath.endsWith(".exe") && !process.execPath.includes("node");
+    if (!isPackaged) return;
+    const installDir = dirname(process.execPath);
+    for (const f of readdirSync(installDir)) {
+      const isOldExe = f === "LlamaTalkBuild.old.exe";
+      const isOldStandalone = f.startsWith("LlamaTalkBuild_") && f.endsWith(".exe") && !f.includes(VERSION);
+      const isOldSetup = f.startsWith("LlamaTalk Build_") && f.endsWith("_setup.exe") && !f.includes(VERSION);
+      if (isOldExe || isOldStandalone || isOldSetup) {
+        try { unlinkSync(join(installDir, f)); } catch { /* still locked */ }
+      }
+    }
+  } catch { /* non-critical */ }
+}
 
 // ---------------------------------------------------------------------------
 // CLI argument parser
@@ -69,7 +88,7 @@ ${BOLD}Options${RESET}
 
 ${BOLD}Slash commands${RESET}
   /help       Full command reference
-  /mode       Cycle agent mode (Accept/Build/Plan)
+  /mode       Cycle agent mode (Auto-Accept/Build/Plan)
   /model      Show/switch model
   /models     List available models
   /memory     Manage memories
@@ -119,6 +138,7 @@ async function authenticate(config) {
 // Main
 // ---------------------------------------------------------------------------
 async function main() {
+  startupCleanup();
   const args = parseArgs(process.argv.slice(2));
 
   if (args.version) {

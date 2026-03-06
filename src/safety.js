@@ -56,19 +56,22 @@ export function isDestructiveCommand(command) {
 
 /**
  * Check if a tool invocation requires user confirmation.
- * agentMode: "accept" (default), "build" (auto-approve all), "plan" (always confirm writes)
+ * agentMode: "accept" (auto-accept based on config), "build" (confirm each step), "plan" (plan first, confirm writes)
  */
 export function requireConfirmation(tool, args, config, agentMode = "accept") {
-  if (agentMode === "build") return false;
-
   const level = typeof tool.safetyLevel === "function" ? tool.safetyLevel(args) : tool.safetyLevel;
+
+  if (agentMode === "build") {
+    // Build mode: confirm each plan step (moderate and dangerous operations)
+    return level === "moderate" || level === "dangerous";
+  }
 
   if (agentMode === "plan") {
     // Plan mode: always confirm moderate and dangerous, ignore session auto-approve
     return level === "moderate" || level === "dangerous";
   }
 
-  // Accept mode (default)
+  // Auto-Accept mode (default)
   if (level === "dangerous") {
     return !config.autoApprove?.dangerous;
   }

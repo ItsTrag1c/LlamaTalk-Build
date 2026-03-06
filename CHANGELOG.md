@@ -1,6 +1,22 @@
 # Changelog — LlamaTalk Build
 
-Last updated: 2026-03-06 (v0.6.0)
+Last updated: 2026-03-06 (v0.7.0)
+
+---
+
+## v0.7.0 — 2026-03-06
+
+### Agent Modes
+- **Renamed Accept mode to Auto-Accept mode** — the default mode is now labeled "Auto-Accept" in the prompt, `/mode` cycling, and help text to better describe its behavior.
+- **Plan mode "Proceed with Plan" prompt** — when the agent finishes presenting a plan in Plan mode, you're now asked "Proceed with Plan? (y/n)". Answering yes automatically switches to Build mode and begins executing the plan step by step.
+- **Build mode step-by-step confirmation** — Build mode now asks for permission before each write, edit, bash, or git operation instead of auto-approving everything. Safe read operations still auto-approve.
+
+### Context Management
+- **Improved context error handling** — when running out of context, the app now always displays "Clearing Context" and recovers automatically instead of showing an error. Broader error pattern matching ensures no provider-specific context errors slip through.
+
+### Self-Update
+- **Startup cleanup** — old `.old.exe` backups and previous versioned EXEs from prior `/update` runs are now cleaned up automatically on launch.
+- **Reliable update flow** — `/update` now exits cleanly after updating and asks the user to restart, fixing issues where the new version wasn't displayed after an in-place update on Windows.
 
 ---
 
