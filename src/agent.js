@@ -143,6 +143,14 @@ export async function runAgent(rl, config, encKey, opts = {}) {
   // Agent mode: accept (default), build (auto-approve), plan (plan first)
   let agentMode = "accept";
 
+  // Build prompt string (extracted so Shift+Tab can update it live)
+  const buildPromptStr = () => {
+    const modelName = config.modelNickname?.[config.selectedModel] || config.selectedModel || "no model";
+    const modeColor = MODE_COLORS[agentMode];
+    const modeLabel = MODE_LABELS[agentMode];
+    return `\n  ${ORANGE}${config.profileName || "You"}${RESET} ${DIM}[${modelName}]${RESET} ${modeColor}(${modeLabel})${RESET} ${BOLD}>${RESET} `;
+  };
+
   // Intercept Shift+Tab to cycle agent mode
   const originalTtyWrite = rl._ttyWrite?.bind(rl);
   if (originalTtyWrite) {
@@ -153,6 +161,7 @@ export async function runAgent(rl, config, encKey, opts = {}) {
         const color = MODE_COLORS[agentMode];
         const label = MODE_LABELS[agentMode];
         process.stdout.write(`\r\x1b[2K  ${color}● ${label} Mode${RESET}\n`);
+        rl.setPrompt(buildPromptStr());
         rl._refreshLine();
         return;
       }
@@ -173,10 +182,7 @@ export async function runAgent(rl, config, encKey, opts = {}) {
   // Main interaction loop
   while (true) {
     // Show prompt
-    const modelName = config.modelNickname?.[config.selectedModel] || config.selectedModel || "no model";
-    const modeColor = MODE_COLORS[agentMode];
-    const modeLabel = MODE_LABELS[agentMode];
-    const promptStr = `\n  ${ORANGE}${config.profileName || "You"}${RESET} ${DIM}[${modelName}]${RESET} ${modeColor}(${modeLabel})${RESET} ${BOLD}>${RESET} `;
+    const promptStr = buildPromptStr();
 
     let userInput;
     try {

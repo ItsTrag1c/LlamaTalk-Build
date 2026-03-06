@@ -1,6 +1,16 @@
 # Changelog — LlamaTalk Build
 
-Last updated: 2026-03-06 (v0.3.0)
+Last updated: 2026-03-06 (v0.4.0)
+
+---
+
+## v0.4.0 — 2026-03-06
+
+### Install
+- **PowerShell one-liner install** — `install.ps1` added to repo root; queries GitHub API for latest release, downloads standalone EXE to `$HOME\LlamaTalkBuild\`, writes `llamabuild.cmd`, adds to user PATH; no admin rights needed. README updated with `irm .../install.ps1 | iex` as primary install method.
+
+### Bug Fixes
+- **Fixed Shift+Tab mode not updating prompt** — Shift+Tab cycled the internal mode variable but the displayed prompt still showed the old mode. Now calls `rl.setPrompt()` with the rebuilt prompt string so the mode label updates immediately in the input line.
 
 ---
 
@@ -89,4 +99,4 @@ Initial release of LlamaTalk Build, the agentic coding assistant for the LlamaTa
 
 ---
 
-Last updated: 2026-03-06 (v0.2.0)
+Last updated: 2026-03-06 (v0.4.0)

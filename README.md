@@ -6,6 +6,28 @@ LlamaTalk Build is a standalone Windows terminal app that uses a ReAct-style age
 
 ---
 
+## Install
+
+```powershell
+irm https://raw.githubusercontent.com/ItsTrag1c/LlamaTalk-Build/master/install.ps1 | iex
+```
+
+Run this in PowerShell to download and install the latest release. Open a new terminal and type `llamabuild`.
+
+---
+
+## Download
+
+**[→ Latest Release](https://github.com/ItsTrag1c/LlamaTalk-Build/releases/latest)**
+
+| File | Description |
+|------|-------------|
+| `LlamaTalk Build_x.y.z_setup.exe` | Windows installer — installs to Program Files, adds `llamabuild` to PATH |
+| `LlamaTalkBuild_x.y.z.exe` | Standalone EXE — run anywhere, no admin rights needed |
+| `checksums.txt` | SHA-256 checksums for verification |
+
+---
+
 ## Features
 
 - **ReAct agent loop** — iterative reason-and-act cycle with streaming + tool calling
