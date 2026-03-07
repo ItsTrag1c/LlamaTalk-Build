@@ -1,4 +1,6 @@
-import { hashPin, generateEncKeySalt, deriveEncKey } from "./config.js";
+import { existsSync, mkdirSync, writeFileSync } from "fs";
+import { join } from "path";
+import { hashPin, generateEncKeySalt, deriveEncKey, getMemoryDir } from "./config.js";
 import { detectBackend, getOllamaModels, getOpenAICompatModels, CLOUD_MODELS } from "./providers/router.js";
 import { printBanner } from "./ui/banner.js";
 import { ORANGE, GREEN, YELLOW, RED, RESET, BOLD, DIM } from "./ui/ui.js";
@@ -126,10 +128,21 @@ export async function runOnboarding(rl, config) {
     console.log(GREEN + `\n  Default model set to: ${config.selectedModel}` + RESET + "\n");
   }
 
-  // Step 7: Explain memory system
+  // Step 7: Set up memory system
   console.log(BOLD + "Memory system:" + RESET);
+  const memDir = getMemoryDir();
+  if (!existsSync(memDir)) {
+    mkdirSync(memDir, { recursive: true });
+  }
+  const memFile = join(memDir, "MEMORY.md");
+  if (!existsSync(memFile)) {
+    const defaultMemory = `# Memory\n\n## User\n- Name: ${config.profileName}\n\n## Preferences\n(The agent will save your preferences here as it learns them.)\n\n## Projects\n(Project-specific notes will be saved here.)\n`;
+    writeFileSync(memFile, defaultMemory, "utf8");
+    console.log(GREEN + "  Memory initialized!" + RESET);
+  } else {
+    console.log(GREEN + "  Memory already set up." + RESET);
+  }
   console.log(DIM + "  LlamaTalk Build remembers your preferences and patterns across sessions." + RESET);
-  console.log(DIM + "  Memories are stored as .md files in your config directory." + RESET);
   console.log(DIM + "  Use /memory to manage memories.\n" + RESET);
 
   // Done

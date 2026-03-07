@@ -1,6 +1,16 @@
 # Changelog — LlamaTalk Build
 
-Last updated: 2026-03-06 (v0.9.4)
+Last updated: 2026-03-06 (v0.9.5)
+
+---
+
+## v0.9.5 — 2026-03-06
+
+### System Prompt
+- **Rewritten base system prompt** — the agent's system prompt now provides a clear tool reference with descriptions and parameter signatures, along with concise behavioral rules. Replaces the previous generic prompt with a more direct, tool-focused style.
+
+### Memory
+- **Auto-create memory on first run** — onboarding now creates the memory directory and a starter `MEMORY.md` file pre-filled with the user's name. Existing users who skipped onboarding also get memory bootstrapped automatically on next session start.
 
 ---
 
@@ -205,4 +215,4 @@ Initial release of LlamaTalk Build, the agentic coding assistant for the LlamaTa
 
 ---
 
-Last updated: 2026-03-06 (v0.9.4)
+Last updated: 2026-03-06 (v0.9.5)

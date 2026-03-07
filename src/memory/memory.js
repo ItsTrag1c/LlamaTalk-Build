@@ -27,6 +27,11 @@ export class MemoryManager {
     if (!existsSync(this.globalDir)) {
       mkdirSync(this.globalDir, { recursive: true });
     }
+    // Ensure MEMORY.md exists for existing users who never ran onboarding with memory setup
+    const memFile = join(this.globalDir, "MEMORY.md");
+    if (!existsSync(memFile)) {
+      writeFileSync(memFile, "# Memory\n\n## Preferences\n(The agent will save your preferences here as it learns them.)\n\n## Projects\n(Project-specific notes will be saved here.)\n", "utf8");
+    }
   }
 
   /** Load the global MEMORY.md file */
