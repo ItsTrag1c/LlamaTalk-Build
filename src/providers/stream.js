@@ -66,11 +66,20 @@ export function streamRequest(url, options, signal = null) {
   return new Promise((resolve, reject) => {
     const parsed = new URL(url);
     const reqFn = parsed.protocol === "https:" ? httpsRequest : httpRequest;
+
+    // Connection timeout: 30s for cloud APIs, 10s for local
+    const isCloud = parsed.protocol === "https:" && !parsed.hostname.match(/^(localhost|127\.)/);
+    const connectTimeout = isCloud ? 30000 : 10000;
+    const timer = setTimeout(() => {
+      req.destroy(new Error(`Connection timeout after ${connectTimeout / 1000}s`));
+    }, connectTimeout);
+
     const req = reqFn(url, {
       method: options.method || "GET",
       headers: options.headers || {},
       signal,
     }, (res) => {
+      clearTimeout(timer);
       if (res.statusCode >= 200 && res.statusCode < 300) {
         resolve(res);
       } else {
@@ -80,7 +89,10 @@ export function streamRequest(url, options, signal = null) {
         res.on("error", reject);
       }
     });
-    req.on("error", reject);
+    req.on("error", (err) => {
+      clearTimeout(timer);
+      reject(err);
+    });
     if (options.body) req.write(options.body);
     req.end();
   });

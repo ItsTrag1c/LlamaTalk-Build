@@ -85,6 +85,7 @@ export class OpenAIProvider extends BaseProvider {
     let usage = null;
     // Accumulate tool calls across chunks
     const toolCallAccum = {}; // index -> { id, name, arguments }
+    let toolCallsEmitted = false;
 
     for await (const line of streamLines(res)) {
       if (signal?.aborted) break;
@@ -113,15 +114,17 @@ export class OpenAIProvider extends BaseProvider {
           }
         }
 
-        // Emit accumulated tool calls when finish_reason is "tool_calls"
-        if (choice?.finish_reason === "tool_calls" || choice?.finish_reason === "stop") {
+        // Emit accumulated tool calls on finish_reason (handle all known values)
+        const fr = choice?.finish_reason;
+        if (fr === "tool_calls" || fr === "function_call" || fr === "stop") {
           for (const [, tc] of Object.entries(toolCallAccum)) {
             if (tc.name) {
               let args = {};
               try { args = JSON.parse(tc.arguments); } catch { /* empty */ }
-              yield { type: "tool_call", id: tc.id, name: tc.name, arguments: args };
+              yield { type: "tool_call", id: tc.id || `openai_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`, name: tc.name, arguments: args };
             }
           }
+          toolCallsEmitted = true;
         }
 
         if (obj.usage) {
@@ -131,6 +134,17 @@ export class OpenAIProvider extends BaseProvider {
           };
         }
       } catch { /* skip */ }
+    }
+
+    // Safety net: emit any remaining unemitted tool calls (some APIs end stream without finish_reason)
+    if (!toolCallsEmitted) {
+      for (const [, tc] of Object.entries(toolCallAccum)) {
+        if (tc.name) {
+          let args = {};
+          try { args = JSON.parse(tc.arguments); } catch { /* empty */ }
+          yield { type: "tool_call", id: tc.id || `openai_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`, name: tc.name, arguments: args };
+        }
+      }
     }
 
     if (usage) yield { type: "usage", ...usage };

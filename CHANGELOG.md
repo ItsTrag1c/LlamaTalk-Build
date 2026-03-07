@@ -1,6 +1,18 @@
 # Changelog — LlamaTalk Build
 
-Last updated: 2026-03-06 (v0.9.13)
+Last updated: 2026-03-06 (v0.9.14)
+
+---
+
+## v0.9.14 — 2026-03-06
+
+### Bug Fixes
+- **Fixed cloud models stuck on write tasks** — multiple provider-level bugs prevented tool calls from working reliably with cloud APIs:
+  - **OpenAI/OpenCode:** tool calls accumulated during streaming were only emitted on specific `finish_reason` values. APIs that used different values (e.g., `"function_call"`) or ended the stream without an explicit finish_reason caused tool calls to be silently lost — the model appeared to do nothing. Added fallback emission after stream ends and support for all known finish_reason values. Also generates fallback IDs when the API omits tool call IDs.
+  - **Anthropic:** multiple tool results from the same turn created consecutive `user` messages, violating Anthropic's strict role alternation requirement. Consecutive same-role messages are now merged automatically.
+  - **Google Gemini:** assistant messages with function calls were serialized as JSON text instead of proper Gemini `functionCall` parts, causing the model to lose tool call history on follow-up requests. Fixed to preserve native Gemini parts structure. Also merges consecutive same-role messages.
+- **Fixed infinite context compression loop** — if an API returned a context-length error but messages were too few to compress, the agent would retry the same failing request indefinitely. Now breaks with a helpful message if compression cannot reduce the conversation further.
+- **Added connection timeout for API calls** — streaming HTTP requests to cloud APIs now time out after 30 seconds if no connection is established (10 seconds for local servers), preventing indefinite hangs.
 
 ---
 

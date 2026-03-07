@@ -58,11 +58,14 @@ export class GoogleProvider extends BaseProvider {
     const temperature = this.config.temperature ?? 0.7;
 
     // Convert messages to Gemini format
+    // Gemini requires role alternation (user/model). Multiple tool results must be merged.
     const contents = [];
     for (const m of messages) {
       if (m.role === "system") continue;
+
+      let converted;
       if (m.role === "tool_result") {
-        contents.push({
+        converted = {
           role: "user",
           parts: [{
             functionResponse: {
@@ -70,12 +73,23 @@ export class GoogleProvider extends BaseProvider {
               response: { result: typeof m.content === "string" ? m.content : JSON.stringify(m.content) },
             },
           }],
-        });
+        };
+      } else if (m.role === "assistant" && m._geminiParts) {
+        // Reconstruct model message with proper function call parts
+        converted = { role: "model", parts: m._geminiParts };
       } else {
-        contents.push({
+        converted = {
           role: m.role === "assistant" ? "model" : "user",
           parts: [{ text: typeof m.content === "string" ? m.content : JSON.stringify(m.content) }],
-        });
+        };
+      }
+
+      // Merge consecutive same-role messages (required by Gemini API)
+      const last = contents[contents.length - 1];
+      if (last && last.role === converted.role) {
+        last.parts = [...last.parts, ...converted.parts];
+      } else {
+        contents.push(converted);
       }
     }
 
@@ -135,7 +149,8 @@ export class GoogleProvider extends BaseProvider {
     for (const tc of toolCalls) {
       parts.push({ functionCall: { name: tc.name, args: tc.arguments } });
     }
-    return { role: "assistant", content: JSON.stringify(parts) };
+    // Store parts array for proper reconstruction in stream() via _geminiParts
+    return { role: "assistant", content: text || "", _geminiParts: parts };
   }
 
   static formatToolResult(toolCallId, result, toolName) {

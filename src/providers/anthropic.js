@@ -28,17 +28,34 @@ export class AnthropicProvider extends BaseProvider {
     const temperature = this.config.temperature ?? 0.7;
 
     // Convert messages to Anthropic format
+    // Anthropic requires strict role alternation (user/assistant).
+    // Multiple tool results from the same turn must be merged into one user message.
     const anthropicMessages = [];
     for (const m of messages) {
       if (m.role === "system") continue;
+
+      let converted;
       if (m.role === "tool_result") {
-        // Tool results go as user messages with tool_result content blocks
-        anthropicMessages.push({
+        converted = {
           role: "user",
           content: Array.isArray(m.content) ? m.content : [{ type: "tool_result", tool_use_id: m.tool_use_id, content: m.content }],
-        });
+        };
+      } else if (m.role === "user" && Array.isArray(m.content) && m.content[0]?.type === "tool_result") {
+        // Already-formatted tool result (from formatToolResult)
+        converted = m;
       } else {
-        anthropicMessages.push({ role: m.role, content: m.content });
+        converted = { role: m.role, content: m.content };
+      }
+
+      // Merge consecutive same-role messages (required by Anthropic API)
+      const last = anthropicMessages[anthropicMessages.length - 1];
+      if (last && last.role === converted.role) {
+        // Merge content arrays
+        const lastContent = Array.isArray(last.content) ? last.content : [{ type: "text", text: last.content }];
+        const newContent = Array.isArray(converted.content) ? converted.content : [{ type: "text", text: converted.content }];
+        last.content = [...lastContent, ...newContent];
+      } else {
+        anthropicMessages.push(converted);
       }
     }
 

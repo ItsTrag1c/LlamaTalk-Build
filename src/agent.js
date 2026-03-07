@@ -403,13 +403,17 @@ export async function runAgent(rl, config, encKey, opts = {}) {
            (msg.includes("exceed") || msg.includes("limit") || msg.includes("too long") || msg.includes("maximum") || msg.includes("overflow"))) ||
           (contextPercent != null && contextPercent >= CONTEXT_THRESHOLD);
         if (isContextError) {
+          const prevLen = messages.length;
           printContextClearing();
           const compressed = compressMessages(messages);
           messages.length = 0;
           messages.push(...compressed);
           lastUsage = null;
           contextPercent = null;
-          continue; // retry this iteration with compressed messages
+          // Only retry if compression actually reduced messages; otherwise break to avoid infinite loop
+          if (compressed.length < prevLen) continue;
+          printError("Unable to reduce context further. Try /clear and start fresh.");
+          break;
         }
         printError(err.message);
         break;
