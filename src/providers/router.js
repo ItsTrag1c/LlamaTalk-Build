@@ -119,10 +119,10 @@ export async function detectBackend(url) {
   } catch { /* try next */ }
 
   if (looksOllama) {
-    try {
-      const res = await fetchWithTimeout(`${base}/v1/models`, {}, 10_000);
-      if (res.ok) return "openai-compatible";
-    } catch { /* fall through to ollama */ }
+    // Always use native Ollama provider — it properly checks supportsTools()
+    // and falls back to PromptFallbackProvider for models without native tool calling.
+    // Modern Ollama exposes /v1/models too, but routing through OpenAIProvider
+    // bypasses the tool capability check and breaks models without function calling.
     return "ollama";
   }
 

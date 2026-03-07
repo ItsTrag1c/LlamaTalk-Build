@@ -1,6 +1,14 @@
 # Changelog — LlamaTalk Build
 
-Last updated: 2026-03-06 (v0.9.1)
+Last updated: 2026-03-06 (v0.9.2)
+
+---
+
+## v0.9.2 — 2026-03-06
+
+### Bug Fixes
+- **Fixed agent not using tools** — resolved a backend detection issue where modern Ollama servers (which expose `/v1/models`) were misclassified as "openai-compatible." This bypassed the tool capability check and prompt fallback, causing models without native function calling to ignore tools entirely and respond as plain text instead of using the agent loop.
+- **Fixed crash on "always" approval** — selecting "always" at a tool confirmation prompt would crash the session with a TypeError if auto-approve settings hadn't been initialized yet. The approval state is now properly initialized before use.
 
 ---
 

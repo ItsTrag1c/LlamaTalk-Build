@@ -85,6 +85,7 @@ export async function promptConfirmation(tool, args, config, rl, agentMode) {
 
   if (result === "always") {
     // Remember approval for this safety level for the session
+    if (!config.autoApprove) config.autoApprove = {};
     const level = typeof tool.safetyLevel === "function" ? tool.safetyLevel(args) : tool.safetyLevel;
     if (level === "moderate") config.autoApprove.moderate = true;
     if (level === "dangerous") config.autoApprove.dangerous = true;
