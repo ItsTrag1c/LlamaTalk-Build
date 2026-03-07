@@ -6,6 +6,11 @@ Last updated: 2026-03-07 (v2.0.0)
 
 ## v2.0.0 — 2026-03-07
 
+### Security (post-release patch — 2026-03-07)
+- **Shell injection prevention** — all `execSync()` calls with string interpolation replaced with `spawnSync()` using argument arrays in `read-file.js` (PDF extraction), `generate-file.js` (pandoc fallback), `npm-install.js`, and `pip-install.js`. File paths and package names are no longer interpolated into shell command strings.
+- **Package name validation hardened** — `validatePackageName()` regex version segment restricted to semver-safe characters, blocking shell metacharacters like `$()`, backticks, and semicolons.
+- **Prototype pollution guard** — `deepMerge()` in `config.js` now skips `__proto__`, `constructor`, and `prototype` keys, preventing prototype pollution via malicious config files.
+
 ### New Features
 - **Theme system** — unified theming engine (`src/ui/theme.js`) with semantic color tokens, box-drawing helpers, icon sets, and terminal-width utilities. All UI components now use consistent styling.
 - **Agent instructions** — new `/instructions` command and `instructions.js` module to discover and display project-level agent instructions from `.llamabuild/agent/*.md` and `AGENTS.md` files. Instructions are injected into the system prompt.
