@@ -5,13 +5,13 @@ import { createInterface } from "readline";
 import { loadConfig, saveConfig, isFirstRun, pinRequired, verifyPin, needsPinMigration, hashPin, generateEncKeySalt, deriveEncKey, decryptApiKeys, saveConfigWithKey } from "./src/config.js";
 import { runOnboarding } from "./src/onboarding.js";
 import { runAgent } from "./src/agent.js";
-import { detectBackend, getAllLocalModels } from "./src/providers/router.js";
+import { detectBackend, getAllLocalModels, CLOUD_MODELS } from "./src/providers/router.js";
 import { printBanner } from "./src/ui/banner.js";
 import { askMasked, printShortcutHint, ORANGE, RED, RESET, BOLD, DIM } from "./src/ui/ui.js";
 import { existsSync, readdirSync, unlinkSync } from "fs";
 import { dirname, join } from "path";
 
-const VERSION = "0.9.14";
+const VERSION = "0.9.15";
 
 // Clean up leftover files from previous /update (old EXEs that couldn't be deleted while running)
 function startupCleanup() {
@@ -211,7 +211,7 @@ async function main() {
     config.backendType = detectedBackend;
   }
 
-  // Auto-detect model on startup
+  // Auto-detect model on startup — but preserve the user's saved choice
   const userExplicitModel = !!args.model;
   if (!userExplicitModel) {
     try {
@@ -221,16 +221,25 @@ async function main() {
 
       const visible = result.allModels.filter((m) => !(config.hiddenModels || []).includes(m));
       const visibleRunning = visible.filter((m) => result.runningModels.has(m));
-      let autoDetected = null;
-      if (visibleRunning.length > 0) {
-        autoDetected = visibleRunning[0];
-      } else if (visible.length > 0) {
-        autoDetected = visible[0];
-      }
 
-      if (autoDetected && autoDetected !== config.selectedModel) {
-        config.selectedModel = autoDetected;
-        saveConfig(config);
+      // Check if the saved model is a cloud model (always available) or still present locally
+      const allCloudModels = Object.values(CLOUD_MODELS).flat();
+      const savedIsCloud = allCloudModels.includes(config.selectedModel);
+      const savedIsAvailable = visible.includes(config.selectedModel);
+
+      // Only auto-detect if there's no saved model, or if saved model is a local model that's gone
+      if (!config.selectedModel || (!savedIsCloud && !savedIsAvailable)) {
+        let autoDetected = null;
+        if (visibleRunning.length > 0) {
+          autoDetected = visibleRunning[0];
+        } else if (visible.length > 0) {
+          autoDetected = visible[0];
+        }
+
+        if (autoDetected) {
+          config.selectedModel = autoDetected;
+          saveConfig(config);
+        }
       }
     } catch { /* server not running */ }
   }

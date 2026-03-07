@@ -1,6 +1,13 @@
 # Changelog — LlamaTalk Build
 
-Last updated: 2026-03-06 (v0.9.14)
+Last updated: 2026-03-07 (v0.9.15)
+
+---
+
+## v0.9.15 — 2026-03-07
+
+### Improvements
+- **Model selection persists across restarts** — the model you choose (via `/model` or onboarding) is now preserved between sessions. Previously, startup auto-detection would always override your selection with the first available local model. Cloud models are now recognized as always-available, and local models are only replaced if they're no longer present on any connected server.
 
 ---
 
