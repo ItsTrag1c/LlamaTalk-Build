@@ -24,7 +24,8 @@ const DEFAULTS = {
   apiKey_anthropic: "",
   apiKey_google: "",
   apiKey_openai: "",
-  enabledProviders: { anthropic: false, google: false, openai: false },
+  apiKey_opencode: "",
+  enabledProviders: { anthropic: false, google: false, openai: false, opencode: false },
 
   // Agent-specific settings
   maxIterations: 50,
@@ -133,7 +134,7 @@ export function saveConfigWithKey(config, encKey) {
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
   const toWrite = { ...config };
   if (encKey) {
-    for (const field of ["apiKey_anthropic", "apiKey_google", "apiKey_openai"]) {
+    for (const field of ["apiKey_anthropic", "apiKey_google", "apiKey_openai", "apiKey_opencode"]) {
       if (toWrite[field] && typeof toWrite[field] === "string" && toWrite[field].length > 0) {
         toWrite[field] = encryptValue(toWrite[field], encKey);
       }
@@ -146,7 +147,7 @@ export function saveConfigWithKey(config, encKey) {
 export function decryptApiKeys(config, encKey) {
   const out = { ...config };
   if (!encKey) return out;
-  for (const field of ["apiKey_anthropic", "apiKey_google", "apiKey_openai"]) {
+  for (const field of ["apiKey_anthropic", "apiKey_google", "apiKey_openai", "apiKey_opencode"]) {
     if (isEncryptedPayload(out[field])) {
       try {
         out[field] = decryptValue(out[field], encKey);

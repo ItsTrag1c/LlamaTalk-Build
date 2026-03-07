@@ -559,7 +559,7 @@ async function handleSet(args, config, rl, encKey) {
       const provider = args[1];
       const key = args[2];
       if (!provider || !key) {
-        console.log(DIM + "  Usage: /set api-key <anthropic|google|openai> <key>" + RESET);
+        console.log(DIM + "  Usage: /set api-key <anthropic|google|openai|opencode> <key>" + RESET);
         return { handled: true };
       }
       const field = `apiKey_${provider}`;

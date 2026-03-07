@@ -9,6 +9,7 @@ export const CLOUD_MODELS = {
   anthropic: ["claude-opus-4-5", "claude-sonnet-4-5", "claude-3-5-haiku-20241022"],
   google:    ["gemini-2.0-flash", "gemini-2.0-flash-lite", "gemini-1.5-pro", "gemini-1.5-flash"],
   openai:    ["gpt-4o", "gpt-4o-mini", "o1", "o3-mini"],
+  opencode:  ["claude-opus-4-6", "claude-sonnet-4-6", "gpt-5.4-pro", "gpt-5.4", "gpt-5.3-codex", "gpt-5.3-codex-spark", "gemini-3.1-pro", "gemini-3-pro", "gemini-3-flash", "minimax-m2.5", "kimi-k2.5", "big-pickle"],
 };
 
 export function getProviderName(model, config) {
@@ -54,6 +55,19 @@ export function getProviderForModel(config) {
         isCloud: true,
       }),
       providerName: "openai",
+      formatAssistantToolUse: OpenAIProvider.formatAssistantToolUse,
+      formatToolResult: OpenAIProvider.formatToolResult,
+    };
+  }
+
+  if (providerName === "opencode") {
+    return {
+      provider: new OpenAIProvider(config, {
+        baseUrl: "https://opencode.ai/zen",
+        apiKey: config.apiKey_opencode,
+        isCloud: true,
+      }),
+      providerName: "opencode",
       formatAssistantToolUse: OpenAIProvider.formatAssistantToolUse,
       formatToolResult: OpenAIProvider.formatToolResult,
     };

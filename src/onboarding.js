@@ -97,6 +97,13 @@ export async function runOnboarding(rl, config) {
       console.log(GREEN + "  OpenAI enabled." + RESET);
     }
 
+    const opencodeKey = await ask(rl, "  OpenCode API key: ");
+    if (opencodeKey.trim()) {
+      config.apiKey_opencode = opencodeKey.trim();
+      config.enabledProviders.opencode = true;
+      console.log(GREEN + "  OpenCode enabled." + RESET);
+    }
+
     console.log("");
   } else {
     console.log(DIM + "  Skipped — add keys later with /set api-key <provider> <key>\n" + RESET);
