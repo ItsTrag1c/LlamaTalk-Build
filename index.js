@@ -11,7 +11,7 @@ import { askMasked, printShortcutHint, ORANGE, RED, RESET, BOLD, DIM } from "./s
 import { existsSync, readdirSync, unlinkSync } from "fs";
 import { dirname, join } from "path";
 
-const VERSION = "0.9.5";
+const VERSION = "0.9.6";
 
 // Clean up leftover files from previous /update (old EXEs that couldn't be deleted while running)
 function startupCleanup() {
@@ -91,6 +91,8 @@ ${BOLD}Slash commands${RESET}
   /mode       Cycle agent mode (Build/Plan)
   /model      Show/switch model
   /models     List available models
+  /session    Manage sessions (list, new, load, delete)
+  /more       Show full details of last tool call(s)
   /memory     Manage memories
   /tools      List available tools
   /context    Show context usage

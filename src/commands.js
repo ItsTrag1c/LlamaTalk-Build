@@ -1,4 +1,4 @@
-import { saveConfig, saveConfigWithKey, getMemoryDir } from "./config.js";
+import { saveConfig, saveConfigWithKey, getMemoryDir, loadConversation } from "./config.js";
 import { detectBackend, getAllLocalModels, getOllamaModels, getOpenAICompatModels, CLOUD_MODELS } from "./providers/router.js";
 import { writeFileSync, readFileSync, existsSync, unlinkSync, mkdtempSync, rmSync, copyFileSync, renameSync, readdirSync } from "fs";
 import { join, relative, dirname } from "path";
@@ -6,7 +6,7 @@ import { execSync, spawn } from "child_process";
 import { tmpdir } from "os";
 import {
   ORANGE, RED, GREEN, YELLOW, DIM, BOLD, RESET,
-  printError, askMasked,
+  printError, askMasked, getLastToolCalls, printToolCallFull,
 } from "./ui/ui.js";
 import { printBanner } from "./ui/banner.js";
 
@@ -31,9 +31,15 @@ ${ORANGE}/settings${RESET}                Show current config
 ${ORANGE}/clear${RESET}                   Clear conversation history
 ${ORANGE}/tools${RESET}                   List available tools
 ${ORANGE}/context${RESET}                 Show context window usage
+${ORANGE}/more${RESET}                    Show full details of last tool call(s)
 ${ORANGE}/memory${RESET}                  Show loaded memory files
 ${ORANGE}/memory list${RESET}             List all topic memories
 ${ORANGE}/memory save <topic>${RESET}     Save a memory topic
+${ORANGE}/session${RESET}                 Show current session info
+${ORANGE}/session list${RESET}            List all saved sessions
+${ORANGE}/session new${RESET}             Start a new session
+${ORANGE}/session load <n>${RESET}        Load session by number
+${ORANGE}/session delete <n>${RESET}      Delete a session
 ${ORANGE}/undo${RESET}                    Undo the last file change
 ${ORANGE}/diff${RESET}                    Show all file changes this session
 ${ORANGE}/set server-url <url>${RESET}    Change server URL
@@ -280,6 +286,96 @@ ${BOLD}Settings${RESET}
     case "/trust": {
       config.autoApprove = { safe: true, moderate: true, dangerous: true };
       console.log(YELLOW + "  Auto-approve enabled for all tool safety levels this session." + RESET);
+      return { handled: true };
+    }
+
+    case "/more": {
+      const calls = getLastToolCalls();
+      if (calls.length === 0) {
+        console.log(DIM + "  No recent tool calls to show." + RESET);
+      } else {
+        console.log(BOLD + `\n  Last ${calls.length} tool call(s):` + RESET);
+        for (const tc of calls) {
+          printToolCallFull(tc);
+        }
+        console.log("");
+      }
+      return { handled: true };
+    }
+
+    case "/session": {
+      if (!agent?.sessionMgr) {
+        console.log(DIM + "  Session management not available." + RESET);
+        return { handled: true };
+      }
+
+      const subCmd = args[0];
+
+      if (subCmd === "list") {
+        const sessions = agent.sessionMgr.list();
+        if (sessions.length === 0) {
+          console.log(DIM + "  No saved sessions." + RESET);
+          return { handled: true };
+        }
+        console.log(BOLD + "\n  Sessions:" + RESET);
+        sessions.forEach((s, i) => {
+          const current = s.id === agent.currentSession?.id ? ` ${ORANGE}◀${RESET}` : "";
+          const date = new Date(s.lastUsed).toLocaleDateString();
+          console.log(`  ${ORANGE}${i + 1}.${RESET} ${s.title} ${DIM}(${date})${RESET}${current}`);
+        });
+        console.log("");
+        return { handled: true };
+      }
+
+      if (subCmd === "new") {
+        const title = args.slice(1).join(" ") || undefined;
+        const session = agent.sessionMgr.create(process.cwd(), title);
+        agent.switchSession(session, []);
+        console.log(GREEN + `  New session started.` + RESET);
+        return { handled: true };
+      }
+
+      if (subCmd === "load") {
+        const n = parseInt(args[1], 10);
+        const sessions = agent.sessionMgr.list();
+        if (isNaN(n) || n < 1 || n > sessions.length) {
+          console.log(RED + `  Invalid session number. Use /session list to see available sessions.` + RESET);
+          return { handled: true };
+        }
+        const session = sessions[n - 1];
+        const loaded = loadConversation(session.id, encKey);
+        agent.switchSession(session, loaded);
+        agent.sessionMgr.touch(session.id);
+        console.log(GREEN + `  Loaded: ${session.title}` + RESET + DIM + ` (${loaded.length} messages)` + RESET);
+        return { handled: true };
+      }
+
+      if (subCmd === "delete") {
+        const n = parseInt(args[1], 10);
+        const sessions = agent.sessionMgr.list();
+        if (isNaN(n) || n < 1 || n > sessions.length) {
+          console.log(RED + `  Invalid session number.` + RESET);
+          return { handled: true };
+        }
+        const session = sessions[n - 1];
+        if (session.id === agent.currentSession?.id) {
+          console.log(RED + `  Cannot delete the active session.` + RESET);
+          return { handled: true };
+        }
+        agent.sessionMgr.delete(session.id);
+        console.log(GREEN + `  Deleted: ${session.title}` + RESET);
+        return { handled: true };
+      }
+
+      // Default: show current session info
+      const s = agent.currentSession;
+      if (s) {
+        console.log(`\n  ${BOLD}Current session:${RESET}`);
+        console.log(`  Title:   ${s.title}`);
+        console.log(`  Created: ${new Date(s.created).toLocaleString()}`);
+        console.log(`  Messages: ${messages.length}`);
+        console.log("");
+      }
       return { handled: true };
     }
 

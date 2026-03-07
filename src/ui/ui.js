@@ -44,13 +44,38 @@ export function stopThinking() {
 
 // --- Tool call display ---
 
+// Store last tool calls for /more
+let _lastToolCalls = [];
+
+export function getLastToolCalls() {
+  return _lastToolCalls;
+}
+
+export function clearLastToolCalls() {
+  _lastToolCalls = [];
+}
+
 export function printToolCall(toolName, args) {
-  const summary = Object.entries(args || {})
-    .filter(([, v]) => typeof v === "string" && v.length < 80)
-    .map(([k, v]) => `${k}=${JSON.stringify(v)}`)
-    .slice(0, 3)
-    .join(", ");
-  process.stdout.write(`\n  ${ORANGE}●${RESET} ${BOLD}${toolName}${RESET}${summary ? `(${DIM}${summary}${RESET})` : ""}\n`);
+  // Store full details for /more
+  _lastToolCalls.push({ name: toolName, arguments: args });
+
+  // Compact display: tool name + brief key info
+  let brief = "";
+  if (args?.path) brief = args.path;
+  else if (args?.command) brief = args.command.length > 60 ? args.command.slice(0, 57) + "..." : args.command;
+  else if (args?.pattern) brief = args.pattern;
+
+  process.stdout.write(`\n  ${ORANGE}●${RESET} ${BOLD}${toolName}${RESET}${brief ? ` ${DIM}${brief}${RESET}` : ""}\n`);
+}
+
+export function printToolCallFull(tc) {
+  process.stdout.write(`\n  ${ORANGE}●${RESET} ${BOLD}${tc.name}${RESET}\n`);
+  for (const [k, v] of Object.entries(tc.arguments || {})) {
+    const val = typeof v === "string"
+      ? (v.length > 200 ? v.slice(0, 197) + "..." : v)
+      : JSON.stringify(v);
+    process.stdout.write(`    ${DIM}${k}:${RESET} ${val}\n`);
+  }
 }
 
 export function printToolResult(toolName, success, summary) {
@@ -58,6 +83,16 @@ export function printToolResult(toolName, success, summary) {
   const color = success ? DIM : RED;
   const trimmed = summary.length > 120 ? summary.slice(0, 117) + "..." : summary;
   process.stdout.write(`  ${icon} ${color}${trimmed}${RESET}\n`);
+}
+
+// --- Batch confirmation ---
+
+export async function confirmBatch(actions, existingRl) {
+  process.stdout.write(`\n  ${YELLOW}${actions.length} action(s) need approval:${RESET}\n`);
+  for (const a of actions) {
+    process.stdout.write(`    ${ORANGE}●${RESET} ${a}\n`);
+  }
+  return confirm("Allow all?", existingRl, { allowAlways: true });
 }
 
 // --- Diff display ---
@@ -191,7 +226,7 @@ export async function askMasked(prompt) {
 // --- Shortcut hint ---
 
 export function printShortcutHint() {
-  const hint = "Enter to send  ·  /mode to switch  ·  /sidebar  ·  Esc cancel  ·  Ctrl+C exit  ·  /help";
+  const hint = "Enter to send  ·  /mode  ·  /session  ·  /more  ·  Esc cancel  ·  Ctrl+C exit  ·  /help";
   const termWidth = process.stdout.columns || 80;
   const pad = " ".repeat(Math.max(0, Math.floor((termWidth - hint.length) / 2)));
   process.stdout.write(pad + DIM + hint + RESET + "\n");

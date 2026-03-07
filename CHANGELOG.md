@@ -1,6 +1,23 @@
 # Changelog — LlamaTalk Build
 
-Last updated: 2026-03-06 (v0.9.5)
+Last updated: 2026-03-06 (v0.9.6)
+
+---
+
+## v0.9.6 — 2026-03-06
+
+### Sessions
+- **Multiple sessions** — conversations are now tracked as named sessions. Sessions are auto-titled from the first message you send. Use `/session list` to see all saved sessions, `/session load <n>` to switch, `/session new` to start fresh, and `/session delete <n>` to clean up. The `--continue` flag loads the most recent session.
+
+### Compact Tool Display
+- **Compact tool call output** — tool calls now show a single line with the tool name and key argument (e.g., `● read_file src/index.js`) instead of full parameter dumps. Use `/more` after a response to see the full details of all tool calls from the last turn.
+
+### Batch Permissions
+- **Batch approval for tool calls** — when the agent needs to run multiple tools that require confirmation in the same turn, they're now grouped into a single prompt (e.g., "3 actions need approval: ...Allow all?") instead of asking for each one individually. Approve with "always" to auto-approve that safety level for the session.
+
+### Document Display
+- **PDF text extraction** — `read_file` now supports `.pdf` files, extracting readable text via `pdftotext` (poppler) or PowerShell fallback. Shows file size and extracted content.
+- **Binary file detection** — binary files (images, archives, executables, etc.) are identified and display a summary instead of garbled output.
 
 ---
 
@@ -215,4 +232,4 @@ Initial release of LlamaTalk Build, the agentic coding assistant for the LlamaTa
 
 ---
 
-Last updated: 2026-03-06 (v0.9.5)
+Last updated: 2026-03-06 (v0.9.6)

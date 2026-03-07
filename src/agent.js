@@ -6,11 +6,13 @@ import { requireConfirmation, promptConfirmation } from "./safety.js";
 import { handleCommand } from "./commands.js";
 import { MemoryManager } from "./memory/memory.js";
 import { ContextManager } from "./context/context.js";
-import { saveConversation, getMemoryDir } from "./config.js";
+import { saveConversation, loadConversation, getMemoryDir } from "./config.js";
+import { SessionManager } from "./sessions.js";
 import {
   ORANGE, RED, GREEN, YELLOW, DIM, BOLD, RESET, GOLD,
   startThinking, stopThinking,
   printToolCall, printToolResult, printUsage, printError, printContextClearing,
+  clearLastToolCalls, confirmBatch,
 } from "./ui/ui.js";
 import { sidebar } from "./ui/sidebar.js";
 import { SessionLog } from "./session-log.js";
@@ -190,13 +192,31 @@ export async function runAgent(rl, config, encKey, opts = {}) {
   const projectRoot = process.cwd();
   const toolRegistry = createToolRegistry();
   const memory = new MemoryManager(config);
-  const conversationId = randomUUID();
-  const messages = []; // conversation history (internal format)
+  const sessionMgr = new SessionManager();
   const sessionLog = new SessionLog(projectRoot);
   const sessionTracker = new SessionTracker(projectRoot);
 
+  // Session management: load existing or create new
+  let currentSession;
+  if (opts.continue) {
+    const latest = sessionMgr.getLatest();
+    if (latest) {
+      currentSession = latest;
+      console.log(`  ${DIM}Resuming: ${latest.title}${RESET}`);
+    }
+  }
+  if (!currentSession) {
+    currentSession = sessionMgr.create(projectRoot);
+  }
+  let conversationId = currentSession.id;
+
+  const messages = opts.continue && currentSession
+    ? loadConversation(currentSession.id, encKey)
+    : [];
+
   // Track file changes for /undo and /diff
   const sessionChanges = [];
+  let firstMessageSent = messages.length > 0;
 
   // Agent mode: build (default), plan (plan first)
   let agentMode = "build";
@@ -243,8 +263,17 @@ export async function runAgent(rl, config, encKey, opts = {}) {
         conversationId,
         sidebar,
         sessionTracker,
+        sessionMgr,
+        currentSession,
         getMode: () => agentMode,
         setMode: (m) => { agentMode = m; },
+        switchSession: (session, loadedMessages) => {
+          currentSession = session;
+          conversationId = session.id;
+          messages.length = 0;
+          messages.push(...loadedMessages);
+          firstMessageSent = loadedMessages.length > 0;
+        },
       });
       if (result?.exit) break;
       if (result?.handled) continue;
@@ -252,6 +281,12 @@ export async function runAgent(rl, config, encKey, opts = {}) {
 
     // Add user message
     messages.push({ role: "user", content: trimmed });
+
+    // Auto-title session from first message
+    if (!firstMessageSent) {
+      sessionMgr.autoTitle(conversationId, trimmed);
+      firstMessageSent = true;
+    }
 
     // Build system prompt with memory injection
     let memoryBlock = "";
@@ -360,40 +395,66 @@ export async function runAgent(rl, config, encKey, opts = {}) {
         // Add the assistant message with tool calls to history
         messages.push(formatAssistantToolUse(responseText, toolCalls));
 
-        let allToolsExecuted = true;
+        // Clear stored tool calls for /more
+        clearLastToolCalls();
 
+        // Pre-validate all tool calls and collect confirmations
+        const validated = [];
+        const needsConfirm = [];
         for (const tc of toolCalls) {
           const tool = toolRegistry.get(tc.name);
           if (!tool) {
-            const errMsg = `Unknown tool: ${tc.name}`;
-            printToolResult(tc.name, false, errMsg);
-            messages.push(formatToolResult(tc.id, errMsg, tc.name));
+            printToolResult(tc.name, false, `Unknown tool: ${tc.name}`);
+            messages.push(formatToolResult(tc.id, `Unknown tool: ${tc.name}`, tc.name));
             continue;
           }
-
-          // Show tool call
-          if (config.showToolCalls) {
-            printToolCall(tc.name, tc.arguments);
-          }
-
-          // Validate
           const validation = tool.validate(tc.arguments, { projectRoot, config });
           if (!validation.ok) {
+            if (config.showToolCalls) printToolCall(tc.name, tc.arguments);
             printToolResult(tc.name, false, validation.error);
             messages.push(formatToolResult(tc.id, `Error: ${validation.error}`, tc.name));
             continue;
           }
-
-          // Check confirmation
+          validated.push({ tc, tool });
           if (requireConfirmation(tool, tc.arguments, config, agentMode)) {
-            const approved = await promptConfirmation(tool, tc.arguments, config, rl, agentMode);
-            if (!approved) {
-              const msg = "User denied this action.";
-              printToolResult(tc.name, false, msg);
-              messages.push(formatToolResult(tc.id, msg, tc.name));
-              allToolsExecuted = false;
-              continue;
+            const desc = tool.formatConfirmation ? tool.formatConfirmation(tc.arguments) : `${tc.name}`;
+            needsConfirm.push({ tc, tool, desc });
+          }
+        }
+
+        // Batch confirmation: ask once for all pending approvals
+        let batchApproved = true;
+        if (needsConfirm.length > 0) {
+          const result = await confirmBatch(
+            needsConfirm.map((c) => c.desc),
+            rl,
+          );
+          if (result === "always") {
+            // Auto-approve the highest safety level present
+            if (!config.autoApprove) config.autoApprove = {};
+            for (const c of needsConfirm) {
+              const level = typeof c.tool.safetyLevel === "function" ? c.tool.safetyLevel(c.tc.arguments) : c.tool.safetyLevel;
+              if (level === "moderate") config.autoApprove.moderate = true;
+              if (level === "dangerous") config.autoApprove.dangerous = true;
             }
+          } else if (!result) {
+            batchApproved = false;
+          }
+        }
+
+        // Execute validated tool calls
+        for (const { tc, tool } of validated) {
+          // Show compact tool call
+          if (config.showToolCalls) {
+            printToolCall(tc.name, tc.arguments);
+          }
+
+          // Check if this tool needed confirmation and was denied
+          if (!batchApproved && needsConfirm.some((c) => c.tc.id === tc.id)) {
+            const msg = "User denied this action.";
+            printToolResult(tc.name, false, msg);
+            messages.push(formatToolResult(tc.id, msg, tc.name));
+            continue;
           }
 
           // Execute
@@ -433,13 +494,11 @@ export async function runAgent(rl, config, encKey, opts = {}) {
                 const { readFileSync } = await import("fs");
                 const filePath = resolve(projectRoot, tc.arguments.path);
                 const newContent = readFileSync(filePath, "utf8");
-                // For edits, find the old content from sessionChanges
                 const lastChange = sessionChanges[sessionChanges.length - 1];
                 const oldContent = lastChange?.oldContent || null;
                 sidebar.show(tc.arguments.path, newContent, tc.name === "edit_file" ? oldContent : null);
               } catch { /* non-fatal */ }
 
-              // Activity feed: show scrolling list of changes
               sidebar.showActivity(sessionTracker.getRecentChanges());
             }
           } catch (err) {
@@ -488,9 +547,10 @@ export async function runAgent(rl, config, encKey, opts = {}) {
       printError(`Reached maximum iterations (${config.maxIterations || 50}). Stopping.`);
     }
 
-    // Save conversation
+    // Save conversation and update session
     try {
       saveConversation(conversationId, messages, encKey);
+      sessionMgr.touch(conversationId);
     } catch { /* non-fatal */ }
 
     // Save session log (only writes if steps were recorded)
