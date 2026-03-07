@@ -14,6 +14,7 @@ import {
 } from "./ui/ui.js";
 import { sidebar } from "./ui/sidebar.js";
 import { SessionLog } from "./session-log.js";
+import { SessionTracker } from "./session-tracker.js";
 
 // --- Agent modes ---
 const MODES = ["accept", "build", "plan"];
@@ -171,6 +172,7 @@ export async function runAgent(rl, config, encKey, opts = {}) {
   const conversationId = randomUUID();
   const messages = []; // conversation history (internal format)
   const sessionLog = new SessionLog(projectRoot);
+  const sessionTracker = new SessionTracker(projectRoot);
 
   // Track file changes for /undo and /diff
   const sessionChanges = [];
@@ -219,6 +221,7 @@ export async function runAgent(rl, config, encKey, opts = {}) {
         sessionChanges,
         conversationId,
         sidebar,
+        sessionTracker,
         getMode: () => agentMode,
         setMode: (m) => { agentMode = m; },
       });
@@ -393,6 +396,15 @@ export async function runAgent(rl, config, encKey, opts = {}) {
             // Session log: record what the agent did
             sessionLog.addStep(`${tc.name}: ${summary}`);
 
+            // Track change for session-changes file
+            if (tc.arguments?.path) {
+              try {
+                const { resolve } = await import("path");
+                const absPath = resolve(projectRoot, tc.arguments.path);
+                sessionTracker.addChange(tc.name, absPath, summary);
+              } catch { /* non-fatal */ }
+            }
+
             // Sidebar: show code preview for file modifications
             if (tc.name === "write_file" || tc.name === "edit_file") {
               try {
@@ -405,6 +417,9 @@ export async function runAgent(rl, config, encKey, opts = {}) {
                 const oldContent = lastChange?.oldContent || null;
                 sidebar.show(tc.arguments.path, newContent, tc.name === "edit_file" ? oldContent : null);
               } catch { /* non-fatal */ }
+
+              // Activity feed: show scrolling list of changes
+              sidebar.showActivity(sessionTracker.getRecentChanges());
             }
           } catch (err) {
             printToolResult(tc.name, false, err.message);
@@ -460,6 +475,11 @@ export async function runAgent(rl, config, encKey, opts = {}) {
     // Save session log (only writes if steps were recorded)
     try {
       sessionLog.save();
+    } catch { /* non-fatal */ }
+
+    // Save session changes file (only writes if file modifications occurred)
+    try {
+      sessionTracker.save();
     } catch { /* non-fatal */ }
   }
 }

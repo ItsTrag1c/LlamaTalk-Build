@@ -43,6 +43,7 @@ ${ORANGE}/set temp <0.0-1.0>${RESET}      Set temperature
 ${ORANGE}/set pin${RESET}                 Set or change PIN
 ${ORANGE}/mode${RESET}                    Cycle agent mode (Auto-Accept/Build/Plan)
 ${ORANGE}/sidebar${RESET}                 Toggle code changes panel
+${ORANGE}/activity${RESET}                Toggle session activity feed
 ${ORANGE}/trust${RESET}                   Toggle auto-approve for session
 ${ORANGE}/compact${RESET}                 Toggle compact output
 ${ORANGE}/update${RESET}                   Pull latest & rebuild from GitHub
@@ -260,6 +261,19 @@ ${BOLD}Settings${RESET}
       }
       const on = agent.sidebar.toggle();
       console.log(`  ${ORANGE}● Sidebar${RESET} ${on ? GREEN + "enabled" + RESET + DIM + " — file changes will show a code preview panel" + RESET : DIM + "disabled" + RESET}`);
+      return { handled: true };
+    }
+
+    case "/activity": {
+      if (!agent?.sidebar || !agent?.sessionTracker) {
+        console.log(DIM + "  Activity feed not available." + RESET);
+        return { handled: true };
+      }
+      const on = agent.sidebar.toggleActivity();
+      console.log(`  ${ORANGE}● Activity Feed${RESET} ${on ? GREEN + "enabled" + RESET + DIM + " — file changes will show a scrolling activity panel" + RESET : DIM + "disabled" + RESET}`);
+      if (on && agent.sessionTracker.changes.length > 0) {
+        agent.sidebar.showActivity(agent.sessionTracker.getRecentChanges());
+      }
       return { handled: true };
     }
 

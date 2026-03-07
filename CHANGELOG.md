@@ -1,6 +1,16 @@
 # Changelog — LlamaTalk Build
 
-Last updated: 2026-03-06 (v0.8.0)
+Last updated: 2026-03-06 (v0.9.0)
+
+---
+
+## v0.9.0 — 2026-03-06
+
+### Session Activity Sidebar
+- **New `/activity` command** — toggles a scrolling activity feed panel that appears after each file modification. Shows a bordered timeline of all changes made in the current session with timestamps, change type icons (`+` write, `~` edit, `>` read), and file paths. Older entries scroll off the top with a summary count.
+
+### Session Changes Tracker
+- **Automatic session-changes file** — file modifications are now tracked to `session-changes-llamabuild-YYYY-MM-DD.md` in the project root. Each session appends a timestamped block listing every write and edit with file paths and summaries. The filename updates automatically when the date changes, and old date files are cleaned up. The file is only written when actual file modifications occur — read-only sessions produce no output.
 
 ---
 
@@ -159,4 +169,4 @@ Initial release of LlamaTalk Build, the agentic coding assistant for the LlamaTa
 
 ---
 
-Last updated: 2026-03-06 (v0.4.0)
+Last updated: 2026-03-06 (v0.9.0)

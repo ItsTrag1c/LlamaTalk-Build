@@ -1,16 +1,66 @@
-import { ORANGE, DIM, BOLD, RESET, GREEN, RED, YELLOW } from "./ui.js";
+import { ORANGE, DIM, BOLD, RESET, GREEN, RED, YELLOW, BLUE } from "./ui.js";
 
 const BOX = { tl: "\u256D", tr: "\u256E", bl: "\u2570", br: "\u256F", h: "\u2500", v: "\u2502" };
 
 class Sidebar {
   constructor() {
     this.enabled = false;
+    this.activityEnabled = false;
     this.maxLines = 25;
   }
 
   toggle() {
     this.enabled = !this.enabled;
     return this.enabled;
+  }
+
+  toggleActivity() {
+    this.activityEnabled = !this.activityEnabled;
+    return this.activityEnabled;
+  }
+
+  /**
+   * Render the activity feed panel showing recent session changes.
+   * @param {Array} changes - Array of { time, type, path, summary } objects
+   */
+  showActivity(changes) {
+    if (!this.activityEnabled || !changes || changes.length === 0) return;
+
+    const termWidth = process.stdout.columns || 100;
+    const panelWidth = Math.min(termWidth - 4, 90);
+    const innerWidth = panelWidth - 4;
+
+    const title = "Activity";
+    process.stdout.write(
+      `\n  ${DIM}${BOX.tl}${BOX.h}${RESET} ${BLUE}${title}${RESET} ${DIM}${BOX.h.repeat(Math.max(0, panelWidth - title.length - 5))}${BOX.tr}${RESET}\n`
+    );
+
+    // Show up to maxLines entries, most recent at bottom (scrolling effect)
+    const maxEntries = Math.min(changes.length, this.maxLines - 2);
+    const visible = changes.slice(-maxEntries);
+
+    // If there are older entries we're not showing, indicate that
+    if (changes.length > maxEntries) {
+      const omitted = changes.length - maxEntries;
+      const line = `${DIM}  ... ${omitted} earlier change${omitted > 1 ? "s" : ""} ...${RESET}`;
+      const plain = line.replace(/\x1b\[[0-9;]*m/g, "");
+      const pad = Math.max(0, innerWidth - plain.length);
+      process.stdout.write(`  ${DIM}${BOX.v}${RESET} ${line}${" ".repeat(pad)} ${DIM}${BOX.v}${RESET}\n`);
+    }
+
+    for (const change of visible) {
+      const timeStr = change.time.toISOString().split("T")[1].split(".")[0];
+      const typeColor = (change.type === "write_file" || change.type === "edit_file") ? GREEN : DIM;
+      const typeIcon = change.type === "write_file" ? "+" : change.type === "edit_file" ? "~" : ">";
+      const pathStr = change.path.length > 35 ? "..." + change.path.slice(-32) : change.path;
+
+      const line = `${DIM}${timeStr}${RESET} ${typeColor}${typeIcon}${RESET} ${ORANGE}${pathStr}${RESET}`;
+      const plain = line.replace(/\x1b\[[0-9;]*m/g, "");
+      const pad = Math.max(0, innerWidth - plain.length);
+      process.stdout.write(`  ${DIM}${BOX.v}${RESET} ${line}${" ".repeat(pad)} ${DIM}${BOX.v}${RESET}\n`);
+    }
+
+    process.stdout.write(`  ${DIM}${BOX.bl}${BOX.h.repeat(panelWidth - 2)}${BOX.br}${RESET}\n`);
   }
 
   /**
