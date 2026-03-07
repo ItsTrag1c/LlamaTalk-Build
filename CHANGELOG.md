@@ -1,6 +1,13 @@
 # Changelog — LlamaTalk Build
 
-Last updated: 2026-03-06 (v0.9.9)
+Last updated: 2026-03-06 (v0.9.10)
+
+---
+
+## v0.9.10 — 2026-03-06
+
+### Branding
+- **Renamed banner to LlamaTalkBuild** — the ASCII art banner displayed on startup now reads "LlamaTalkBuild" instead of "LlamaBuild" in both large and small variants. Terminal width threshold adjusted for the wider art.
 
 ---
 
