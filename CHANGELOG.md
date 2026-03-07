@@ -1,6 +1,13 @@
 # Changelog — LlamaTalk Build
 
-Last updated: 2026-03-06 (v0.9.2)
+Last updated: 2026-03-06 (v0.9.3)
+
+---
+
+## v0.9.3 — 2026-03-06
+
+### Bug Fixes
+- **Fixed self-update build failure** — the build scripts (`build-installer.js`, `make-changelog-pdf.js`) were excluded from the git repository by `.gitignore`, causing the self-update to fail with `MODULE_NOT_FOUND` when running `npm run build` in the temp directory. Both scripts are now tracked in git.
 
 ---
 
