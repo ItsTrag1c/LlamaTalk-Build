@@ -17,9 +17,9 @@ import { SessionLog } from "./session-log.js";
 import { SessionTracker } from "./session-tracker.js";
 
 // --- Agent modes ---
-const MODES = ["accept", "build", "plan"];
-const MODE_LABELS = { accept: "Auto-Accept", build: "Build", plan: "Plan" };
-const MODE_COLORS = { accept: ORANGE, build: GREEN, plan: YELLOW };
+const MODES = ["build", "plan"];
+const MODE_LABELS = { build: "Build", plan: "Plan" };
+const MODE_COLORS = { build: GREEN, plan: YELLOW };
 
 // Tool imports
 import { readFileTool } from "./tools/read-file.js";
@@ -177,8 +177,8 @@ export async function runAgent(rl, config, encKey, opts = {}) {
   // Track file changes for /undo and /diff
   const sessionChanges = [];
 
-  // Agent mode: accept (default), build (auto-approve), plan (plan first)
-  let agentMode = "accept";
+  // Agent mode: build (default), plan (plan first)
+  let agentMode = "build";
 
   // Build prompt string
   const buildPromptStr = () => {

@@ -41,7 +41,7 @@ ${ORANGE}/set api-key <provider> <key>${RESET}  Set API key
 ${ORANGE}/set provider enable|disable <p>${RESET}  Toggle provider
 ${ORANGE}/set temp <0.0-1.0>${RESET}      Set temperature
 ${ORANGE}/set pin${RESET}                 Set or change PIN
-${ORANGE}/mode${RESET}                    Cycle agent mode (Auto-Accept/Build/Plan)
+${ORANGE}/mode${RESET}                    Cycle agent mode (Build/Plan)
 ${ORANGE}/sidebar${RESET}                 Toggle code changes panel
 ${ORANGE}/activity${RESET}                Toggle session activity feed
 ${ORANGE}/trust${RESET}                   Toggle auto-approve for session
@@ -242,9 +242,9 @@ ${BOLD}Settings${RESET}
         console.log(DIM + "  Mode switching not available." + RESET);
         return { handled: true };
       }
-      const MODES = ["accept", "build", "plan"];
-      const MODE_LABELS = { accept: "Auto-Accept", build: "Build", plan: "Plan" };
-      const MODE_COLORS = { accept: ORANGE, build: GREEN, plan: YELLOW };
+      const MODES = ["build", "plan"];
+      const MODE_LABELS = { build: "Build", plan: "Plan" };
+      const MODE_COLORS = { build: GREEN, plan: YELLOW };
       const current = agent.getMode();
       const idx = MODES.indexOf(current);
       const next = MODES[(idx + 1) % MODES.length];
@@ -402,19 +402,31 @@ async function handleUpdate(currentVersion) {
         }
       } catch { /* non-critical cleanup */ }
 
-      console.log(GREEN + BOLD + `\n  Updated to v${remoteVersion}!` + RESET);
-      console.log(DIM + "  Please restart LlamaTalk Build to use the new version." + RESET);
-      process.exit(0);
+      console.log(GREEN + BOLD + `\n  ✔ Updated to v${remoteVersion}!` + RESET);
+      console.log("");
+      console.log(YELLOW + BOLD + "  What to do now:" + RESET);
+      console.log(`  ${BOLD}1.${RESET} Close this window (type ${ORANGE}/quit${RESET} or press Ctrl+C)`);
+      console.log(`  ${BOLD}2.${RESET} Reopen LlamaTalk Build`);
+      console.log("");
+      console.log(DIM + "  The new version will take effect on the next launch." + RESET);
+      console.log(DIM + `  The current session is still running v${currentVersion}.` + RESET);
+      console.log("");
     } else {
-      // Running from source — just report that the build is ready
-      console.log(GREEN + BOLD + `\n  Built v${remoteVersion} successfully.` + RESET);
+      // Running from source — pull the latest changes instead
+      console.log(GREEN + BOLD + `\n  ✔ Built v${remoteVersion} successfully.` + RESET);
       console.log(DIM + `  Standalone EXE: ${builtExe}` + RESET);
       if (existsSync(builtSetup)) {
         console.log(DIM + `  Installer:      ${builtSetup}` + RESET);
       }
+      console.log("");
+      console.log(YELLOW + BOLD + "  What to do now:" + RESET);
+      console.log(`  ${BOLD}1.${RESET} Close this session (type ${ORANGE}/quit${RESET} or press Ctrl+C)`);
+      console.log(`  ${BOLD}2.${RESET} Run ${ORANGE}git pull${RESET} in the project directory to update source`);
+      console.log(`  ${BOLD}3.${RESET} Restart LlamaTalk Build`);
+      console.log("");
+      console.log(DIM + `  The current session is still running v${currentVersion}.` + RESET);
+      console.log("");
     }
-
-    console.log("");
   } catch (err) {
     console.log(RED + `  Update failed: ${err.message}` + RESET);
   } finally {

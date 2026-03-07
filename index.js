@@ -11,7 +11,7 @@ import { askMasked, printShortcutHint, ORANGE, RED, RESET, BOLD, DIM } from "./s
 import { existsSync, readdirSync, unlinkSync } from "fs";
 import { dirname, join } from "path";
 
-const VERSION = "0.9.0";
+const VERSION = "0.9.1";
 
 // Clean up leftover files from previous /update (old EXEs that couldn't be deleted while running)
 function startupCleanup() {
@@ -88,7 +88,7 @@ ${BOLD}Options${RESET}
 
 ${BOLD}Slash commands${RESET}
   /help       Full command reference
-  /mode       Cycle agent mode (Auto-Accept/Build/Plan)
+  /mode       Cycle agent mode (Build/Plan)
   /model      Show/switch model
   /models     List available models
   /memory     Manage memories

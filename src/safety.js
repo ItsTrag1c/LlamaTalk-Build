@@ -56,22 +56,12 @@ export function isDestructiveCommand(command) {
 
 /**
  * Check if a tool invocation requires user confirmation.
- * agentMode: "accept" (auto-accept based on config), "build" (confirm each step), "plan" (plan first, confirm writes)
+ * agentMode: "build" (confirm moderate/dangerous), "plan" (plan first, confirm moderate/dangerous)
+ * /trust overrides via config.autoApprove for the session.
  */
-export function requireConfirmation(tool, args, config, agentMode = "accept") {
+export function requireConfirmation(tool, args, config, agentMode = "build") {
   const level = typeof tool.safetyLevel === "function" ? tool.safetyLevel(args) : tool.safetyLevel;
 
-  if (agentMode === "build") {
-    // Build mode: confirm each plan step (moderate and dangerous operations)
-    return level === "moderate" || level === "dangerous";
-  }
-
-  if (agentMode === "plan") {
-    // Plan mode: always confirm moderate and dangerous, ignore session auto-approve
-    return level === "moderate" || level === "dangerous";
-  }
-
-  // Auto-Accept mode (default)
   if (level === "dangerous") {
     return !config.autoApprove?.dangerous;
   }
@@ -83,15 +73,14 @@ export function requireConfirmation(tool, args, config, agentMode = "accept") {
 
 /**
  * Prompt user for confirmation. Returns true if approved.
- * "always" option remembers approval for the session (disabled in Build mode).
+ * "always" option remembers approval for this safety level for the session.
  */
 export async function promptConfirmation(tool, args, config, rl, agentMode) {
   const message = tool.formatConfirmation
     ? tool.formatConfirmation(args)
     : `Allow ${tool.definition.name}?`;
 
-  // Build mode: always prompt individually, no "always" shortcut
-  const allowAlways = agentMode !== "build";
+  const allowAlways = true;
   const result = await confirm(message, rl, { allowAlways });
 
   if (result === "always") {

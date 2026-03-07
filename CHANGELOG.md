@@ -1,6 +1,16 @@
 # Changelog — LlamaTalk Build
 
-Last updated: 2026-03-06 (v0.9.0)
+Last updated: 2026-03-06 (v0.9.1)
+
+---
+
+## v0.9.1 — 2026-03-06
+
+### Agent Modes
+- **Removed Auto-Accept mode** — only Build and Plan modes remain. Build mode is now the default, confirming moderate and dangerous tool calls while auto-approving safe ones. The "always" approval option is now available in both modes.
+
+### Self-Update
+- **Improved `/update` instructions** — after a successful update, `/update` now displays clear step-by-step instructions on what to do next (close and reopen) instead of silently exiting. Also shows which version the current session is still running so users understand the update takes effect on next launch.
 
 ---
 
@@ -169,4 +179,4 @@ Initial release of LlamaTalk Build, the agentic coding assistant for the LlamaTa
 
 ---
 
-Last updated: 2026-03-06 (v0.9.0)
+Last updated: 2026-03-06 (v0.9.1)
