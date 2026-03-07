@@ -158,6 +158,9 @@ export function printUsage(usage, iterationCount, contextPercent) {
   if (usage.evalDurationNs) {
     const secs = usage.evalDurationNs / 1e9;
     tks = ` · ${(usage.outputTokens / secs).toFixed(1)} tk/s`;
+  } else if (usage.wallTimeMs && usage.outputTokens > 0) {
+    const secs = usage.wallTimeMs / 1000;
+    if (secs > 0.1) tks = ` · ${(usage.outputTokens / secs).toFixed(1)} tk/s`;
   }
   const iters = iterationCount > 0 ? ` · ${iterationCount} tool call${iterationCount > 1 ? "s" : ""}` : "";
   let ctx = "";

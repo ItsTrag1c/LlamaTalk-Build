@@ -1,6 +1,14 @@
 # Changelog — LlamaTalk Build
 
-Last updated: 2026-03-07 (v0.9.17)
+Last updated: 2026-03-07 (v0.9.18)
+
+---
+
+## v0.9.18 — 2026-03-07
+
+### Improvements
+- **Token counter and tk/s for all providers** — total tokens and tokens-per-second now display reliably after every generation. Ollama uses native eval timing; cloud providers and fallback models use wall-clock measurement from first token to stream end. If a provider doesn't report token counts, output tokens are estimated from response length.
+- **Fixed GGUF model tool support** — models with namespaced names (e.g., `Qwen/Qwen2.5-Coder-14B-Instruct-GGUF`) were not recognized as tool-capable because the pattern matching expected the model name to start at the beginning. Patterns now match after an optional `namespace/` prefix.
 
 ---
 

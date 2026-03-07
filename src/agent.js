@@ -360,6 +360,8 @@ export async function runAgent(rl, config, encKey, opts = {}) {
       let responseText = "";
       const toolCalls = [];
       let cancelled = false;
+      const streamStartTime = Date.now();
+      let firstTokenTime = null;
 
       try {
         const toolDefs = toolRegistry.getDefinitions();
@@ -370,6 +372,7 @@ export async function runAgent(rl, config, encKey, opts = {}) {
           if (event.type === "text") {
             if (firstToken) {
               stopThinking();
+              firstTokenTime = Date.now();
               process.stdout.write(`\n  ${ORANGE}Llama Agent${RESET} ${BOLD}>${RESET} `);
               firstToken = false;
             }
@@ -378,6 +381,7 @@ export async function runAgent(rl, config, encKey, opts = {}) {
           } else if (event.type === "tool_call") {
             if (firstToken) {
               stopThinking();
+              if (!firstTokenTime) firstTokenTime = Date.now();
               firstToken = false;
             }
             toolCalls.push(event);
@@ -387,6 +391,20 @@ export async function runAgent(rl, config, encKey, opts = {}) {
           } else if (event.type === "usage") {
             lastUsage = event;
           }
+        }
+
+        // Post-stream: ensure usage data is present with wall-clock fallback
+        const streamEndTime = Date.now();
+        if (!lastUsage) {
+          // Provider didn't emit usage — create from what we know
+          const approxTokens = Math.ceil(responseText.length / 4);
+          lastUsage = { promptTokens: 0, outputTokens: approxTokens };
+        }
+        if (!lastUsage.outputTokens && responseText.length > 0) {
+          lastUsage.outputTokens = Math.ceil(responseText.length / 4);
+        }
+        if (!lastUsage.evalDurationNs && firstTokenTime) {
+          lastUsage.wallTimeMs = streamEndTime - firstTokenTime;
         }
       } catch (err) {
         stopThinking();

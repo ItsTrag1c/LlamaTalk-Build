@@ -2,16 +2,17 @@ import { BaseProvider } from "./base.js";
 import { streamRequest, streamLines, validateServerUrl } from "./stream.js";
 
 // Models known to support tool calling
+// Patterns match after optional "namespace/" prefix (e.g. "Qwen/Qwen2.5-Coder")
 const TOOL_CAPABLE_PATTERNS = [
-  /^llama3\.[1-9]/,
-  /^llama-3\.[1-9]/,
-  /^qwen2\.5/,
-  /^qwen2/,
-  /^mistral-nemo/,
-  /^mistral-large/,
-  /^command-r/,
-  /^firefunction/,
-  /^nexusraven/,
+  /(?:^|\/)llama3\.[1-9]/,
+  /(?:^|\/)llama-3\.[1-9]/,
+  /(?:^|\/)qwen2\.5/,
+  /(?:^|\/)qwen2/,
+  /(?:^|\/)mistral-nemo/,
+  /(?:^|\/)mistral-large/,
+  /(?:^|\/)command-r/,
+  /(?:^|\/)firefunction/,
+  /(?:^|\/)nexusraven/,
 ];
 
 export class OllamaProvider extends BaseProvider {
