@@ -25,7 +25,7 @@ export const bashTool = {
       return { ok: false, error: `Blocked destructive command: ${args.command}` };
     }
     if (args.cwd) {
-      const { valid, error } = validatePath(args.cwd, context.projectRoot);
+      const { valid, error } = validatePath(args.cwd, context.projectRoot, { allowExternal: true });
       if (!valid) return { ok: false, error };
     }
     return { ok: true };
@@ -34,7 +34,7 @@ export const bashTool = {
   async execute(args, context) {
     const timeout = Math.min(args.timeout || 120000, 600000);
     const cwd = args.cwd
-      ? validatePath(args.cwd, context.projectRoot).resolved
+      ? validatePath(args.cwd, context.projectRoot, { allowExternal: true }).resolved
       : context.projectRoot;
 
     try {

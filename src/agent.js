@@ -36,6 +36,8 @@ import { webFetchTool } from "./tools/web-fetch.js";
 import { webSearchTool } from "./tools/web-search.js";
 import { npmInstallTool } from "./tools/npm-install.js";
 import { pipInstallTool } from "./tools/pip-install.js";
+import { installToolTool } from "./tools/install-tool.js";
+import { generateFileTool } from "./tools/generate-file.js";
 
 const BASE_SYSTEM_PROMPT = `You are a local coding assistant running on the user's machine. You have direct access to their filesystem and shell through tools.
 
@@ -51,6 +53,8 @@ You can:
 - Fetch web pages (web_fetch)
 - Search the web (web_search)
 - Install packages (npm_install, pip_install)
+- Install system tools needed for tasks (install_tool)
+- Generate files in various formats (generate_file)
 
 ## Tool Reference
 
@@ -69,6 +73,10 @@ search_files(pattern, path, glob) — Search for a regex pattern across files.
 glob_files(pattern, path) — Find files matching a glob pattern (e.g., "**/*.js").
 
 git(command) — Run a git command.
+
+install_tool(package, manager, reason) — Install a system tool or global package needed for a task. Supports npm (global), pip, winget, choco. Checks if already installed first. Always requires user confirmation.
+
+generate_file(path, content, format, title) — Generate a document file (md, txt, html, csv, json, xml, yaml, pdf). Supports absolute paths for output outside the project. For PDF, content uses markdown-style formatting.
 
 ## Rules
 - Be brief. Summarize actions in one short sentence — users see full tool details in the sidebar and activity feed, so do NOT repeat file contents, full paths, or tool arguments in your response text.
@@ -130,6 +138,8 @@ function createToolRegistry() {
   registry.register(webSearchTool);
   registry.register(npmInstallTool);
   registry.register(pipInstallTool);
+  registry.register(installToolTool);
+  registry.register(generateFileTool);
   return registry;
 }
 

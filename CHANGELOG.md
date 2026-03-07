@@ -1,6 +1,18 @@
 # Changelog — LlamaTalk Build
 
-Last updated: 2026-03-06 (v0.9.7)
+Last updated: 2026-03-06 (v0.9.8)
+
+---
+
+## v0.9.8 — 2026-03-06
+
+### New Tools
+- **install_tool** — install system tools and global packages needed for tasks. Supports npm (global), pip, winget, and choco. Checks if already installed before installing. Requires user confirmation (DANGEROUS safety level) and a reason for the install.
+- **generate_file** — generate documents in 10 formats: md, txt, html, csv, json, xml, yaml, yml, log, and pdf. PDF generation uses pdfkit with markdown-style parsing (headings, bold, lists, horizontal rules) with a pandoc fallback. Supports absolute paths for output outside the project with the same permission rules as write_file.
+
+### Improvements
+- **Bash external cwd** — the bash tool now supports running commands in directories outside the project root via the `cwd` parameter. Uses the same external path permission system (user confirmation required).
+- **Changelog PDF alignment fix** — fixed the `# ` title header in generated changelog PDFs being slightly misaligned by using explicit x-position anchoring for all text elements.
 
 ---
 

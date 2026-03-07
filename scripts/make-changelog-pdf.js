@@ -37,22 +37,25 @@ const ORANGE = [255, 140, 0];
 const BLACK = [0, 0, 0];
 const GRAY = [80, 80, 80];
 
+const L = 50; // left margin (matches doc margin)
+const PW = doc.page.width - L - 50; // usable width
+
 for (const line of lines) {
   if (line.startsWith("# ")) {
-    doc.fontSize(22).fillColor(ORANGE).font("Helvetica-Bold").text(line.slice(2), { paragraphGap: 8 });
+    doc.fontSize(22).fillColor(ORANGE).font("Helvetica-Bold").text(line.slice(2), L, doc.y, { width: PW, paragraphGap: 8 });
   } else if (line.startsWith("## ")) {
-    doc.moveDown(0.5).fontSize(16).fillColor(ORANGE).font("Helvetica-Bold").text(line.slice(3), { paragraphGap: 4 });
+    doc.moveDown(0.5).fontSize(16).fillColor(ORANGE).font("Helvetica-Bold").text(line.slice(3), L, doc.y, { width: PW, paragraphGap: 4 });
   } else if (line.startsWith("### ")) {
-    doc.moveDown(0.3).fontSize(13).fillColor(BLACK).font("Helvetica-Bold").text(line.slice(4), { paragraphGap: 2 });
+    doc.moveDown(0.3).fontSize(13).fillColor(BLACK).font("Helvetica-Bold").text(line.slice(4), L, doc.y, { width: PW, paragraphGap: 2 });
   } else if (line.startsWith("- ")) {
-    doc.fontSize(11).fillColor(BLACK).font("Helvetica").text("• " + line.slice(2), {
-      indent: 16,
+    doc.fontSize(11).fillColor(BLACK).font("Helvetica").text("• " + line.slice(2), L + 16, doc.y, {
+      width: PW - 16,
       paragraphGap: 1,
     });
   } else if (line.trim() === "") {
     doc.moveDown(0.4);
   } else {
-    doc.fontSize(11).fillColor(GRAY).font("Helvetica").text(line, { paragraphGap: 2 });
+    doc.fontSize(11).fillColor(GRAY).font("Helvetica").text(line, L, doc.y, { width: PW, paragraphGap: 2 });
   }
 }
 
