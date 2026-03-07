@@ -31,7 +31,7 @@ Run this in PowerShell to download and install the latest release. Open a new te
 ## Features
 
 - **ReAct agent loop** — iterative reason-and-act cycle with streaming + tool calling
-- **12 built-in tools** — read_file, write_file, edit_file, list_directory, search_files, glob_files, bash, git, web_fetch, web_search, npm_install, pip_install
+- **14 built-in tools** — read_file, write_file, edit_file, list_directory, search_files, glob_files, bash, git, web_fetch, web_search, npm_install, pip_install, install_tool, generate_file
 - **Local models** — connects to [Ollama](https://ollama.com/), llama.cpp, LM Studio, vLLM, and other OpenAI-compatible backends
 - **Cloud models** — Anthropic Claude, Google Gemini, OpenAI GPT (API key required)
 - **Native tool-calling** — each provider uses its own tool-call protocol; XML fallback for models without native support
