@@ -1,6 +1,17 @@
 # Changelog — LlamaTalk Build
 
-Last updated: 2026-03-06 (v0.9.3)
+Last updated: 2026-03-06 (v0.9.4)
+
+---
+
+## v0.9.4 — 2026-03-06
+
+### External File Access
+- **File tools now support paths outside the project root** — read, write, edit, list, search, and glob tools can now operate on files anywhere on the system when given an absolute path. External read operations prompt for confirmation (MODERATE), and external write/edit operations require explicit approval (DANGEROUS). Users can approve with "always" to auto-approve that safety level for the session, matching the Claude Code workflow.
+
+### Memory Fixes
+- **Fixed memory writes being blocked** — the agent's persistent memory directory (`%APPDATA%\LlamaTalkBuild\memory\`) was treated as an external path and rejected by the path validation system. The memory directory is now recognized as a trusted location, allowing the agent to read and write memory files without extra confirmation prompts.
+- **Memory directory path now included in system prompt** — the agent is told the exact absolute path to its memory directory, so it can reliably save and load memory files using `write_file` and `read_file`.
 
 ---
 
@@ -194,4 +205,4 @@ Initial release of LlamaTalk Build, the agentic coding assistant for the LlamaTa
 
 ---
 
-Last updated: 2026-03-06 (v0.9.1)
+Last updated: 2026-03-06 (v0.9.4)

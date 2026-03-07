@@ -6,7 +6,7 @@ import { validatePath } from "../safety.js";
 export const writeFileTool = {
   definition: {
     name: "write_file",
-    description: "Write content to a file. Creates parent directories if needed. Overwrites existing files entirely.",
+    description: "Write content to a file. Creates parent directories if needed. Overwrites existing files entirely. Supports absolute paths for files outside the project (requires confirmation).",
     parameters: {
       type: "object",
       properties: {
@@ -17,18 +17,23 @@ export const writeFileTool = {
     },
   },
 
-  safetyLevel: SafetyLevel.MODERATE,
+  safetyLevel(args) {
+    const result = validatePath(args?.path || "", process.cwd(), { allowExternal: true });
+    if (result.external && result.trusted) return SafetyLevel.MODERATE;
+    if (result.external) return SafetyLevel.DANGEROUS;
+    return SafetyLevel.MODERATE;
+  },
 
   validate(args, context) {
     if (!args.path) return { ok: false, error: "path is required" };
     if (args.content === undefined) return { ok: false, error: "content is required" };
-    const { valid, error } = validatePath(args.path, context.projectRoot);
+    const { valid, error } = validatePath(args.path, context.projectRoot, { allowExternal: true });
     if (!valid) return { ok: false, error };
     return { ok: true };
   },
 
   async execute(args, context) {
-    const { resolved } = validatePath(args.path, context.projectRoot);
+    const { resolved } = validatePath(args.path, context.projectRoot, { allowExternal: true });
 
     // Backup existing file for undo
     if (existsSync(resolved)) {
@@ -61,6 +66,8 @@ export const writeFileTool = {
 
   formatConfirmation(args) {
     const bytes = Buffer.byteLength(args.content || "", "utf8");
+    const result = validatePath(args.path, process.cwd(), { allowExternal: true });
+    if (result.external) return `Write ${bytes} bytes outside project to ${args.path}?`;
     return `Write ${bytes} bytes to ${args.path}?`;
   },
 };

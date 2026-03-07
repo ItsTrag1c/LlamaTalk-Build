@@ -1,36 +1,56 @@
 import { resolve, relative, sep } from "path";
 import { realpathSync, lstatSync } from "fs";
 import { confirm } from "./ui/ui.js";
+import { getMemoryDir } from "./config.js";
 
 /**
- * Validate that a file path doesn't escape the project root.
- * Returns { valid: boolean, resolved: string, error?: string }
+ * Validate that a file path is safe to access.
+ * By default, paths outside the project root are blocked.
+ * With allowExternal: true, external paths are allowed but flagged.
+ * Returns { valid: boolean, resolved: string, external: boolean, trusted: boolean, error?: string }
  */
-export function validatePath(inputPath, projectRoot) {
+export function validatePath(inputPath, projectRoot, { allowExternal = false } = {}) {
   try {
     const resolved = resolve(projectRoot, inputPath);
     const rel = relative(projectRoot, resolved);
 
-    // Check for path traversal
-    if (rel.startsWith("..") || rel.startsWith(`.${sep}..`)) {
-      return { valid: false, resolved, error: `Path escapes project root: ${inputPath}` };
+    const external = rel.startsWith("..") || rel.startsWith(`.${sep}..`);
+
+    if (external && !allowExternal) {
+      return { valid: false, resolved, external: true, trusted: false, error: `Path escapes project root: ${inputPath}` };
     }
 
-    // Check symlinks don't escape
-    try {
-      const real = realpathSync(resolved);
-      const realRel = relative(projectRoot, real);
-      if (realRel.startsWith("..")) {
-        return { valid: false, resolved, error: `Symlink target escapes project root: ${inputPath}` };
+    // Check symlinks don't escape (only for in-project paths)
+    if (!external) {
+      try {
+        const real = realpathSync(resolved);
+        const realRel = relative(projectRoot, real);
+        if (realRel.startsWith("..") && !allowExternal) {
+          return { valid: false, resolved, external: true, trusted: false, error: `Symlink target escapes project root: ${inputPath}` };
+        }
+      } catch {
+        // File doesn't exist yet — that's fine for write operations
       }
-    } catch {
-      // File doesn't exist yet — that's fine for write operations
     }
 
-    return { valid: true, resolved };
+    // Check if path is in a trusted location (e.g., memory dir)
+    const trusted = external && isTrustedPath(resolved);
+
+    return { valid: true, resolved, external, trusted };
   } catch (err) {
-    return { valid: false, resolved: inputPath, error: err.message };
+    return { valid: false, resolved: inputPath, external: false, trusted: false, error: err.message };
   }
+}
+
+/**
+ * Check if a resolved path is in a trusted location (auto-approved for external access).
+ * Currently: the app's own memory directory.
+ */
+export function isTrustedPath(resolvedPath) {
+  const memDir = getMemoryDir();
+  const normalizedPath = resolvedPath.replace(/\\/g, "/").toLowerCase();
+  const normalizedMem = memDir.replace(/\\/g, "/").toLowerCase();
+  return normalizedPath.startsWith(normalizedMem);
 }
 
 // Commands that are considered destructive

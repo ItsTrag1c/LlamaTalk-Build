@@ -31,7 +31,13 @@ export const globFilesTool = {
     },
   },
 
-  safetyLevel: SafetyLevel.SAFE,
+  safetyLevel(args) {
+    if (!args?.path) return SafetyLevel.SAFE;
+    const result = validatePath(args.path, process.cwd(), { allowExternal: true });
+    if (result.external && result.trusted) return SafetyLevel.SAFE;
+    if (result.external) return SafetyLevel.MODERATE;
+    return SafetyLevel.SAFE;
+  },
 
   validate(args, context) {
     if (!args.pattern) return { ok: false, error: "pattern is required" };
@@ -40,7 +46,7 @@ export const globFilesTool = {
 
   async execute(args, context) {
     const baseDir = args.path
-      ? validatePath(args.path, context.projectRoot).resolved
+      ? validatePath(args.path, context.projectRoot, { allowExternal: true }).resolved
       : context.projectRoot;
 
     const regex = globToRegex(args.pattern);

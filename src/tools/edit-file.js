@@ -17,19 +17,24 @@ export const editFileTool = {
     },
   },
 
-  safetyLevel: SafetyLevel.MODERATE,
+  safetyLevel(args) {
+    const result = validatePath(args?.path || "", process.cwd(), { allowExternal: true });
+    if (result.external && result.trusted) return SafetyLevel.MODERATE;
+    if (result.external) return SafetyLevel.DANGEROUS;
+    return SafetyLevel.MODERATE;
+  },
 
   validate(args, context) {
     if (!args.path) return { ok: false, error: "path is required" };
     if (!args.old_text) return { ok: false, error: "old_text is required" };
     if (args.new_text === undefined) return { ok: false, error: "new_text is required" };
-    const { valid, error } = validatePath(args.path, context.projectRoot);
+    const { valid, error } = validatePath(args.path, context.projectRoot, { allowExternal: true });
     if (!valid) return { ok: false, error };
     return { ok: true };
   },
 
   async execute(args, context) {
-    const { resolved } = validatePath(args.path, context.projectRoot);
+    const { resolved } = validatePath(args.path, context.projectRoot, { allowExternal: true });
 
     if (!existsSync(resolved)) {
       return `Error: File not found: ${args.path}`;
@@ -65,6 +70,8 @@ export const editFileTool = {
 
   formatConfirmation(args) {
     const preview = args.old_text.split("\n")[0].slice(0, 60);
+    const result = validatePath(args.path, process.cwd(), { allowExternal: true });
+    if (result.external) return `Edit file outside project: ${args.path}? (replacing "${preview}...")`;
     return `Edit ${args.path}? (replacing "${preview}...")`;
   },
 };

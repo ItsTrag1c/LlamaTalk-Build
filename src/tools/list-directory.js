@@ -19,11 +19,17 @@ export const listDirectoryTool = {
     },
   },
 
-  safetyLevel: SafetyLevel.SAFE,
+  safetyLevel(args) {
+    if (!args?.path) return SafetyLevel.SAFE;
+    const result = validatePath(args.path, process.cwd(), { allowExternal: true });
+    if (result.external && result.trusted) return SafetyLevel.SAFE;
+    if (result.external) return SafetyLevel.MODERATE;
+    return SafetyLevel.SAFE;
+  },
 
   validate(args, context) {
     if (args.path) {
-      const { valid, error } = validatePath(args.path, context.projectRoot);
+      const { valid, error } = validatePath(args.path, context.projectRoot, { allowExternal: true });
       if (!valid) return { ok: false, error };
     }
     return { ok: true };
@@ -31,7 +37,7 @@ export const listDirectoryTool = {
 
   async execute(args, context) {
     const targetPath = args.path
-      ? validatePath(args.path, context.projectRoot).resolved
+      ? validatePath(args.path, context.projectRoot, { allowExternal: true }).resolved
       : context.projectRoot;
 
     const entries = [];

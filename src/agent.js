@@ -6,7 +6,7 @@ import { requireConfirmation, promptConfirmation } from "./safety.js";
 import { handleCommand } from "./commands.js";
 import { MemoryManager } from "./memory/memory.js";
 import { ContextManager } from "./context/context.js";
-import { saveConversation } from "./config.js";
+import { saveConversation, getMemoryDir } from "./config.js";
 import {
   ORANGE, RED, GREEN, YELLOW, DIM, BOLD, RESET, GOLD,
   startThinking, stopThinking,
@@ -54,11 +54,14 @@ const BASE_SYSTEM_PROMPT = `You are LlamaTalk Build, an agentic coding assistant
 - Use git for version control operations
 
 ## Memory
-- When you discover user preferences, project conventions, or important patterns, consider saving them to memory for future sessions
-- You can write memory files to the memory directory using write_file
+- When you discover user preferences, project conventions, or important patterns, save them to memory for future sessions
+- Memory directory: ${getMemoryDir().replace(/\\/g, "/")}
+- Use write_file or edit_file with absolute paths to save/update memory files (MEMORY.md for global, topic-name.md for topics)
+- Read memory files with read_file using the same absolute paths
 
 ## Rules
-- Never modify files outside the project root unless explicitly asked
+- You can access files outside the project root when needed (the user will be prompted for confirmation)
+- Memory directory access is always allowed without extra confirmation
 - Always read a file before editing it
 - When editing, use the exact text that appears in the file for old_text
 - If a tool call fails, try a different approach rather than repeating

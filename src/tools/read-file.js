@@ -5,7 +5,7 @@ import { validatePath } from "../safety.js";
 export const readFileTool = {
   definition: {
     name: "read_file",
-    description: "Read the contents of a file at the given path. Returns the file content with line numbers. For large files, use offset and limit to read specific ranges.",
+    description: "Read the contents of a file at the given path. Returns the file content with line numbers. For large files, use offset and limit to read specific ranges. Supports absolute paths for files outside the project (requires confirmation).",
     parameters: {
       type: "object",
       properties: {
@@ -17,17 +17,22 @@ export const readFileTool = {
     },
   },
 
-  safetyLevel: SafetyLevel.SAFE,
+  safetyLevel(args) {
+    const result = validatePath(args?.path || "", process.cwd(), { allowExternal: true });
+    if (result.external && result.trusted) return SafetyLevel.SAFE;
+    if (result.external) return SafetyLevel.MODERATE;
+    return SafetyLevel.SAFE;
+  },
 
   validate(args, context) {
     if (!args.path) return { ok: false, error: "path is required" };
-    const { valid, error } = validatePath(args.path, context.projectRoot);
+    const { valid, error } = validatePath(args.path, context.projectRoot, { allowExternal: true });
     if (!valid) return { ok: false, error };
     return { ok: true };
   },
 
   async execute(args, context) {
-    const { valid, resolved, error } = validatePath(args.path, context.projectRoot);
+    const { valid, resolved, error } = validatePath(args.path, context.projectRoot, { allowExternal: true });
     if (!valid) return `Error: ${error}`;
 
     if (!existsSync(resolved)) {
@@ -62,6 +67,8 @@ export const readFileTool = {
   },
 
   formatConfirmation(args) {
+    const result = validatePath(args.path, process.cwd(), { allowExternal: true });
+    if (result.external) return `Read file outside project: ${args.path}`;
     return `Read file: ${args.path}`;
   },
 };
