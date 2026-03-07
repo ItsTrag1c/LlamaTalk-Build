@@ -1,6 +1,14 @@
 # Changelog — LlamaTalk Build
 
-Last updated: 2026-03-06 (v0.9.6)
+Last updated: 2026-03-06 (v0.9.7)
+
+---
+
+## v0.9.7 — 2026-03-06
+
+### Agent Behavior
+- **Fixed external file access hallucination** — the agent would sometimes claim it cannot read files outside the project root, even though all file tools fully support absolute paths. The system prompt now explicitly states this capability and instructs the agent to never deny it.
+- **Concise tool output** — the agent now summarizes completed actions in short sentences instead of echoing back full file contents and paths. Users can see full tool details in the sidebar and activity feed.
 
 ---
 
