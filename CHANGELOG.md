@@ -9,6 +9,9 @@ Last updated: 2026-03-06 (v0.9.12)
 ### Agent Behavior
 - **Cloud models now use tools properly** — updated the system prompt to explicitly authorize the agent to read, write, edit, and execute tools regardless of provider. Cloud API models (Claude, GPT, Gemini via OpenCode, etc.) previously refused to make file changes due to their built-in safety guardrails conflicting with the "local coding assistant" framing. The agent is now told it runs inside a local tool with user permission and must never decline a tool call.
 
+### r1 — Silent Release
+- **Fixed ASCII banner alignment** — both large (Slant) and small (Small Slant) banners regenerated from correct figlet output. Previous version had misaligned characters and inconsistent line lengths. All lines now uniform width.
+
 ---
 
 ## v0.9.11 — 2026-03-06
