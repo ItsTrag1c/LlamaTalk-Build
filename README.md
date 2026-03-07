@@ -84,4 +84,4 @@ llamabuild [options]
 
 [MIT](LICENSE)
 
-Created by [ItsTrag1c](https://github.com/ItsTrag1c).
+Part of the [LlamaTalk Suite](https://llamatalksuite.dev) — Created by [ItsTrag1c](https://github.com/ItsTrag1c).

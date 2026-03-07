@@ -385,4 +385,4 @@ Initial release of LlamaTalk Build, the agentic coding assistant for the LlamaTa
 
 ---
 
-Last updated: 2026-03-06 (v0.9.6)
+Last updated: 2026-03-07 (v2.0.0)
