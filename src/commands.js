@@ -463,6 +463,7 @@ async function handleUpdate(currentVersion) {
       const currentExe = join(installDir, "LlamaTalkBuild.exe");
       const oldExe = join(installDir, "LlamaTalkBuild.old.exe");
 
+      let replaced = false;
       try {
         // Remove previous .old if it exists
         if (existsSync(oldExe)) unlinkSync(oldExe);
@@ -471,32 +472,51 @@ async function handleUpdate(currentVersion) {
         // Copy new EXE
         copyFileSync(builtExe, currentExe);
         console.log(GREEN + `  Updated EXE in ${installDir}` + RESET);
+        replaced = true;
       } catch (err) {
-        console.log(RED + `  Could not replace EXE: ${err.message}` + RESET);
-        console.log(DIM + `  Built EXE available at: ${builtExe}` + RESET);
-        return { handled: true };
-      }
-
-      // Copy installer too if it exists
-      if (existsSync(builtSetup)) {
-        const destSetup = join(installDir, `LlamaTalk Build_${remoteVersion}_setup.exe`);
-        try {
-          copyFileSync(builtSetup, destSetup);
-        } catch { /* non-critical */ }
-      }
-
-      // Clean up old versions (skip files that are locked/in use)
-      try {
-        // Remove old setup/standalone EXEs (not current version)
-        for (const f of readdirSync(installDir)) {
-          const isOldExe = f === "LlamaTalkBuild.old.exe";
-          const isOldSetup = f.startsWith("LlamaTalk Build_") && f.endsWith("_setup.exe") && !f.includes(remoteVersion);
-          const isOldStandalone = f.startsWith("LlamaTalkBuild_") && f.endsWith(".exe") && f !== "LlamaTalkBuild.exe" && !f.includes(remoteVersion);
-          if (isOldExe || isOldSetup || isOldStandalone) {
-            try { unlinkSync(join(installDir, f)); } catch { /* in use or locked — cleaned on next launch */ }
+        // If direct replace fails (e.g. Program Files needs admin), run the installer with UAC
+        if (existsSync(builtSetup)) {
+          console.log(DIM + `  Elevated permissions required — launching installer...` + RESET);
+          try {
+            execSync(
+              `powershell -Command "Start-Process -FilePath '${builtSetup.replace(/'/g, "''")}' -Verb RunAs -Wait"`,
+              { stdio: "pipe", timeout: 120000 },
+            );
+            replaced = true;
+            console.log(GREEN + `  Installer completed.` + RESET);
+          } catch (uacErr) {
+            console.log(RED + `  Installer failed or was cancelled: ${uacErr.message}` + RESET);
+            console.log(DIM + `  Built EXE available at: ${builtExe}` + RESET);
+            return { handled: true };
           }
+        } else {
+          console.log(RED + `  Could not replace EXE: ${err.message}` + RESET);
+          console.log(DIM + `  Built EXE available at: ${builtExe}` + RESET);
+          return { handled: true };
         }
-      } catch { /* non-critical cleanup */ }
+      }
+
+      if (replaced) {
+        // Copy installer too if it exists and we did a direct replace
+        if (existsSync(builtSetup)) {
+          const destSetup = join(installDir, `LlamaTalk Build_${remoteVersion}_setup.exe`);
+          try {
+            copyFileSync(builtSetup, destSetup);
+          } catch { /* non-critical */ }
+        }
+
+        // Clean up old versions (skip files that are locked/in use)
+        try {
+          for (const f of readdirSync(installDir)) {
+            const isOldExe = f === "LlamaTalkBuild.old.exe";
+            const isOldSetup = f.startsWith("LlamaTalk Build_") && f.endsWith("_setup.exe") && !f.includes(remoteVersion);
+            const isOldStandalone = f.startsWith("LlamaTalkBuild_") && f.endsWith(".exe") && f !== "LlamaTalkBuild.exe" && !f.includes(remoteVersion);
+            if (isOldExe || isOldSetup || isOldStandalone) {
+              try { unlinkSync(join(installDir, f)); } catch { /* in use or locked — cleaned on next launch */ }
+            }
+          }
+        } catch { /* non-critical cleanup */ }
+      }
 
       console.log(GREEN + BOLD + `\n  ✔ Updated to v${remoteVersion}!` + RESET);
       console.log("");

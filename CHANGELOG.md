@@ -1,6 +1,13 @@
 # Changelog — LlamaTalk Build
 
-Last updated: 2026-03-07 (v0.9.16)
+Last updated: 2026-03-07 (v0.9.17)
+
+---
+
+## v0.9.17 — 2026-03-07
+
+### Bug Fixes
+- **Fixed /update in Program Files** — self-update (`/update`) failed with EPERM when installed in `C:\Program Files\` because the directory requires admin privileges. Now automatically falls back to launching the built NSIS installer with UAC elevation when direct file replacement fails.
 
 ---
 
