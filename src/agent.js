@@ -269,14 +269,12 @@ export async function runAgent(rl, config, encKey, opts = {}) {
       console.log(DIM + "  Unlocked." + RESET);
     }
 
-    // Show prompt — write colored prompt to stdout manually so readline
-    // doesn't miscount ANSI escape code bytes as visible characters
+    // Show prompt
     const promptStr = buildPromptStr();
-    process.stdout.write(promptStr);
 
     let userInput;
     try {
-      userInput = await ask("");
+      userInput = await ask(promptStr);
     } catch {
       break; // readline closed
     }
@@ -591,8 +589,7 @@ export async function runAgent(rl, config, encKey, opts = {}) {
 
       // Plan mode: offer to proceed with the plan
       if (agentMode === "plan") {
-        process.stdout.write(`\n  ${YELLOW}Proceed with Plan?${RESET} ${DIM}(y/n)${RESET} `);
-        const answer = await ask("");
+        const answer = await ask(`\n  ${YELLOW}Proceed with Plan?${RESET} ${DIM}(y/n)${RESET} `);
         if (answer.trim().toLowerCase() === "y" || answer.trim().toLowerCase() === "yes") {
           agentMode = "build";
           messages.push({ role: "user", content: "Proceed with the plan. Execute each step, confirming before each file change or git operation." });

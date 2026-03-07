@@ -11,14 +11,8 @@ export const BOLD = "\x1b[1m";
 export const RESET = "\x1b[0m";
 export const GOLD = "\x1b[38;5;220m";
 
-// --- Thinking animation ---
-const THINKING_FRAMES = (() => {
-  const word = "Thinking";
-  const frames = [];
-  for (let i = 1; i <= word.length; i++) frames.push(word.slice(0, i));
-  for (let i = 1; i <= 6; i++) frames.push(word + " " + "*".repeat(i));
-  return frames;
-})();
+// --- Thinking animation (braille spinner) ---
+const BRAILLE_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 
 let thinkingInterval = null;
 let thinkingFrame = 0;
@@ -26,11 +20,11 @@ let thinkingFrame = 0;
 export function startThinking() {
   thinkingFrame = 0;
   process.stdout.write("\n");
-  process.stdout.write(ORANGE + THINKING_FRAMES[0] + RESET + DIM + "  Esc to cancel" + RESET + "\n");
+  process.stdout.write(`  ${ORANGE}${BRAILLE_FRAMES[0]}${RESET} ${DIM}Thinking...  Esc to cancel${RESET}\n`);
   thinkingInterval = setInterval(() => {
-    thinkingFrame = (thinkingFrame + 1) % THINKING_FRAMES.length;
+    thinkingFrame = (thinkingFrame + 1) % BRAILLE_FRAMES.length;
     process.stdout.write("\x1b[1A\x1b[2K");
-    process.stdout.write(ORANGE + THINKING_FRAMES[thinkingFrame] + RESET + DIM + "  Esc to cancel" + RESET + "\n");
+    process.stdout.write(`  ${ORANGE}${BRAILLE_FRAMES[thinkingFrame]}${RESET} ${DIM}Thinking...  Esc to cancel${RESET}\n`);
   }, 80);
 }
 
@@ -134,12 +128,9 @@ export async function confirm(message, existingRl, { allowAlways = true } = {}) 
   const suffix = allowAlways ? `${DIM}(y/n/always)${RESET} ` : `${DIM}(y/n)${RESET} `;
   const prompt = `  ${YELLOW}${message}${RESET} ${suffix}`;
 
-  // Write colored prompt to stdout manually so readline doesn't miscount
-  // ANSI escape code bytes as visible characters (causes broken line wrapping)
   if (existingRl) {
     return new Promise((resolve) => {
-      process.stdout.write(prompt);
-      existingRl.question("", (answer) => {
+      existingRl.question(prompt, (answer) => {
         const a = answer.trim().toLowerCase();
         if (allowAlways && a === "always") resolve("always");
         else resolve(a === "y" || a === "yes");
@@ -149,8 +140,7 @@ export async function confirm(message, existingRl, { allowAlways = true } = {}) 
 
   return new Promise((resolve) => {
     const rl = createInterface({ input: process.stdin, output: process.stdout });
-    process.stdout.write(prompt);
-    rl.question("", (answer) => {
+    rl.question(prompt, (answer) => {
       rl.close();
       const a = answer.trim().toLowerCase();
       if (allowAlways && a === "always") resolve("always");
