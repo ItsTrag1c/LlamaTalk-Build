@@ -2,12 +2,14 @@ import { saveConfig, saveConfigWithKey, getMemoryDir, loadConversation } from ".
 import { detectBackend, getAllLocalModels, getOllamaModels, getOpenAICompatModels, CLOUD_MODELS } from "./providers/router.js";
 import { writeFileSync, readFileSync, existsSync, unlinkSync, mkdtempSync, rmSync, copyFileSync, renameSync, readdirSync } from "fs";
 import { join, relative, dirname } from "path";
-import { execSync, spawn } from "child_process";
+import { execSync } from "child_process";
 import { tmpdir } from "os";
 import {
   ORANGE, RED, GREEN, YELLOW, DIM, BOLD, RESET,
   printError, askMasked, getLastToolCalls, printToolCallFull,
+  printSeparator,
 } from "./ui/ui.js";
+import { theme, icons, box } from "./ui/theme.js";
 import { printBanner } from "./ui/banner.js";
 
 function ask(rl, question) {
@@ -35,6 +37,7 @@ ${ORANGE}/more${RESET}                    Show full details of last tool call(s)
 ${ORANGE}/memory${RESET}                  Show loaded memory files
 ${ORANGE}/memory list${RESET}             List all topic memories
 ${ORANGE}/memory save <topic>${RESET}     Save a memory topic
+${ORANGE}/instructions${RESET}            Show loaded agent instructions
 ${ORANGE}/session${RESET}                 Show current session info
 ${ORANGE}/session list${RESET}            List all saved sessions
 ${ORANGE}/session new${RESET}             Start a new session
@@ -47,9 +50,8 @@ ${ORANGE}/set api-key <provider> <key>${RESET}  Set API key
 ${ORANGE}/set provider enable|disable <p>${RESET}  Toggle provider
 ${ORANGE}/set temp <0.0-1.0>${RESET}      Set temperature
 ${ORANGE}/set pin${RESET}                 Set or change PIN
-${ORANGE}/mode${RESET}                    Cycle agent mode (Build/Plan)
-${ORANGE}/sidebar${RESET}                 Toggle code changes panel
-${ORANGE}/activity${RESET}                Toggle session activity feed
+${ORANGE}/mode [build|plan]${RESET}       Show or switch agent mode
+${ORANGE}/activity${RESET}                Show session file changes
 ${ORANGE}/trust${RESET}                   Toggle auto-approve for session
 ${ORANGE}/compact${RESET}                 Toggle compact output
 ${ORANGE}/update${RESET}                   Pull latest & rebuild from GitHub
@@ -138,11 +140,14 @@ ${BOLD}Settings${RESET}
         console.log(DIM + "  No tools loaded." + RESET);
         return { handled: true };
       }
+      const { toolIcons } = await import("./ui/theme.js");
       console.log(BOLD + "\n  Available tools:" + RESET);
       for (const tool of agent.toolRegistry.getAll()) {
         const level = typeof tool.safetyLevel === "function" ? "dynamic" : tool.safetyLevel;
         const color = level === "safe" ? GREEN : level === "moderate" ? YELLOW : RED;
-        console.log(`  ${ORANGE}${tool.definition.name}${RESET} ${color}[${level}]${RESET} — ${tool.definition.description.split(".")[0]}`);
+        const icon = toolIcons[tool.definition.name] || icons.arrow;
+        const dot = level === "safe" ? `${GREEN}${icons.success}${RESET}` : level === "moderate" ? `${YELLOW}${icons.warning}${RESET}` : `${RED}${icons.error}${RESET}`;
+        console.log(`  ${theme.toolIcon}${icon}${theme.reset} ${theme.toolName}${tool.definition.name}${theme.reset} ${dot} ${theme.dim}${tool.definition.description.split(".")[0]}${theme.reset}`);
       }
       console.log("");
       return { handled: true };
@@ -204,6 +209,26 @@ ${BOLD}Settings${RESET}
       return { handled: true };
     }
 
+    case "/instructions": {
+      const { discoverInstructions } = await import("./memory/instructions.js");
+      const instructions = discoverInstructions(process.cwd());
+      if (instructions.length === 0) {
+        console.log(`\n  ${theme.dim}No agent instructions found.${theme.reset}`);
+        console.log(`  ${theme.dim}Create .llamabuild/agent/*.md or AGENTS.md to add instructions.${theme.reset}\n`);
+        return { handled: true };
+      }
+      console.log(`\n${BOLD}  Agent Instructions${RESET} ${theme.textMuted}(${instructions.length} file${instructions.length > 1 ? "s" : ""})${theme.reset}\n`);
+      for (const inst of instructions) {
+        const sourceColor = inst.source === "global" ? theme.hint : inst.source === "project" ? theme.success : theme.dim;
+        const sourceLabel = inst.source === "global" ? "global" : inst.source === "project" ? "project" : "inherited";
+        const desc = inst.meta.description ? ` ${theme.dim}${icons.dash} ${inst.meta.description}${theme.reset}` : "";
+        console.log(`  ${theme.accent}${icons.arrow}${theme.reset} ${BOLD}${inst.name}${RESET} ${sourceColor}[${sourceLabel}]${theme.reset}${desc}`);
+        console.log(`    ${theme.textMuted}${inst.path}${theme.reset}`);
+      }
+      console.log("");
+      return { handled: true };
+    }
+
     case "/undo": {
       if (!agent?.sessionChanges || agent.sessionChanges.length === 0) {
         console.log(DIM + "  No changes to undo." + RESET);
@@ -248,37 +273,65 @@ ${BOLD}Settings${RESET}
         console.log(DIM + "  Mode switching not available." + RESET);
         return { handled: true };
       }
-      const MODES = ["build", "plan"];
-      const MODE_LABELS = { build: "Build", plan: "Plan" };
-      const MODE_COLORS = { build: GREEN, plan: YELLOW };
+      const MODES = {
+        build: { label: "Build", color: theme.modeBuild, icon: icons.build, description: "Full agent — reads, writes, and executes freely" },
+        plan:  { label: "Plan",  color: theme.modePlan, icon: icons.plan, description: "Explore and plan only — no file writes or commands" },
+      };
       const current = agent.getMode();
-      const idx = MODES.indexOf(current);
-      const next = MODES[(idx + 1) % MODES.length];
-      agent.setMode(next);
-      const color = MODE_COLORS[next];
-      console.log(`  ${color}● ${MODE_LABELS[next]} Mode${RESET}`);
-      return { handled: true };
-    }
 
-    case "/sidebar": {
-      if (!agent?.sidebar) {
-        console.log(DIM + "  Sidebar not available." + RESET);
+      // /mode <name> — set directly
+      if (args.length > 0) {
+        const target = args[0].toLowerCase();
+        if (!(target in MODES)) {
+          console.log(RED + `  Unknown mode: ${target}` + RESET);
+          console.log(DIM + `  Available: ${Object.keys(MODES).join(", ")}` + RESET);
+          return { handled: true };
+        }
+        if (target === current) {
+          console.log(DIM + `  Already in ${MODES[target].label} mode.` + RESET);
+          return { handled: true };
+        }
+        agent.setMode(target);
+        const m = MODES[target];
+        console.log(`\n  ${m.color}${m.icon} ${m.label}${RESET} ${DIM}${m.description}${RESET}`);
         return { handled: true };
       }
-      const on = agent.sidebar.toggle();
-      console.log(`  ${ORANGE}● Sidebar${RESET} ${on ? GREEN + "enabled" + RESET + DIM + " — file changes will show a code preview panel" + RESET : DIM + "disabled" + RESET}`);
+
+      // /mode — show selection
+      console.log(`\n${BOLD}  Mode${RESET}\n`);
+      for (const [key, m] of Object.entries(MODES)) {
+        const active = key === current;
+        const marker = active ? ` ${ORANGE}◀ current${RESET}` : "";
+        console.log(`  ${m.color}${m.icon} ${m.label}${RESET}  ${DIM}${m.description}${RESET}${marker}`);
+      }
+
+      // Prompt for selection
+      const answer = await ask(rl, `\n  ${BOLD}Switch to:${RESET} `);
+      const target = answer.trim().toLowerCase();
+      if (target in MODES && target !== current) {
+        agent.setMode(target);
+        const m = MODES[target];
+        console.log(`\n  ${m.color}${m.icon} ${m.label}${RESET} ${DIM}${m.description}${RESET}`);
+      } else if (target === current) {
+        console.log(DIM + `  Already in ${MODES[current].label} mode.` + RESET);
+      } else if (target) {
+        console.log(DIM + "  No change." + RESET);
+      }
+      console.log("");
       return { handled: true };
     }
 
     case "/activity": {
-      if (!agent?.sidebar || !agent?.sessionTracker) {
+      if (!agent?.sessionTracker) {
         console.log(DIM + "  Activity feed not available." + RESET);
         return { handled: true };
       }
-      const on = agent.sidebar.toggleActivity();
-      console.log(`  ${ORANGE}● Activity Feed${RESET} ${on ? GREEN + "enabled" + RESET + DIM + " — file changes will show a scrolling activity panel" + RESET : DIM + "disabled" + RESET}`);
-      if (on && agent.sessionTracker.changes.length > 0) {
-        agent.sidebar.showActivity(agent.sessionTracker.getRecentChanges());
+      const { activityPanel } = await import("./ui/sidebar.js");
+      const changes = agent.sessionTracker.getRecentChanges();
+      if (changes.length === 0) {
+        console.log(DIM + "  No file changes in this session yet." + RESET);
+      } else {
+        activityPanel.showActivity(changes);
       }
       return { handled: true };
     }

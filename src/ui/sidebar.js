@@ -1,166 +1,181 @@
-import { ORANGE, DIM, BOLD, RESET, GREEN, RED, YELLOW, BLUE } from "./ui.js";
+import { theme, box, icons, stripAnsi, termWidth } from "./theme.js";
 
-const BOX = { tl: "\u256D", tr: "\u256E", bl: "\u2570", br: "\u256F", h: "\u2500", v: "\u2502" };
+const T = theme;
 
-class Sidebar {
+/**
+ * Activity panel — auto-shows during file modifications.
+ * Renders an inline box with live diff/change detail.
+ */
+class ActivityPanel {
   constructor() {
-    this.enabled = false;
-    this.activityEnabled = false;
-    this.maxLines = 25;
-  }
-
-  toggle() {
-    this.enabled = !this.enabled;
-    return this.enabled;
-  }
-
-  toggleActivity() {
-    this.activityEnabled = !this.activityEnabled;
-    return this.activityEnabled;
+    this.maxPreviewLines = 16;
+    this.maxActivityEntries = 10;
   }
 
   /**
-   * Render the activity feed panel showing recent session changes.
-   * @param {Array} changes - Array of { time, type, path, summary } objects
+   * Show a detailed code-change box for a file modification.
+   * Automatically called on write_file / edit_file.
+   *
+   *   ╭─ src/agent.js ────────────────────────╮
+   *   │  @@ line 42 @@                         │
+   *   │  - const old = "foo";                  │
+   *   │  + const old = "bar";                  │
+   *   │    const next = ...                    │
+   *   ╰────────────────────────────────────────╯
    */
-  showActivity(changes) {
-    if (!this.activityEnabled || !changes || changes.length === 0) return;
+  showChange(filePath, toolName, args, newContent, oldContent) {
+    const w = Math.min(termWidth() - 4, 80);
+    const inner = w - 4;
 
-    const termWidth = process.stdout.columns || 100;
-    const panelWidth = Math.min(termWidth - 4, 90);
-    const innerWidth = panelWidth - 4;
+    // Title
+    const label = filePath.length > inner - 2
+      ? "..." + filePath.slice(-(inner - 5))
+      : filePath;
+    const typeTag = toolName === "write_file"
+      ? `${T.success}+new${T.reset}`
+      : `${T.warning}~edit${T.reset}`;
+    const titleText = `${T.filePath}${label}${T.reset} ${typeTag}`;
+    const titlePlain = stripAnsi(titleText);
+    const titlePad = Math.max(0, w - titlePlain.length - 5);
 
-    const title = "Activity";
     process.stdout.write(
-      `\n  ${DIM}${BOX.tl}${BOX.h}${RESET} ${BLUE}${title}${RESET} ${DIM}${BOX.h.repeat(Math.max(0, panelWidth - title.length - 5))}${BOX.tr}${RESET}\n`
+      `\n  ${T.border}${box.tl}${box.h}${T.reset} ${titleText} ${T.border}${box.h.repeat(titlePad)}${box.tr}${T.reset}\n`
     );
 
-    // Show up to maxLines entries, most recent at bottom (scrolling effect)
-    const maxEntries = Math.min(changes.length, this.maxLines - 2);
-    const visible = changes.slice(-maxEntries);
+    // Build content lines
+    let lines;
+    if (toolName === "edit_file" && oldContent != null) {
+      lines = this._diffLines(args.old_text, args.new_text, inner);
+    } else if (toolName === "edit_file" && args.old_text && args.new_text) {
+      lines = this._diffLines(args.old_text, args.new_text, inner);
+    } else {
+      // write_file — show preview of written content
+      lines = this._previewLines(newContent, inner);
+    }
 
-    // If there are older entries we're not showing, indicate that
-    if (changes.length > maxEntries) {
-      const omitted = changes.length - maxEntries;
-      const line = `${DIM}  ... ${omitted} earlier change${omitted > 1 ? "s" : ""} ...${RESET}`;
-      const plain = line.replace(/\x1b\[[0-9;]*m/g, "");
-      const pad = Math.max(0, innerWidth - plain.length);
-      process.stdout.write(`  ${DIM}${BOX.v}${RESET} ${line}${" ".repeat(pad)} ${DIM}${BOX.v}${RESET}\n`);
+    // Truncate if too many lines
+    if (lines.length > this.maxPreviewLines) {
+      const head = lines.slice(0, this.maxPreviewLines - 2);
+      const omitted = lines.length - (this.maxPreviewLines - 2);
+      lines = [...head, `${T.textMuted}  ${icons.ellipsis} ${omitted} more lines${T.reset}`];
+    }
+
+    // Render lines inside box
+    for (const line of lines) {
+      const plain = stripAnsi(line);
+      const pad = Math.max(0, inner - plain.length);
+      process.stdout.write(
+        `  ${T.border}${box.v}${T.reset} ${line}${" ".repeat(pad)} ${T.border}${box.v}${T.reset}\n`
+      );
+    }
+
+    process.stdout.write(`  ${T.border}${box.bl}${box.h.repeat(w - 2)}${box.br}${T.reset}\n`);
+  }
+
+  /**
+   * Show a compact activity feed of recent changes.
+   *
+   *   ╭─ Activity ─────────────────────────────╮
+   *   │  12:04:31  +  src/ui/sidebar.js         │
+   *   │  12:04:28  ~  src/agent.js              │
+   *   ╰────────────────────────────────────────╯
+   */
+  showActivity(changes) {
+    if (!changes || changes.length === 0) return;
+
+    const w = Math.min(termWidth() - 4, 80);
+    const inner = w - 4;
+    const title = `${T.info}Activity${T.reset}`;
+    const titlePlain = "Activity";
+    const titlePad = Math.max(0, w - titlePlain.length - 5);
+
+    process.stdout.write(
+      `\n  ${T.border}${box.tl}${box.h}${T.reset} ${title} ${T.border}${box.h.repeat(titlePad)}${box.tr}${T.reset}\n`
+    );
+
+    const visible = changes.slice(-this.maxActivityEntries);
+
+    if (changes.length > this.maxActivityEntries) {
+      const omitted = changes.length - this.maxActivityEntries;
+      const line = `${T.textMuted}${icons.ellipsis} ${omitted} earlier${T.reset}`;
+      const plain = stripAnsi(line);
+      const pad = Math.max(0, inner - plain.length);
+      process.stdout.write(`  ${T.border}${box.v}${T.reset} ${line}${" ".repeat(pad)} ${T.border}${box.v}${T.reset}\n`);
     }
 
     for (const change of visible) {
       const timeStr = change.time.toISOString().split("T")[1].split(".")[0];
-      const typeColor = (change.type === "write_file" || change.type === "edit_file") ? GREEN : DIM;
-      const typeIcon = change.type === "write_file" ? "+" : change.type === "edit_file" ? "~" : ">";
-      const pathStr = change.path.length > 35 ? "..." + change.path.slice(-32) : change.path;
+      const isWrite = change.type === "write_file" || change.type === "generate_file";
+      const isEdit = change.type === "edit_file";
+      const isBash = change.type === "bash";
+      const typeIcon = isWrite ? `${T.success}+${T.reset}` : isEdit ? `${T.warning}~${T.reset}` : isBash ? `${T.command}>${T.reset}` : `${T.textMuted}${icons.arrow}${T.reset}`;
+      const pathStr = change.path.length > (inner - 14)
+        ? "..." + change.path.slice(-(inner - 17))
+        : change.path;
 
-      const line = `${DIM}${timeStr}${RESET} ${typeColor}${typeIcon}${RESET} ${ORANGE}${pathStr}${RESET}`;
-      const plain = line.replace(/\x1b\[[0-9;]*m/g, "");
-      const pad = Math.max(0, innerWidth - plain.length);
-      process.stdout.write(`  ${DIM}${BOX.v}${RESET} ${line}${" ".repeat(pad)} ${DIM}${BOX.v}${RESET}\n`);
+      const line = `${T.textMuted}${timeStr}${T.reset}  ${typeIcon}  ${T.filePath}${pathStr}${T.reset}`;
+      const plain = stripAnsi(line);
+      const pad = Math.max(0, inner - plain.length);
+      process.stdout.write(`  ${T.border}${box.v}${T.reset} ${line}${" ".repeat(pad)} ${T.border}${box.v}${T.reset}\n`);
     }
 
-    process.stdout.write(`  ${DIM}${BOX.bl}${BOX.h.repeat(panelWidth - 2)}${BOX.br}${RESET}\n`);
+    process.stdout.write(`  ${T.border}${box.bl}${box.h.repeat(w - 2)}${box.br}${T.reset}\n`);
   }
 
-  /**
-   * Render a bordered code panel inline showing the changed file content.
-   * For edits, oldContent/newContent show a diff. For writes, just newContent.
-   */
-  show(filePath, newContent, oldContent = null) {
-    if (!this.enabled) return;
+  // ── Internal ────────────────────────────────────────────
 
-    const termWidth = process.stdout.columns || 100;
-    const panelWidth = Math.min(termWidth - 4, 90);
-    const innerWidth = panelWidth - 4; // 2 for border + 2 for padding
-
-    // Build lines to display
-    let lines;
-    if (oldContent != null) {
-      lines = this._buildDiffLines(oldContent, newContent, innerWidth);
-    } else {
-      lines = this._buildContentLines(newContent, innerWidth);
-    }
-
-    // Truncate if too long
-    const maxDisplay = this.maxLines;
-    let truncated = false;
-    if (lines.length > maxDisplay) {
-      const headCount = maxDisplay - 3;
-      const tailCount = 2;
-      const head = lines.slice(0, headCount);
-      const tail = lines.slice(-tailCount);
-      const omitted = lines.length - headCount - tailCount;
-      lines = [...head, `${DIM}  ... ${omitted} more lines ...${RESET}`, ...tail];
-      truncated = true;
-    }
-
-    // Render panel
-    const title = filePath.length > innerWidth - 2
-      ? "..." + filePath.slice(-(innerWidth - 5))
-      : filePath;
-
-    process.stdout.write(`\n  ${DIM}${BOX.tl}${BOX.h}${RESET} ${ORANGE}${title}${RESET} ${DIM}${BOX.h.repeat(Math.max(0, panelWidth - title.length - 5))}${BOX.tr}${RESET}\n`);
-
-    for (const line of lines) {
-      // Strip ANSI for length calculation
-      const plain = line.replace(/\x1b\[[0-9;]*m/g, "");
-      const pad = Math.max(0, innerWidth - plain.length);
-      process.stdout.write(`  ${DIM}${BOX.v}${RESET} ${line}${" ".repeat(pad)} ${DIM}${BOX.v}${RESET}\n`);
-    }
-
-    process.stdout.write(`  ${DIM}${BOX.bl}${BOX.h.repeat(panelWidth - 2)}${BOX.br}${RESET}\n`);
-  }
-
-  _buildContentLines(content, maxWidth) {
-    const raw = content.split("\n");
+  _diffLines(oldText, newText, maxWidth) {
+    if (!oldText || !newText) return [];
+    const oldLines = oldText.split("\n");
+    const newLines = newText.split("\n");
     const lines = [];
-    const numWidth = String(raw.length).length;
+    const maxLen = Math.max(oldLines.length, newLines.length);
+    const clip = maxWidth - 3;
 
-    for (let i = 0; i < raw.length; i++) {
-      const num = String(i + 1).padStart(numWidth);
-      const text = raw[i].slice(0, maxWidth - numWidth - 3);
-      lines.push(`${DIM}${num}${RESET} ${text}`);
+    // Show a contextual diff
+    let contextBefore = null;
+    for (let i = 0; i < maxLen; i++) {
+      const ol = oldLines[i];
+      const nl = newLines[i];
+      if (ol !== nl) {
+        // One context line before the first change
+        if (contextBefore != null && lines.length === 0) {
+          lines.push(`${T.textMuted}  ${contextBefore.slice(0, clip)}${T.reset}`);
+        }
+        if (ol !== undefined) {
+          lines.push(`${T.error}- ${ol.slice(0, clip)}${T.reset}`);
+        }
+        if (nl !== undefined) {
+          lines.push(`${T.success}+ ${nl.slice(0, clip)}${T.reset}`);
+        }
+      } else {
+        // Track context, show one line after a change block
+        if (lines.length > 0 && (i > 0 && oldLines[i - 1] !== newLines[i - 1])) {
+          lines.push(`${T.textMuted}  ${(ol || "").slice(0, clip)}${T.reset}`);
+        }
+        contextBefore = ol;
+      }
     }
     return lines;
   }
 
-  _buildDiffLines(oldContent, newContent, maxWidth) {
-    const oldLines = oldContent.split("\n");
-    const newLines = newContent.split("\n");
+  _previewLines(content, maxWidth) {
+    if (!content) return [`${T.textMuted}(empty file)${T.reset}`];
+    const raw = content.split("\n");
     const lines = [];
+    const numW = String(Math.min(raw.length, this.maxPreviewLines)).length + 1;
+    const clip = maxWidth - numW - 2;
+    const count = Math.min(raw.length, this.maxPreviewLines);
 
-    // Simple diff: find changed regions
-    const maxLen = Math.max(oldLines.length, newLines.length);
-    let inChange = false;
-
-    for (let i = 0; i < maxLen; i++) {
-      const oldLine = oldLines[i];
-      const newLine = newLines[i];
-
-      if (oldLine !== newLine) {
-        if (!inChange) {
-          lines.push(`${DIM}@@ line ${i + 1} @@${RESET}`);
-          inChange = true;
-        }
-        if (oldLine !== undefined) {
-          lines.push(`${RED}- ${oldLine.slice(0, maxWidth - 2)}${RESET}`);
-        }
-        if (newLine !== undefined) {
-          lines.push(`${GREEN}+ ${newLine.slice(0, maxWidth - 2)}${RESET}`);
-        }
-      } else {
-        if (inChange) {
-          // Show one context line after change
-          if (oldLine !== undefined) {
-            lines.push(`${DIM}  ${oldLine.slice(0, maxWidth - 2)}${RESET}`);
-          }
-          inChange = false;
-        }
-      }
+    for (let i = 0; i < count; i++) {
+      const num = String(i + 1).padStart(numW);
+      lines.push(`${T.lineNumber}${num}${T.reset} ${raw[i].slice(0, clip)}`);
+    }
+    if (raw.length > count) {
+      lines.push(`${T.textMuted}  ${icons.ellipsis} ${raw.length - count} more lines${T.reset}`);
     }
     return lines;
   }
 }
 
-export const sidebar = new Sidebar();
+export const activityPanel = new ActivityPanel();

@@ -1,104 +1,197 @@
 import { createInterface } from "readline";
+import { theme, box, icons, toolIcons, stripAnsi, fitWidth, termWidth } from "./theme.js";
 
-// Color constants (matching LlamaTalk Suite convention)
-export const ORANGE = "\x1b[38;5;208m";
-export const RED = "\x1b[31m";
-export const GREEN = "\x1b[32m";
-export const YELLOW = "\x1b[33m";
-export const BLUE = "\x1b[34m";
-export const DIM = "\x1b[2m";
-export const BOLD = "\x1b[1m";
-export const RESET = "\x1b[0m";
-export const GOLD = "\x1b[38;5;220m";
+const T = theme;
 
-// --- Thinking animation (braille spinner) ---
-const BRAILLE_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+// Re-export legacy color constants for backward compat
+export const ORANGE = T.accent;
+export const RED = T.error;
+export const GREEN = T.success;
+export const YELLOW = T.warning;
+export const BLUE = T.info;
+export const DIM = T.dim;
+export const BOLD = T.bold;
+export const RESET = T.reset;
+export const GOLD = T.accentAlt;
 
+// ──────────────────────────────────────────────────────
+// Thinking / Spinner
+// ──────────────────────────────────────────────────────
+
+const SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 let thinkingInterval = null;
 let thinkingFrame = 0;
+let thinkingStartMs = 0;
+
+let thinkingDelay = null;
+let thinkingVisible = false;
 
 export function startThinking() {
   thinkingFrame = 0;
-  process.stdout.write("\n");
-  process.stdout.write(`  ${ORANGE}${BRAILLE_FRAMES[0]}${RESET} ${DIM}Thinking...  Esc to cancel${RESET}\n`);
-  thinkingInterval = setInterval(() => {
-    thinkingFrame = (thinkingFrame + 1) % BRAILLE_FRAMES.length;
-    process.stdout.write("\x1b[1A\x1b[2K");
-    process.stdout.write(`  ${ORANGE}${BRAILLE_FRAMES[thinkingFrame]}${RESET} ${DIM}Thinking...  Esc to cancel${RESET}\n`);
-  }, 200);
+  thinkingStartMs = Date.now();
+  thinkingVisible = false;
+
+  // Debounce: only show spinner if model hasn't responded within 400ms
+  thinkingDelay = setTimeout(() => {
+    thinkingDelay = null;
+    thinkingVisible = true;
+    process.stdout.write("\n");
+    _renderThinkingLine();
+    thinkingInterval = setInterval(() => {
+      thinkingFrame = (thinkingFrame + 1) % SPINNER_FRAMES.length;
+      process.stdout.write("\x1b[1A\x1b[2K");
+      _renderThinkingLine();
+    }, 100);
+  }, 400);
+}
+
+function _renderThinkingLine() {
+  const elapsed = ((Date.now() - thinkingStartMs) / 1000).toFixed(0);
+  const timer = elapsed > 0 ? `${T.textMuted} ${elapsed}s${T.reset}` : "";
+  process.stdout.write(
+    `  ${T.accent}${SPINNER_FRAMES[thinkingFrame]}${T.reset} ${T.dim}Thinking${T.reset}${timer}  ${T.textMuted}Esc to cancel${T.reset}\n`
+  );
 }
 
 export function stopThinking() {
+  // Cancel the debounce if spinner hasn't appeared yet
+  if (thinkingDelay) {
+    clearTimeout(thinkingDelay);
+    thinkingDelay = null;
+  }
   if (thinkingInterval) {
     clearInterval(thinkingInterval);
     thinkingInterval = null;
+  }
+  if (thinkingVisible) {
     process.stdout.write("\x1b[2A\x1b[2K\n\x1b[2K\x1b[1A");
+    thinkingVisible = false;
   }
 }
 
-// --- Tool call display ---
+// ──────────────────────────────────────────────────────
+// Tool call display (OpenCode-style cards)
+// ──────────────────────────────────────────────────────
 
-// Store last tool calls for /more
 let _lastToolCalls = [];
 
-export function getLastToolCalls() {
-  return _lastToolCalls;
+export function getLastToolCalls() { return _lastToolCalls; }
+export function clearLastToolCalls() { _lastToolCalls = []; }
+
+/**
+ * Format a brief subtitle for a tool call (shown beside tool name).
+ */
+function toolSubtitle(name, args) {
+  switch (name) {
+    case "read_file":
+      return args?.path || "";
+    case "write_file":
+      return args?.path || "";
+    case "edit_file":
+      return args?.path || "";
+    case "bash":
+      return (args?.command || "").length > 80
+        ? args.command.slice(0, 77) + "..."
+        : (args?.command || "");
+    case "git":
+      return args?.subcommand || "";
+    case "search_files":
+      return `/${args?.pattern || ""}/${args?.glob ? ` ${args.glob}` : ""}`;
+    case "glob_files":
+      return args?.pattern || "";
+    case "list_directory":
+      return args?.path || ".";
+    case "web_fetch":
+      return args?.url || "";
+    case "web_search":
+      return args?.query || "";
+    case "npm_install":
+    case "pip_install":
+      return args?.package || "";
+    case "install_tool":
+      return args?.package || "";
+    case "generate_file":
+      return args?.path || "";
+    default:
+      return args?.path || args?.command || args?.pattern || "";
+  }
 }
 
-export function clearLastToolCalls() {
-  _lastToolCalls = [];
-}
-
+/**
+ * Print a compact tool call line (OpenCode style).
+ *
+ *   ▸ read_file  src/agent.js
+ */
 export function printToolCall(toolName, args) {
-  // Store full details for /more
   _lastToolCalls.push({ name: toolName, arguments: args });
 
-  // Compact display: tool name + brief key info
-  let brief = "";
-  if (args?.path) brief = args.path;
-  else if (args?.command) brief = args.command.length > 60 ? args.command.slice(0, 57) + "..." : args.command;
-  else if (args?.pattern) brief = args.pattern;
+  const icon = toolIcons[toolName] || icons.arrow;
+  const subtitle = toolSubtitle(toolName, args);
+  const subtitleColor = (toolName.includes("file") || toolName === "generate_file")
+    ? T.filePath
+    : (toolName === "bash" ? T.command : T.dim);
 
-  process.stdout.write(`\n  ${ORANGE}●${RESET} ${BOLD}${toolName}${RESET}${brief ? ` ${DIM}${brief}${RESET}` : ""}\n`);
+  process.stdout.write(
+    `\n  ${T.toolIcon}${icon}${T.reset} ${T.toolName}${toolName}${T.reset}` +
+    (subtitle ? `  ${subtitleColor}${subtitle}${T.reset}` : "") +
+    "\n"
+  );
 }
 
+/**
+ * Print full tool call details (for /more command).
+ */
 export function printToolCallFull(tc) {
-  process.stdout.write(`\n  ${ORANGE}●${RESET} ${BOLD}${tc.name}${RESET}\n`);
+  const icon = toolIcons[tc.name] || icons.arrow;
+  process.stdout.write(`\n  ${T.toolIcon}${icon}${T.reset} ${T.toolName}${T.bold}${tc.name}${T.reset}\n`);
   for (const [k, v] of Object.entries(tc.arguments || {})) {
     const val = typeof v === "string"
       ? (v.length > 200 ? v.slice(0, 197) + "..." : v)
       : JSON.stringify(v);
-    process.stdout.write(`    ${DIM}${k}:${RESET} ${val}\n`);
+    process.stdout.write(`    ${T.textMuted}${k}:${T.reset} ${val}\n`);
   }
 }
 
+/**
+ * Print a tool result line (success/failure).
+ *
+ *   ✓ Read 142 lines
+ *   ✗ File not found: foo.js
+ */
 export function printToolResult(toolName, success, summary) {
-  const icon = success ? `${GREEN}✓${RESET}` : `${RED}✗${RESET}`;
-  const color = success ? DIM : RED;
+  const icon = success ? `${T.success}${icons.success}${T.reset}` : `${T.error}${icons.error}${T.reset}`;
+  const color = success ? T.dim : T.error;
   const trimmed = summary.length > 120 ? summary.slice(0, 117) + "..." : summary;
-  process.stdout.write(`  ${icon} ${color}${trimmed}${RESET}\n`);
+  process.stdout.write(`  ${icon} ${color}${trimmed}${T.reset}\n`);
 }
 
-// --- Batch confirmation ---
+// ──────────────────────────────────────────────────────
+// Batch confirmation (OpenCode-style approval)
+// ──────────────────────────────────────────────────────
 
 export async function confirmBatch(actions, existingRl) {
-  process.stdout.write(`\n  ${YELLOW}${actions.length} action(s) need approval:${RESET}\n`);
+  const w = termWidth();
+  const lineW = Math.min(w - 4, 60);
+  const line = `${T.border}${box.h.repeat(lineW)}${T.reset}`;
+  process.stdout.write(`\n  ${line}\n`);
+  process.stdout.write(`  ${T.warning}${T.bold}${actions.length} action${actions.length > 1 ? "s" : ""} need approval${T.reset}\n\n`);
   for (const a of actions) {
-    process.stdout.write(`    ${ORANGE}●${RESET} ${a}\n`);
+    process.stdout.write(`    ${T.toolIcon}${icons.arrow}${T.reset} ${a}\n`);
   }
-  return confirm("Allow all?", existingRl, { allowAlways: true });
+  process.stdout.write(`\n  ${line}\n`);
+  return confirm("Allow?", existingRl, { allowAlways: true });
 }
 
-// --- Diff display ---
+// ──────────────────────────────────────────────────────
+// Diff display
+// ──────────────────────────────────────────────────────
 
 export function printDiff(filePath, oldContent, newContent) {
   const oldLines = oldContent.split("\n");
   const newLines = newContent.split("\n");
 
-  process.stdout.write(`\n  ${DIM}--- ${filePath}${RESET}\n`);
-  process.stdout.write(`  ${DIM}+++ ${filePath}${RESET}\n`);
+  process.stdout.write(`\n  ${T.border}${box.h}${box.h}${T.reset} ${T.filePath}${filePath}${T.reset}\n`);
 
-  // Simple unified diff — show changed lines
   const maxLines = Math.max(oldLines.length, newLines.length);
   let inChange = false;
   for (let i = 0; i < maxLines; i++) {
@@ -106,14 +199,14 @@ export function printDiff(filePath, oldContent, newContent) {
     const newLine = newLines[i];
     if (oldLine !== newLine) {
       if (!inChange) {
-        process.stdout.write(`  ${DIM}@@ line ${i + 1} @@${RESET}\n`);
+        process.stdout.write(`  ${T.textMuted}@@ line ${i + 1} @@${T.reset}\n`);
         inChange = true;
       }
       if (oldLine !== undefined) {
-        process.stdout.write(`  ${RED}- ${oldLine}${RESET}\n`);
+        process.stdout.write(`  ${T.error}- ${oldLine}${T.reset}\n`);
       }
       if (newLine !== undefined) {
-        process.stdout.write(`  ${GREEN}+ ${newLine}${RESET}\n`);
+        process.stdout.write(`  ${T.success}+ ${newLine}${T.reset}\n`);
       }
     } else {
       inChange = false;
@@ -122,11 +215,15 @@ export function printDiff(filePath, oldContent, newContent) {
   process.stdout.write("\n");
 }
 
-// --- Confirmation prompt ---
+// ──────────────────────────────────────────────────────
+// Confirmation prompt
+// ──────────────────────────────────────────────────────
 
 export async function confirm(message, existingRl, { allowAlways = true } = {}) {
-  const suffix = allowAlways ? `${DIM}(y/n/always)${RESET} ` : `${DIM}(y/n)${RESET} `;
-  const prompt = `  ${YELLOW}${message}${RESET} ${suffix}`;
+  const options = allowAlways
+    ? `${T.dim}(${T.reset}${T.bold}y${T.reset}${T.dim}/${T.reset}n${T.dim}/${T.reset}always${T.dim})${T.reset} `
+    : `${T.dim}(${T.reset}${T.bold}y${T.reset}${T.dim}/${T.reset}n${T.dim})${T.reset} `;
+  const prompt = `  ${T.warning}${message}${T.reset} ${options}`;
 
   if (existingRl) {
     return new Promise((resolve) => {
@@ -149,39 +246,84 @@ export async function confirm(message, existingRl, { allowAlways = true } = {}) 
   });
 }
 
-// --- Usage display ---
+// ──────────────────────────────────────────────────────
+// Usage / status line (shown after each response)
+// ──────────────────────────────────────────────────────
 
-export function printUsage(usage, iterationCount, contextPercent) {
+export function printUsage(usage, iterationCount, contextPercent, durationMs) {
   if (!usage) return;
-  const tokens = (usage.promptTokens || 0) + (usage.outputTokens || 0);
+  const inTok = usage.promptTokens || 0;
+  const outTok = usage.outputTokens || 0;
+  const total = inTok + outTok;
+
+  const parts = [];
+
+  // Duration
+  if (durationMs != null && durationMs > 0) {
+    const secs = (durationMs / 1000).toFixed(1);
+    parts.push(`${T.textMuted}${secs}s${T.reset}`);
+  }
+
+  // Input / output tokens
+  if (inTok > 0 && outTok > 0) {
+    parts.push(`${T.tokens}${inTok.toLocaleString()}${T.reset}${T.textMuted}in${T.reset} ${T.tokens}${outTok.toLocaleString()}${T.reset}${T.textMuted}out${T.reset}`);
+  } else if (total > 0) {
+    parts.push(`${T.tokens}${total.toLocaleString()}${T.reset} ${T.textMuted}tokens${T.reset}`);
+  }
+
+  // Speed
   let tks = "";
   if (usage.evalDurationNs) {
     const secs = usage.evalDurationNs / 1e9;
-    tks = ` · ${(usage.outputTokens / secs).toFixed(1)} tk/s`;
-  } else if (usage.wallTimeMs && usage.outputTokens > 0) {
+    tks = `${(outTok / secs).toFixed(1)} tk/s`;
+  } else if (usage.wallTimeMs && outTok > 0) {
     const secs = usage.wallTimeMs / 1000;
-    if (secs > 0.1) tks = ` · ${(usage.outputTokens / secs).toFixed(1)} tk/s`;
+    if (secs > 0.1) tks = `${(outTok / secs).toFixed(1)} tk/s`;
+  } else if (durationMs && outTok > 0) {
+    const secs = durationMs / 1000;
+    if (secs > 0.1) tks = `${(outTok / secs).toFixed(1)} tk/s`;
   }
-  const iters = iterationCount > 0 ? ` · ${iterationCount} tool call${iterationCount > 1 ? "s" : ""}` : "";
-  let ctx = "";
+  if (tks) parts.push(`${T.speed}${tks}${T.reset}`);
+
+  // Tool calls
+  if (iterationCount > 0) {
+    parts.push(`${T.textMuted}${iterationCount} tool call${iterationCount > 1 ? "s" : ""}${T.reset}`);
+  }
+
+  // Context usage bar
   if (contextPercent != null) {
-    const color = contextPercent >= 95 ? RED : contextPercent >= 80 ? YELLOW : DIM;
-    ctx = ` · ${color}${contextPercent}% context${RESET}${DIM}`;
+    const barLen = 12;
+    const filled = Math.round((contextPercent / 100) * barLen);
+    const empty = barLen - filled;
+    const barColor = contextPercent >= 95 ? T.error : contextPercent >= 80 ? T.warning : T.accent;
+    const bar = `${barColor}${"█".repeat(filled)}${T.textMuted}${"░".repeat(empty)}${T.reset}`;
+    parts.push(`${bar} ${T.textMuted}${contextPercent}%${T.reset}`);
   }
-  process.stdout.write(`\n  ${GOLD}●${RESET}  ${DIM}${tokens.toLocaleString()} tokens${tks}${iters}${ctx}${RESET}\n`);
+
+  // Cost
+  if (usage.cost != null && usage.cost > 0) {
+    parts.push(`${T.cost}$${usage.cost.toFixed(4)}${T.reset}`);
+  }
+
+  const separator = ` ${T.textMuted}${icons.dot}${T.reset} `;
+  process.stdout.write(`\n  ${T.accentAlt}${icons.dot}${T.reset}  ${parts.join(separator)}\n`);
 }
 
 export function printContextClearing() {
-  process.stdout.write(`\n  ${YELLOW}⟳ Clearing Context${RESET} ${DIM}— summarizing conversation to free space${RESET}\n`);
+  process.stdout.write(`\n  ${T.warning}${icons.running} Compacting context${T.reset} ${T.dim}${box.h} summarizing old messages to free space${T.reset}\n`);
 }
 
-// --- Error display ---
+// ──────────────────────────────────────────────────────
+// Error display
+// ──────────────────────────────────────────────────────
 
 export function printError(message) {
-  process.stdout.write(`\n  ${RED}Error: ${message}${RESET}\n`);
+  process.stdout.write(`\n  ${T.error}${icons.error} ${message}${T.reset}\n`);
 }
 
-// --- Masked input ---
+// ──────────────────────────────────────────────────────
+// Masked input (PIN entry)
+// ──────────────────────────────────────────────────────
 
 export async function askMasked(prompt) {
   return new Promise((resolve) => {
@@ -220,11 +362,37 @@ export async function askMasked(prompt) {
   });
 }
 
-// --- Shortcut hint ---
+// ──────────────────────────────────────────────────────
+// Shortcut hint (shown below banner)
+// ──────────────────────────────────────────────────────
 
 export function printShortcutHint() {
-  const hint = "Enter to send  ·  /mode  ·  /session  ·  /more  ·  Esc cancel  ·  Ctrl+C exit  ·  /help";
-  const termWidth = process.stdout.columns || 80;
-  const pad = " ".repeat(Math.max(0, Math.floor((termWidth - hint.length) / 2)));
-  process.stdout.write(pad + DIM + hint + RESET + "\n");
+  const hint = `${T.textMuted}Enter to send ${icons.dot} /help ${icons.dot} /mode ${icons.dot} /session ${icons.dot} Esc cancel ${icons.dot} Ctrl+C exit${T.reset}`;
+  const plain = stripAnsi(hint);
+  const w = termWidth();
+  const pad = " ".repeat(Math.max(0, Math.floor((w - plain.length) / 2)));
+  process.stdout.write(pad + hint + "\n");
+}
+
+// ──────────────────────────────────────────────────────
+// Separator lines
+// ──────────────────────────────────────────────────────
+
+export function printSeparator(label = "") {
+  const w = Math.min(termWidth() - 4, 70);
+  if (label) {
+    const labelLen = stripAnsi(label).length;
+    const remaining = Math.max(0, w - labelLen - 3);
+    process.stdout.write(`\n  ${T.border}${box.h}${T.reset} ${label} ${T.border}${box.h.repeat(remaining)}${T.reset}\n`);
+  } else {
+    process.stdout.write(`\n  ${T.border}${box.h.repeat(w)}${T.reset}\n`);
+  }
+}
+
+// ──────────────────────────────────────────────────────
+// Agent response header
+// ──────────────────────────────────────────────────────
+
+export function printAgentHeader() {
+  process.stdout.write(`\n  ${T.agentName}Llama${T.reset} ${T.bold}${icons.chevronRight}${T.reset} `);
 }

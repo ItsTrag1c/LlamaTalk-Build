@@ -1,6 +1,32 @@
 # Changelog — LlamaTalk Build
 
-Last updated: 2026-03-07 (v0.9.19)
+Last updated: 2026-03-07 (v2.0.0)
+
+---
+
+## v2.0.0 — 2026-03-07
+
+### New Features
+- **Theme system** — unified theming engine (`src/ui/theme.js`) with semantic color tokens, box-drawing helpers, icon sets, and terminal-width utilities. All UI components now use consistent styling.
+- **Agent instructions** — new `/instructions` command and `instructions.js` module to discover and display project-level agent instructions from `.llamabuild/agent/*.md` and `AGENTS.md` files. Instructions are injected into the system prompt.
+- **Context compaction** — smarter conversation compression (`compaction.js`) that prunes old tool outputs first, then drops oldest messages, preserving more useful context before hitting limits.
+- **Activity panel** — redesigned file-change panel (`activityPanel`) replaces the old sidebar, showing inline code-change boxes with diffs on file writes/edits.
+- **Plan mode enforcement** — plan mode now truly blocks all write tools. Read-only tool detection (`isReadOnlyTool`) allows only safe tools (file reads, directory listings, search, read-only git subcommands) while rejecting writes and commands.
+
+### Improvements
+- **Debounced thinking spinner** — spinner only appears after 400ms of model silence (avoids flicker on fast responses) and shows elapsed time.
+- **Richer banner** — startup banner now shows active model, provider, and mode in a formatted status line with separators.
+- **Better `/tools` display** — tool list now shows per-tool icons and safety dots instead of plain text tags.
+- **`/mode` accepts arguments** — `/mode build` or `/mode plan` sets mode directly instead of cycling.
+- **Cleaner `/help`** — updated command reference with new commands and removed sidebar toggle.
+- **Agent prompt header** — agent response header uses `printAgentHeader()` for consistent formatting.
+- **Turn timing** — agent loop tracks turn start time for future performance metrics.
+
+### Internal
+- Agent modes refactored from parallel arrays to a single `MODES` object with label, color, description, and icon per mode.
+- Legacy color constants re-exported from `theme.js` for backward compatibility.
+- Memory manager caches instructions block and invalidates on project root change.
+- Removed unused `spawn` import from commands.
 
 ---
 

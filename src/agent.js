@@ -2,19 +2,22 @@ import { createInterface } from "readline";
 import { randomUUID } from "crypto";
 import { getProviderForModel } from "./providers/router.js";
 import { ToolRegistry } from "./tools/registry.js";
+import { isReadOnlyTool } from "./tools/base.js";
 import { requireConfirmation, promptConfirmation } from "./safety.js";
 import { handleCommand } from "./commands.js";
 import { MemoryManager } from "./memory/memory.js";
 import { ContextManager } from "./context/context.js";
 import { saveConversation, loadConversation, getMemoryDir } from "./config.js";
 import { SessionManager } from "./sessions.js";
+import { compactMessages as _compactMessages } from "./memory/compaction.js";
 import {
   ORANGE, RED, GREEN, YELLOW, DIM, BOLD, RESET, GOLD,
   startThinking, stopThinking,
   printToolCall, printToolResult, printUsage, printError, printContextClearing,
-  clearLastToolCalls, confirmBatch,
+  clearLastToolCalls, confirmBatch, printAgentHeader, printSeparator,
 } from "./ui/ui.js";
-import { sidebar } from "./ui/sidebar.js";
+import { theme, icons, box } from "./ui/theme.js";
+import { activityPanel } from "./ui/sidebar.js";
 import { SessionLog } from "./session-log.js";
 import { SessionTracker } from "./session-tracker.js";
 
@@ -22,9 +25,20 @@ import { SessionTracker } from "./session-tracker.js";
 const ANSI_RE = /\x1B(?:\[[0-9;]*[A-Za-z]|\(.|#.|].*?(?:\x07|\x1B\\))/g;
 
 // --- Agent modes ---
-const MODES = ["build", "plan"];
-const MODE_LABELS = { build: "Build", plan: "Plan" };
-const MODE_COLORS = { build: GREEN, plan: YELLOW };
+const MODES = {
+  build: {
+    label: "Build",
+    color: GREEN,
+    description: "Full agent — reads, writes, and executes freely",
+    icon: "●",
+  },
+  plan: {
+    label: "Plan",
+    color: YELLOW,
+    description: "Explore and plan only — no file writes or commands",
+    icon: "◐",
+  },
+};
 
 // Tool imports
 import { readFileTool } from "./tools/read-file.js";
@@ -105,12 +119,14 @@ function buildSystemPrompt(config, projectRoot, memoryBlock, projectContext, age
 
   if (agentMode === "plan") {
     prompt += `\n\n## Mode: Plan
-You are in Plan Mode. Before making ANY changes:
+You are in Plan Mode. You can ONLY use read-only tools (read_file, list_directory, search_files, glob_files, web_fetch, web_search, and read-only git subcommands like status/diff/log). All write operations are blocked.
+
+Your job is to:
 1. Read and explore the relevant files to fully understand the codebase
-2. Present a complete, numbered plan of ALL changes you intend to make
-3. List each file that will be created, modified, or deleted with a summary of what changes
-4. Wait for the user to explicitly confirm the plan before executing any modifications
-5. Only after receiving approval, proceed with the planned changes in order`;
+2. Present a clear, numbered plan of ALL changes you intend to make
+3. For each change, specify the file path and a brief description of what will change
+
+Do NOT attempt to write, edit, or execute commands — those calls will be rejected. Focus entirely on analysis and planning. The user will review your plan and can approve it to switch to Build mode for execution.`;
   }
 
   if (memoryBlock) {
@@ -179,27 +195,13 @@ function startEscWatch(signal, controller, rl) {
  * Keeps the first user message and last N messages, replaces the middle
  * with a summary message so the model retains key context.
  */
-function compressMessages(messages, keepLast = 6) {
-  if (messages.length <= keepLast + 2) return messages; // nothing to compress
-
-  const first = messages[0]; // first user message
-  const kept = messages.slice(-keepLast);
-
-  // Gather summaries from dropped messages
-  const dropped = messages.slice(1, -keepLast);
-  const summaryParts = [];
-  for (const m of dropped) {
-    if (m.role === "user") {
-      summaryParts.push(`- User asked: ${typeof m.content === "string" ? m.content.slice(0, 150) : "[complex]"}`);
-    } else if (m.role === "assistant" && typeof m.content === "string") {
-      summaryParts.push(`- Assistant: ${m.content.slice(0, 150)}`);
-    }
-    // Skip tool results/calls in summary to save space
-  }
-
-  const summaryText = `[Context was compressed to free space. Summary of earlier conversation:\n${summaryParts.slice(0, 20).join("\n")}\n...${dropped.length} messages condensed]`;
-
-  return [first, { role: "user", content: summaryText }, { role: "assistant", content: "Understood, I have the context from our earlier conversation. Let me continue." }, ...kept];
+/**
+ * Compact messages using the compaction system.
+ * Prunes old tool outputs first, then drops oldest messages if needed.
+ */
+function compressMessages(messages) {
+  const result = _compactMessages(messages);
+  return result.messages;
 }
 
 export async function runAgent(rl, config, encKey, opts = {}) {
@@ -238,9 +240,8 @@ export async function runAgent(rl, config, encKey, opts = {}) {
   // Build prompt string
   const buildPromptStr = () => {
     const modelName = config.modelNickname?.[config.selectedModel] || config.selectedModel || "no model";
-    const modeColor = MODE_COLORS[agentMode];
-    const modeLabel = MODE_LABELS[agentMode];
-    return `\n  ${ORANGE}${config.profileName || "You"}${RESET} ${DIM}[${modelName}]${RESET} ${modeColor}(${modeLabel})${RESET} ${BOLD}>${RESET} `;
+    const mode = MODES[agentMode];
+    return `\n  ${theme.userName}${config.profileName || "You"}${theme.reset} ${theme.textMuted}${modelName}${theme.reset} ${mode.color}${mode.icon} ${mode.label}${theme.reset} ${theme.bold}${icons.chevronRight}${theme.reset} `;
   };
 
   // Ask function using rl
@@ -295,7 +296,7 @@ export async function runAgent(rl, config, encKey, opts = {}) {
         memory,
         sessionChanges,
         conversationId,
-        sidebar,
+        activityPanel,
         sessionTracker,
         sessionMgr,
         currentSession,
@@ -338,6 +339,7 @@ export async function runAgent(rl, config, encKey, opts = {}) {
     const contextLimit = provider.contextWindow();
     const CONTEXT_THRESHOLD = config.contextThreshold || 80; // % at which to compress
     const toolDefs = toolRegistry.getDefinitions(); // cache for all iterations
+    const turnStartTime = Date.now();
 
     while (iterationCount < (config.maxIterations || 50)) {
       // Rebuild system prompt each iteration (mode may have changed)
@@ -378,7 +380,7 @@ export async function runAgent(rl, config, encKey, opts = {}) {
             if (firstToken) {
               stopThinking();
               firstTokenTime = Date.now();
-              process.stdout.write(`\n  ${ORANGE}Llama Agent${RESET} ${BOLD}>${RESET} `);
+              printAgentHeader();
               firstToken = false;
             }
             responseChunks.push(event.content);
@@ -461,6 +463,14 @@ export async function runAgent(rl, config, encKey, opts = {}) {
         const validated = [];
         const needsConfirm = [];
         for (const tc of toolCalls) {
+          // Plan mode: block write tools
+          if (agentMode === "plan" && !isReadOnlyTool(tc.name, tc.arguments)) {
+            const msg = `Blocked: ${tc.name} is not allowed in Plan mode. Only read-only tools are available. Present your plan as text instead.`;
+            if (config.showToolCalls) printToolCall(tc.name, tc.arguments);
+            printToolResult(tc.name, false, msg);
+            messages.push(formatToolResult(tc.id, msg, tc.name));
+            continue;
+          }
           const tool = toolRegistry.get(tc.name);
           if (!tool) {
             printToolResult(tc.name, false, `Unknown tool: ${tc.name}`);
@@ -569,7 +579,7 @@ export async function runAgent(rl, config, encKey, opts = {}) {
               } catch { /* non-fatal */ }
             }
 
-            // Sidebar: show code preview for file modifications
+            // Activity panel: auto-show detailed code changes
             if (tc.name === "write_file" || tc.name === "edit_file") {
               try {
                 const { resolve } = await import("path");
@@ -578,10 +588,8 @@ export async function runAgent(rl, config, encKey, opts = {}) {
                 const newContent = readFileSync(filePath, "utf8");
                 const lastChange = sessionChanges[sessionChanges.length - 1];
                 const oldContent = lastChange?.oldContent || null;
-                sidebar.show(tc.arguments.path, newContent, tc.name === "edit_file" ? oldContent : null);
+                activityPanel.showChange(tc.arguments.path, tc.name, tc.arguments, newContent, oldContent);
               } catch { /* non-fatal */ }
-
-              sidebar.showActivity(sessionTracker.getRecentChanges());
             }
           } catch (err) {
             printToolResult(tc.name, false, err.message);
@@ -605,24 +613,47 @@ export async function runAgent(rl, config, encKey, opts = {}) {
       }
       process.stdout.write("\n");
 
+      // Show activity feed if there were file changes this turn
+      const recentChanges = sessionTracker.getRecentChanges();
+      if (recentChanges.length > 0 && iterationCount > 0) {
+        activityPanel.showActivity(recentChanges);
+      }
+
       // Calculate final context % for display
       if (lastUsage && lastUsage.promptTokens > 0) {
         contextPercent = Math.round((lastUsage.promptTokens / contextLimit) * 100);
       }
 
-      // Show usage
-      printUsage(lastUsage, iterationCount, contextPercent);
+      // Show usage with duration
+      const turnDuration = Date.now() - turnStartTime;
+      printUsage(lastUsage, iterationCount, contextPercent, turnDuration);
 
       // Plan mode: offer to proceed with the plan
       if (agentMode === "plan") {
-        const answer = await ask(`\n  ${YELLOW}Proceed with Plan?${RESET} ${DIM}(y/n)${RESET} `);
-        if (answer.trim().toLowerCase() === "y" || answer.trim().toLowerCase() === "yes") {
+        process.stdout.write(`\n  ${DIM}────────────────────────────────────────${RESET}\n`);
+        process.stdout.write(`  ${YELLOW}${BOLD}Plan complete.${RESET} What would you like to do?\n`);
+        process.stdout.write(`    ${BOLD}y${RESET}  ${GREEN}Approve and execute${RESET}  ${DIM}— switch to Build mode and run the plan${RESET}\n`);
+        process.stdout.write(`    ${BOLD}n${RESET}  ${ORANGE}Keep planning${RESET}        ${DIM}— continue refining in Plan mode${RESET}\n`);
+        process.stdout.write(`    ${BOLD}e${RESET}  ${YELLOW}Edit instructions${RESET}   ${DIM}— add guidance before executing${RESET}\n`);
+        const answer = await ask(`\n  ${BOLD}>${RESET} `);
+        const a = answer.trim().toLowerCase();
+        if (a === "y" || a === "yes") {
           agentMode = "build";
-          messages.push({ role: "user", content: "Proceed with the plan. Execute each step, confirming before each file change or git operation." });
-          console.log(`\n  ${GREEN}● Build Mode${RESET} ${DIM}— executing plan step by step${RESET}`);
+          messages.push({ role: "user", content: "Proceed with the plan. Execute each step." });
+          console.log(`\n  ${GREEN}● Build${RESET} ${DIM}— executing plan${RESET}`);
           sessionLog.addStep("Plan approved — switched to Build mode");
-          continue; // system prompt is rebuilt at top of inner loop
+          continue;
+        } else if (a === "e" || a === "edit") {
+          const extra = await ask(`  ${DIM}Additional instructions:${RESET} `);
+          if (extra.trim()) {
+            agentMode = "build";
+            messages.push({ role: "user", content: `Proceed with the plan with these adjustments: ${extra.trim()}` });
+            console.log(`\n  ${GREEN}● Build${RESET} ${DIM}— executing plan with edits${RESET}`);
+            sessionLog.addStep("Plan approved with edits — switched to Build mode");
+            continue;
+          }
         }
+        // n or empty — stay in plan mode, loop back to prompt
       }
 
       break;

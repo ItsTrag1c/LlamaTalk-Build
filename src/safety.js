@@ -76,7 +76,7 @@ export function isDestructiveCommand(command) {
 
 /**
  * Check if a tool invocation requires user confirmation.
- * agentMode: "build" (confirm moderate/dangerous), "plan" (plan first, confirm moderate/dangerous)
+ * Plan mode enforcement is handled separately in agent.js (write tools are blocked).
  * /trust overrides via config.autoApprove for the session.
  */
 export function requireConfirmation(tool, args, config, agentMode = "build") {

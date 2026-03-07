@@ -1,6 +1,7 @@
 import { readFileSync, writeFileSync, readdirSync, existsSync, mkdirSync } from "fs";
 import { join, basename, extname } from "path";
 import { getMemoryDir, encryptValue, decryptValue, isEncryptedPayload } from "../config.js";
+import { buildInstructionsBlock } from "./instructions.js";
 
 const STOPWORDS = new Set([
   "the", "a", "an", "is", "are", "was", "were", "be", "been", "being",
@@ -21,8 +22,10 @@ export class MemoryManager {
   constructor(config, encKey = null) {
     this.globalDir = getMemoryDir();
     this.encKey = encKey;
-    this._cache = new Map(); // path → { content, ts }
-    this._cacheTTL = 60_000; // 60 second TTL
+    this._cache = new Map();
+    this._cacheTTL = 60_000;
+    this._instructionsCache = null;
+    this._instructionsCacheRoot = null;
     this.ensureDir();
   }
 
@@ -62,7 +65,6 @@ export class MemoryManager {
     if (!existsSync(this.globalDir)) {
       mkdirSync(this.globalDir, { recursive: true });
     }
-    // Ensure MEMORY.md exists for existing users who never ran onboarding with memory setup
     const memFile = join(this.globalDir, "MEMORY.md");
     if (!existsSync(memFile)) {
       writeFileSync(memFile, "# Memory\n\n## Preferences\n(The agent will save your preferences here as it learns them.)\n\n## Projects\n(Project-specific notes will be saved here.)\n", "utf8");
@@ -105,14 +107,10 @@ export class MemoryManager {
 
     for (const topic of topics) {
       let score = 0;
-
-      // Match against filename
       const topicLower = topic.toLowerCase();
       for (const kw of keywords) {
         if (topicLower.includes(kw)) score += 3;
       }
-
-      // Match against first 10 lines (headers/tags)
       const content = this.loadTopic(topic);
       if (content) {
         const header = content.split("\n").slice(0, 10).join(" ").toLowerCase();
@@ -120,18 +118,11 @@ export class MemoryManager {
           if (header.includes(kw)) score += 1;
         }
       }
-
-      if (score > 0) {
-        scored.push({ topic, score, content });
-      }
+      if (score > 0) scored.push({ topic, score, content });
     }
 
-    // Sort by score, return top 3
     scored.sort((a, b) => b.score - a.score);
-    return scored.slice(0, 3).map((s) => ({
-      topic: s.topic,
-      content: s.content,
-    }));
+    return scored.slice(0, 3).map((s) => ({ topic: s.topic, content: s.content }));
   }
 
   /** Extract keywords from a message */
@@ -155,20 +146,32 @@ export class MemoryManager {
     this._write(join(this.globalDir, `${topicName}.md`), content);
   }
 
-  /** Build the memory block for system prompt injection */
+  /**
+   * Build the full memory block for system prompt injection.
+   * Now includes agent instructions (OpenCode-style).
+   */
   buildMemoryBlock(userMessage, projectRoot) {
     const sections = [];
 
+    // Agent instructions (AGENTS.md, .llamabuild/agent/*.md)
+    const instructions = this._getInstructions(projectRoot);
+    if (instructions) {
+      sections.push(instructions);
+    }
+
+    // Global memory
     const global = this.loadGlobal();
     if (global) {
       sections.push(`## Global Memory\n${global}`);
     }
 
+    // Project memory
     const project = this.loadProject(projectRoot);
     if (project) {
       sections.push(`## Project Memory\n${project}`);
     }
 
+    // Relevant topic memories
     const relevant = this.findRelevant(userMessage);
     if (relevant.length > 0) {
       const topicBlock = relevant.map((r) => `### ${r.topic}\n${r.content}`).join("\n\n");
@@ -176,6 +179,17 @@ export class MemoryManager {
     }
 
     if (sections.length === 0) return "";
-    return `# Memory\n\n${sections.join("\n\n")}`;
+    return `# Memory & Instructions\n\n${sections.join("\n\n")}`;
+  }
+
+  /** Get cached instructions block */
+  _getInstructions(projectRoot) {
+    if (this._instructionsCacheRoot === projectRoot && this._instructionsCache !== null) {
+      return this._instructionsCache;
+    }
+    const block = buildInstructionsBlock(projectRoot);
+    this._instructionsCache = block || null;
+    this._instructionsCacheRoot = projectRoot;
+    return this._instructionsCache;
   }
 }

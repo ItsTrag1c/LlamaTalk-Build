@@ -8,16 +8,16 @@ const { version } = JSON.parse(readFileSync("./package.json", "utf8"));
 
 console.log(`Building LlamaTalk Build v${version}...`);
 
-// Step 1: Bundle with esbuild (same params as CLI)
+// Step 1: Bundle with esbuild
 console.log("  Bundling with esbuild...");
 execSync("npx esbuild index.js --bundle --platform=node --format=cjs --outfile=dist/bundle.cjs", {
   stdio: "inherit",
 });
 
-// Step 2: Package with pkg (same target as CLI: node18-win-x64)
+// Step 2: Package with pkg (node18-win-x64)
 const out = `dist/LlamaTalkBuild_${version}.exe`;
 console.log("  Packaging with pkg...");
-execSync(`pkg dist/bundle.cjs --target node18-win-x64 --output "${out}"`, {
+execSync(`npx pkg dist/bundle.cjs --target node18-win-x64 --output "${out}"`, {
   stdio: "inherit",
 });
 
