@@ -134,9 +134,12 @@ export async function confirm(message, existingRl, { allowAlways = true } = {}) 
   const suffix = allowAlways ? `${DIM}(y/n/always)${RESET} ` : `${DIM}(y/n)${RESET} `;
   const prompt = `  ${YELLOW}${message}${RESET} ${suffix}`;
 
+  // Write colored prompt to stdout manually so readline doesn't miscount
+  // ANSI escape code bytes as visible characters (causes broken line wrapping)
   if (existingRl) {
     return new Promise((resolve) => {
-      existingRl.question(prompt, (answer) => {
+      process.stdout.write(prompt);
+      existingRl.question("", (answer) => {
         const a = answer.trim().toLowerCase();
         if (allowAlways && a === "always") resolve("always");
         else resolve(a === "y" || a === "yes");
@@ -146,7 +149,8 @@ export async function confirm(message, existingRl, { allowAlways = true } = {}) 
 
   return new Promise((resolve) => {
     const rl = createInterface({ input: process.stdin, output: process.stdout });
-    rl.question(prompt, (answer) => {
+    process.stdout.write(prompt);
+    rl.question("", (answer) => {
       rl.close();
       const a = answer.trim().toLowerCase();
       if (allowAlways && a === "always") resolve("always");

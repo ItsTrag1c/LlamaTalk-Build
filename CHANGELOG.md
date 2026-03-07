@@ -1,6 +1,14 @@
 # Changelog — LlamaTalk Build
 
-Last updated: 2026-03-07 (v0.9.15)
+Last updated: 2026-03-07 (v0.9.16)
+
+---
+
+## v0.9.16 — 2026-03-07
+
+### Bug Fixes
+- **Fixed prompt display corruption** — the input prompt (profile name, model, mode) contained ANSI color codes that Node.js readline miscounted as visible characters, causing broken line wrapping when typing long inputs. The colored prompt is now written directly to stdout, bypassing readline's width calculation. Also fixed for Plan confirmation and tool approval prompts.
+- **Removed connection timeout for local models** — local server connections no longer time out after 10 seconds. Models that take longer to load into memory (e.g., large quantized models) previously triggered a "Connection timeout after 10s" error. Cloud API connections retain their 30-second timeout.
 
 ---
 
