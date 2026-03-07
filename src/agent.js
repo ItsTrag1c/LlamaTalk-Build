@@ -18,6 +18,9 @@ import { sidebar } from "./ui/sidebar.js";
 import { SessionLog } from "./session-log.js";
 import { SessionTracker } from "./session-tracker.js";
 
+// Pre-compiled ANSI escape sequence regex (avoid recompiling per tool result)
+const ANSI_RE = /\x1B(?:\[[0-9;]*[A-Za-z]|\(.|#.|].*?(?:\x07|\x1B\\))/g;
+
 // --- Agent modes ---
 const MODES = ["build", "plan"];
 const MODE_LABELS = { build: "Build", plan: "Plan" };
@@ -275,6 +278,8 @@ export async function runAgent(rl, config, encKey, opts = {}) {
     let userInput;
     try {
       userInput = await ask(promptStr);
+      // Clear readline echo artifact (Windows terminals can double-echo input)
+      process.stdout.write("\x1b[2K\r");
     } catch {
       break; // readline closed
     }
@@ -332,6 +337,7 @@ export async function runAgent(rl, config, encKey, opts = {}) {
     let contextPercent = null;
     const contextLimit = provider.contextWindow();
     const CONTEXT_THRESHOLD = config.contextThreshold || 80; // % at which to compress
+    const toolDefs = toolRegistry.getDefinitions(); // cache for all iterations
 
     while (iterationCount < (config.maxIterations || 50)) {
       // Rebuild system prompt each iteration (mode may have changed)
@@ -357,14 +363,13 @@ export async function runAgent(rl, config, encKey, opts = {}) {
         startThinking();
       }
 
-      let responseText = "";
+      const responseChunks = [];
       const toolCalls = [];
       let cancelled = false;
       const streamStartTime = Date.now();
       let firstTokenTime = null;
 
       try {
-        const toolDefs = toolRegistry.getDefinitions();
         const stream = provider.stream(messages, systemPrompt, toolDefs, controller.signal);
 
         let firstToken = true;
@@ -376,7 +381,7 @@ export async function runAgent(rl, config, encKey, opts = {}) {
               process.stdout.write(`\n  ${ORANGE}Llama Agent${RESET} ${BOLD}>${RESET} `);
               firstToken = false;
             }
-            responseText += event.content;
+            responseChunks.push(event.content);
             process.stdout.write(event.content);
           } else if (event.type === "tool_call") {
             if (firstToken) {
@@ -386,22 +391,22 @@ export async function runAgent(rl, config, encKey, opts = {}) {
             }
             toolCalls.push(event);
           } else if (event.type === "clean_text") {
-            // Prompt fallback: replace responseText with cleaned version (XML tags stripped)
-            responseText = event.content;
+            // Prompt fallback: replace response with cleaned version (XML tags stripped)
+            responseChunks.length = 0;
+            responseChunks.push(event.content);
           } else if (event.type === "usage") {
             lastUsage = event;
           }
         }
 
-        // Post-stream: ensure usage data is present with wall-clock fallback
+        // Post-stream: estimate usage from chunks if provider didn't report
         const streamEndTime = Date.now();
+        const totalChars = responseChunks.reduce((sum, c) => sum + c.length, 0);
         if (!lastUsage) {
-          // Provider didn't emit usage — create from what we know
-          const approxTokens = Math.ceil(responseText.length / 4);
-          lastUsage = { promptTokens: 0, outputTokens: approxTokens };
+          lastUsage = { promptTokens: 0, outputTokens: Math.ceil(totalChars / 4) };
         }
-        if (!lastUsage.outputTokens && responseText.length > 0) {
-          lastUsage.outputTokens = Math.ceil(responseText.length / 4);
+        if (!lastUsage.outputTokens && totalChars > 0) {
+          lastUsage.outputTokens = Math.ceil(totalChars / 4);
         }
         if (!lastUsage.evalDurationNs && firstTokenTime) {
           lastUsage.wallTimeMs = streamEndTime - firstTokenTime;
@@ -440,6 +445,9 @@ export async function runAgent(rl, config, encKey, opts = {}) {
       stopEsc();
 
       if (cancelled) break;
+
+      // Join streamed chunks into final response text
+      const responseText = responseChunks.join("");
 
       // If there are tool calls, execute them
       if (toolCalls.length > 0) {
@@ -540,7 +548,7 @@ export async function runAgent(rl, config, encKey, opts = {}) {
             });
 
             // Strip ANSI escape sequences and truncate large results
-            const clean = result.replace(/\x1B(?:\[[0-9;]*[A-Za-z]|\(.|#.|].*?(?:\x07|\x1B\\))/g, "");
+            const clean = result.replace(ANSI_RE, "");
             const truncated = clean.length > 30000
               ? clean.slice(0, 30000) + `\n... [truncated, ${clean.length - 30000} more chars]`
               : clean;

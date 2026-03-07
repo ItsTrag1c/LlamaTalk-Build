@@ -87,7 +87,7 @@ export class AnthropicProvider extends BaseProvider {
 
     let usage = { promptTokens: 0, outputTokens: 0 };
     let currentToolCall = null;
-    let toolCallJsonBuf = "";
+    let toolCallJsonChunks = [];
 
     for await (const line of streamLines(res)) {
       if (signal?.aborted) break;
@@ -106,7 +106,7 @@ export class AnthropicProvider extends BaseProvider {
               id: obj.content_block.id,
               name: obj.content_block.name,
             };
-            toolCallJsonBuf = "";
+            toolCallJsonChunks = [];
           }
         }
 
@@ -115,14 +115,14 @@ export class AnthropicProvider extends BaseProvider {
             yield { type: "text", content: obj.delta.text };
           }
           if (obj.delta?.type === "input_json_delta" && obj.delta.partial_json) {
-            toolCallJsonBuf += obj.delta.partial_json;
+            toolCallJsonChunks.push(obj.delta.partial_json);
           }
         }
 
         if (obj.type === "content_block_stop" && currentToolCall) {
           let args = {};
           try {
-            args = JSON.parse(toolCallJsonBuf);
+            args = JSON.parse(toolCallJsonChunks.join(""));
           } catch { /* empty or malformed */ }
           yield {
             type: "tool_call",
@@ -131,7 +131,7 @@ export class AnthropicProvider extends BaseProvider {
             arguments: args,
           };
           currentToolCall = null;
-          toolCallJsonBuf = "";
+          toolCallJsonChunks = [];
         }
 
         if (obj.type === "message_delta" && obj.usage) {

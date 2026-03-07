@@ -25,7 +25,7 @@ export function startThinking() {
     thinkingFrame = (thinkingFrame + 1) % BRAILLE_FRAMES.length;
     process.stdout.write("\x1b[1A\x1b[2K");
     process.stdout.write(`  ${ORANGE}${BRAILLE_FRAMES[thinkingFrame]}${RESET} ${DIM}Thinking...  Esc to cancel${RESET}\n`);
-  }, 80);
+  }, 200);
 }
 
 export function stopThinking() {

@@ -1,6 +1,23 @@
 # Changelog — LlamaTalk Build
 
-Last updated: 2026-03-07 (v0.9.18)
+Last updated: 2026-03-07 (v0.9.19)
+
+---
+
+## v0.9.19 — 2026-03-07
+
+### Performance
+- **Faster streaming output** — response text now accumulated via array chunks instead of repeated string concatenation, eliminating O(n²) overhead on long responses. Same fix applied to Anthropic tool-call JSON buffering.
+- **Parallel server detection** — startup model discovery now queries all configured servers simultaneously instead of sequentially, significantly reducing launch time with multiple servers.
+- **Memory read caching** — topic memory files are cached in-memory with a 60-second TTL, reducing disk I/O from 30+ file reads per message to near zero on repeat queries. Cache invalidates on writes.
+- **Optimized stream parser** — `streamLines()` rewritten to avoid quadratic buffer slicing on high-throughput streams.
+- **Pre-compiled ANSI regex** — the escape-sequence stripping regex is compiled once at module load instead of per tool result.
+- **Cached tool definitions** — tool schemas computed once per user message instead of per agent iteration.
+- **Reduced spinner CPU** — thinking animation interval slowed from 80ms to 200ms (still smooth, less overhead).
+- **Removed startup delay** — eliminated a 500ms artificial delay after first-run onboarding.
+
+### Bug Fixes
+- **Fixed double input echo on Windows** — user input no longer appears twice (once on the prompt line and again on the next line) in Windows Terminal. The readline echo artifact is now cleared immediately after input is received.
 
 ---
 

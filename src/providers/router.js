@@ -182,27 +182,31 @@ export async function getAllLocalModels(config) {
   const serverBackendMap = {};
   const seen = new Set();
 
-  for (const serverUrl of servers) {
+  // Query all servers in parallel
+  const results = await Promise.allSettled(servers.map(async (serverUrl) => {
     const base = serverUrl.replace(/\/$/, "");
-    let bt;
-    try {
-      bt = await detectBackend(base);
-    } catch {
-      continue;
-    }
-    if (bt === "unknown") continue;
-    serverBackendMap[base] = bt;
+    const bt = await detectBackend(base);
+    if (bt === "unknown") return null;
 
     let models = [];
-    try {
-      if (bt === "openai-compatible") {
-        models = await getOpenAICompatModels(base);
-      } else {
-        models = await getOllamaModels(base);
-      }
-    } catch {
-      continue;
+    if (bt === "openai-compatible") {
+      models = await getOpenAICompatModels(base);
+    } else {
+      models = await getOllamaModels(base);
     }
+
+    let running = [];
+    if (bt === "ollama") {
+      try { running = await getRunningOllamaModels(base); } catch { /* ignore */ }
+    }
+
+    return { base, bt, models, running };
+  }));
+
+  for (const r of results) {
+    if (r.status !== "fulfilled" || !r.value) continue;
+    const { base, bt, models, running } = r.value;
+    serverBackendMap[base] = bt;
 
     for (const m of models) {
       if (!seen.has(m)) {
@@ -211,13 +215,7 @@ export async function getAllLocalModels(config) {
         modelServerMap[m] = base;
       }
     }
-
-    if (bt === "ollama") {
-      try {
-        const running = await getRunningOllamaModels(base);
-        for (const m of running) runningModels.add(m);
-      } catch { /* ignore */ }
-    }
+    for (const m of running) runningModels.add(m);
   }
 
   return { allModels, runningModels, modelServerMap, serverBackendMap };

@@ -101,16 +101,32 @@ export function streamRequest(url, options, signal = null) {
 }
 
 export async function* streamLines(nodeStream) {
-  let buf = "";
+  const chunks = [];
+  let searchFrom = 0;
+
   for await (const chunk of nodeStream) {
-    buf += chunk.toString();
+    const str = chunk.toString();
+    chunks.push(str);
+
+    // Work on joined buffer only when we know there's a newline
+    let buf = chunks.length === 1 ? chunks[0] : chunks.join("");
+    chunks.length = 0;
+
+    let start = 0;
     while (true) {
-      const nl = buf.indexOf("\n");
+      const nl = buf.indexOf("\n", start);
       if (nl === -1) break;
-      const line = buf.slice(0, nl).trim();
-      buf = buf.slice(nl + 1);
+      const line = buf.slice(start, nl).trim();
+      start = nl + 1;
       if (line) yield line;
     }
+
+    // Keep remainder for next iteration
+    if (start < buf.length) {
+      chunks.push(buf.slice(start));
+    }
   }
-  if (buf.trim()) yield buf.trim();
+
+  const remainder = chunks.join("").trim();
+  if (remainder) yield remainder;
 }

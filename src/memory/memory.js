@@ -21,25 +21,33 @@ export class MemoryManager {
   constructor(config, encKey = null) {
     this.globalDir = getMemoryDir();
     this.encKey = encKey;
+    this._cache = new Map(); // path → { content, ts }
+    this._cacheTTL = 60_000; // 60 second TTL
     this.ensureDir();
   }
 
-  /** Read a file, decrypting if needed */
+  /** Read a file, decrypting if needed. Cached with TTL. */
   _read(path) {
-    if (!existsSync(path)) return null;
+    const now = Date.now();
+    const cached = this._cache.get(path);
+    if (cached && (now - cached.ts) < this._cacheTTL) return cached.content;
+
+    if (!existsSync(path)) { this._cache.set(path, { content: null, ts: now }); return null; }
     try {
       const raw = readFileSync(path, "utf8");
+      let content = raw;
       if (this.encKey) {
         try {
           const parsed = JSON.parse(raw);
-          if (isEncryptedPayload(parsed)) return decryptValue(parsed, this.encKey);
+          if (isEncryptedPayload(parsed)) content = decryptValue(parsed, this.encKey);
         } catch { /* not encrypted JSON, return raw */ }
       }
-      return raw;
-    } catch { return null; }
+      this._cache.set(path, { content, ts: now });
+      return content;
+    } catch { this._cache.set(path, { content: null, ts: now }); return null; }
   }
 
-  /** Write a file, encrypting if key is available */
+  /** Write a file, encrypting if key is available. Invalidates cache. */
   _write(path, content) {
     if (this.encKey) {
       const payload = encryptValue(content, this.encKey);
@@ -47,6 +55,7 @@ export class MemoryManager {
     } else {
       writeFileSync(path, content, "utf8");
     }
+    this._cache.set(path, { content, ts: Date.now() });
   }
 
   ensureDir() {
