@@ -1,4 +1,4 @@
-import { execSync } from "child_process";
+import { spawnSync } from "child_process";
 import { SafetyLevel } from "./base.js";
 import { validatePackageName } from "../safety.js";
 
@@ -36,13 +36,16 @@ export const pipInstallTool = {
       const version = data.info?.version || "unknown";
       const summary = data.info?.summary || "No description";
 
-      // Install
-      const output = execSync(`pip install ${args.package}`, {
+      // Install — uses argument array to prevent shell injection via package names
+      const result = spawnSync("pip", ["install", args.package], {
         cwd: context.projectRoot,
         timeout: 120000,
         encoding: "utf8",
         stdio: ["pipe", "pipe", "pipe"],
+        shell: true,
       });
+      if (result.status !== 0) throw new Error(result.stderr || "pip install failed");
+      const output = result.stdout;
 
       return `Installed ${args.package}==${version}: ${summary}\n${output}`;
     } catch (err) {

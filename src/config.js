@@ -245,6 +245,7 @@ export function pinRequired(config) {
 function deepMerge(target, source) {
   const out = { ...target };
   for (const key of Object.keys(source)) {
+    if (key === "__proto__" || key === "constructor" || key === "prototype") continue;
     if (source[key] === null) continue;
     if (
       source[key] !== null &&

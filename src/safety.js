@@ -119,5 +119,5 @@ export async function promptConfirmation(tool, args, config, rl, agentMode) {
  * Validate a package name (npm/pip) against shell injection.
  */
 export function validatePackageName(name) {
-  return /^(@[a-z0-9\-~][a-z0-9\-._~]*\/)?[a-z0-9\-~][a-z0-9\-._~]*(@[^@\s]+)?$/i.test(name);
+  return /^(@[a-z0-9\-~][a-z0-9\-._~]*\/)?[a-z0-9\-~][a-z0-9\-._~]*(@[a-z0-9._\-+~^<>=*]+)?$/i.test(name);
 }

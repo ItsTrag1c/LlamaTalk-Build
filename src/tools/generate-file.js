@@ -1,6 +1,6 @@
 import { writeFileSync, mkdirSync, existsSync, readFileSync, statSync, createWriteStream, unlinkSync } from "fs";
 import { dirname, extname } from "path";
-import { execSync } from "child_process";
+import { spawnSync } from "child_process";
 import { SafetyLevel } from "./base.js";
 import { validatePath } from "../safety.js";
 
@@ -206,7 +206,8 @@ async function generatePdf(outputPath, content, title) {
     try {
       const tmpMd = outputPath.replace(/\.pdf$/i, ".tmp.md");
       writeFileSync(tmpMd, content, "utf8");
-      execSync(`pandoc "${tmpMd}" -o "${outputPath}"`, { timeout: 60000, stdio: ["pipe", "pipe", "pipe"] });
+      const pandocResult = spawnSync("pandoc", [tmpMd, "-o", outputPath], { timeout: 60000, stdio: ["pipe", "pipe", "pipe"] });
+      if (pandocResult.status !== 0) throw new Error(pandocResult.stderr?.toString() || "pandoc failed");
       try { unlinkSync(tmpMd); } catch {}
       return `Generated PDF via pandoc: ${outputPath}`;
     } catch {

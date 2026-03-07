@@ -1,6 +1,6 @@
 import { readFileSync, existsSync, statSync } from "fs";
 import { extname } from "path";
-import { execSync } from "child_process";
+import { spawnSync } from "child_process";
 import { SafetyLevel } from "./base.js";
 import { validatePath } from "../safety.js";
 
@@ -28,24 +28,21 @@ function isBinaryFile(filePath) {
 }
 
 function extractPdfText(filePath) {
-  // Try pdftotext (poppler) first
+  // Try pdftotext (poppler) first — uses argument array to prevent shell injection via filenames
   try {
-    return execSync(`pdftotext "${filePath}" -`, { maxBuffer: 1024 * 1024, timeout: 10000 }).toString("utf8");
+    const result = spawnSync("pdftotext", [filePath, "-"], { maxBuffer: 1024 * 1024, timeout: 10000 });
+    if (result.status === 0) return result.stdout.toString("utf8");
   } catch { /* not available */ }
 
-  // Fallback: PowerShell with iTextSharp or basic extraction
+  // Fallback: PowerShell with basic extraction — file path passed via encoded command to avoid injection
   try {
-    const ps = `
-$pdf = [System.IO.File]::ReadAllBytes("${filePath.replace(/\\/g, "\\\\")}")
-$text = [System.Text.Encoding]::UTF8.GetString($pdf)
-$matches = [regex]::Matches($text, '\\(([^)]+)\\)')
-$result = ($matches | ForEach-Object { $_.Groups[1].Value }) -join " "
-if ($result.Length -gt 0) { $result } else { "[Could not extract text — PDF may use compressed streams]" }
-`;
-    return execSync(`powershell -NoProfile -Command "${ps.replace(/\n/g, " ")}"`, {
+    const ps = `$pdf = [System.IO.File]::ReadAllBytes('${filePath.replace(/'/g, "''")}'); $text = [System.Text.Encoding]::UTF8.GetString($pdf); $matches = [regex]::Matches($text, '\\(([^)]+)\\)'); $result = ($matches | ForEach-Object { $_.Groups[1].Value }) -join ' '; if ($result.Length -gt 0) { $result } else { '[Could not extract text]' }`;
+    const encoded = Buffer.from(ps, "utf16le").toString("base64");
+    const result = spawnSync("powershell", ["-NoProfile", "-EncodedCommand", encoded], {
       maxBuffer: 1024 * 1024,
       timeout: 10000,
-    }).toString("utf8").trim();
+    });
+    if (result.status === 0) return result.stdout.toString("utf8").trim();
   } catch { /* not available */ }
 
   return "[PDF text extraction not available. Install pdftotext (poppler-utils) for PDF support.]";
