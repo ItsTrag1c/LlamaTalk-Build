@@ -458,6 +458,7 @@ export async function runAgent(rl, config, encKey, opts = {}) {
             needsConfirm.map((c) => c.desc),
             rl,
           );
+          lastActivityTime = Date.now(); // user interaction resets inactivity timer
           if (result === "always") {
             // Auto-approve the highest safety level present
             if (!config.autoApprove) config.autoApprove = {};
@@ -472,7 +473,28 @@ export async function runAgent(rl, config, encKey, opts = {}) {
         }
 
         // Execute validated tool calls
+        let sessionLocked = false;
         for (const { tc, tool } of validated) {
+          // Check inactivity timeout before each tool execution
+          if (encKey && (Date.now() - lastActivityTime) > INACTIVITY_TIMEOUT_MS) {
+            const { verifyPin } = await import("./config.js");
+            console.log(`\n${DIM}  Session locked due to inactivity.${RESET}`);
+            const pin = await ask(BOLD + "Enter PIN to unlock: " + RESET);
+            if (!verifyPin(pin, config.pinHash)) {
+              console.log(RED + "  Incorrect PIN. Session ended." + RESET);
+              // Push denial for remaining tools and break out
+              for (const { tc: rtc } of validated) {
+                if (!messages.some((m) => m.tool_use_id === rtc.id)) {
+                  messages.push(formatToolResult(rtc.id, "Session locked — tool execution aborted.", rtc.name));
+                }
+              }
+              sessionLocked = true;
+              break;
+            }
+            lastActivityTime = Date.now();
+            console.log(DIM + "  Unlocked." + RESET);
+          }
+
           // Show compact tool call
           if (config.showToolCalls) {
             printToolCall(tc.name, tc.arguments);
@@ -496,7 +518,7 @@ export async function runAgent(rl, config, encKey, opts = {}) {
             });
 
             // Strip ANSI escape sequences and truncate large results
-            const clean = result.replace(/\x1B\[[0-9;]*[A-Za-z]/g, "");
+            const clean = result.replace(/\x1B(?:\[[0-9;]*[A-Za-z]|\(.|#.|].*?(?:\x07|\x1B\\))/g, "");
             const truncated = clean.length > 30000
               ? clean.slice(0, 30000) + `\n... [truncated, ${clean.length - 30000} more chars]`
               : clean;
@@ -539,6 +561,9 @@ export async function runAgent(rl, config, encKey, opts = {}) {
 
           iterationCount++;
         }
+
+        // If session was locked due to failed PIN, break the agent loop
+        if (sessionLocked) break;
 
         // Continue the agent loop — LLM will see tool results
         continue;

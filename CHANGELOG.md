@@ -1,6 +1,15 @@
 # Changelog — LlamaTalk Build
 
-Last updated: 2026-03-06 (v0.9.12)
+Last updated: 2026-03-06 (v0.9.13)
+
+---
+
+## v0.9.13 — 2026-03-06
+
+### Security
+- **Inactivity timeout enforced during tool execution** — the session inactivity timeout is now checked before each individual tool call, not just at the start of each user prompt. Previously, long-running tool chains (e.g., bash with a 10-minute timeout) could keep the session unlocked indefinitely. Failed PIN re-authentication aborts all remaining tool calls.
+- **Improved ANSI escape stripping** — the regex for stripping ANSI escape sequences from tool output now covers OSC sequences (`\x1B]0;...BEL`), character set selection (`\x1B(B`), and DECDWL (`\x1B#8`) in addition to standard CSI sequences. Prevents non-standard escape codes from reaching the LLM.
+- **Confirmation prompts reset inactivity timer** — user interaction during batch confirmation prompts (`confirmBatch`) now resets the inactivity timer, preventing false lockouts while the user is actively reviewing tool calls.
 
 ---
 
