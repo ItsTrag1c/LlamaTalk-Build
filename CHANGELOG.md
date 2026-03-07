@@ -1,6 +1,19 @@
 # Changelog — LlamaTalk Build
 
-Last updated: 2026-03-06 (v0.9.10)
+Last updated: 2026-03-06 (v0.9.11)
+
+---
+
+## v0.9.11 — 2026-03-06
+
+### Security Hardening
+- **IP blocking expanded** — server URL validation now blocks `0.0.0.0`, IPv6 loopback (`::1`, `[::1]`), and link-local (`169.254.x.x`) addresses in addition to the existing checks.
+- **HTTPS enforcement for web_fetch** — remote URLs must use HTTPS; HTTP is only permitted for `localhost` and `127.x.x.x`. Prevents accidental plaintext requests to external servers.
+- **Cloud URL allowlist** — cloud API calls are now validated against a strict domain allowlist (`api.anthropic.com`, `api.openai.com`, `generativelanguage.googleapis.com`, `opencode.ai`). Prevents custom base URLs from sending API keys to arbitrary servers.
+- **Memory file encryption** — topic memory files and global `MEMORY.md` are now encrypted at rest using AES-256-GCM when a PIN is set. Existing plaintext files are read transparently and encrypted on next save.
+- **Progressive PIN lockout** — failed PIN attempts now trigger increasing delays (5s, 15s, 30s) after the 2nd failure, with 5 total attempts before exit. Mitigates brute-force attacks.
+- **ANSI escape stripping** — tool output (especially from bash) is now stripped of ANSI escape sequences before being sent to the model, preventing color codes from consuming context tokens or confusing the LLM.
+- **Session inactivity timeout** — sessions automatically lock after 30 minutes of inactivity (configurable via `inactivityTimeoutMin`). Re-entry requires PIN re-authentication.
 
 ---
 

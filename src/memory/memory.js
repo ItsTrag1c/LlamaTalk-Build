@@ -1,6 +1,6 @@
 import { readFileSync, writeFileSync, readdirSync, existsSync, mkdirSync } from "fs";
 import { join, basename, extname } from "path";
-import { getMemoryDir } from "../config.js";
+import { getMemoryDir, encryptValue, decryptValue, isEncryptedPayload } from "../config.js";
 
 const STOPWORDS = new Set([
   "the", "a", "an", "is", "are", "was", "were", "be", "been", "being",
@@ -18,9 +18,35 @@ const STOPWORDS = new Set([
 ]);
 
 export class MemoryManager {
-  constructor(config) {
+  constructor(config, encKey = null) {
     this.globalDir = getMemoryDir();
+    this.encKey = encKey;
     this.ensureDir();
+  }
+
+  /** Read a file, decrypting if needed */
+  _read(path) {
+    if (!existsSync(path)) return null;
+    try {
+      const raw = readFileSync(path, "utf8");
+      if (this.encKey) {
+        try {
+          const parsed = JSON.parse(raw);
+          if (isEncryptedPayload(parsed)) return decryptValue(parsed, this.encKey);
+        } catch { /* not encrypted JSON, return raw */ }
+      }
+      return raw;
+    } catch { return null; }
+  }
+
+  /** Write a file, encrypting if key is available */
+  _write(path, content) {
+    if (this.encKey) {
+      const payload = encryptValue(content, this.encKey);
+      writeFileSync(path, JSON.stringify(payload), "utf8");
+    } else {
+      writeFileSync(path, content, "utf8");
+    }
   }
 
   ensureDir() {
@@ -36,24 +62,12 @@ export class MemoryManager {
 
   /** Load the global MEMORY.md file */
   loadGlobal() {
-    const path = join(this.globalDir, "MEMORY.md");
-    if (!existsSync(path)) return null;
-    try {
-      return readFileSync(path, "utf8");
-    } catch {
-      return null;
-    }
+    return this._read(join(this.globalDir, "MEMORY.md"));
   }
 
   /** Load project-local .llamabuild.md */
   loadProject(projectRoot) {
-    const path = join(projectRoot, ".llamabuild.md");
-    if (!existsSync(path)) return null;
-    try {
-      return readFileSync(path, "utf8");
-    } catch {
-      return null;
-    }
+    return this._read(join(projectRoot, ".llamabuild.md"));
   }
 
   /** List all topic memory files (excluding MEMORY.md) */
@@ -69,13 +83,7 @@ export class MemoryManager {
 
   /** Load a specific topic memory */
   loadTopic(topicName) {
-    const path = join(this.globalDir, `${topicName}.md`);
-    if (!existsSync(path)) return null;
-    try {
-      return readFileSync(path, "utf8");
-    } catch {
-      return null;
-    }
+    return this._read(join(this.globalDir, `${topicName}.md`));
   }
 
   /** Find relevant topic memories by keyword matching */
@@ -129,13 +137,13 @@ export class MemoryManager {
   /** Save global memory */
   saveGlobal(content) {
     this.ensureDir();
-    writeFileSync(join(this.globalDir, "MEMORY.md"), content, "utf8");
+    this._write(join(this.globalDir, "MEMORY.md"), content);
   }
 
   /** Save a topic memory */
   saveTopic(topicName, content) {
     this.ensureDir();
-    writeFileSync(join(this.globalDir, `${topicName}.md`), content, "utf8");
+    this._write(join(this.globalDir, `${topicName}.md`), content);
   }
 
   /** Build the memory block for system prompt injection */

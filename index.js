@@ -11,7 +11,7 @@ import { askMasked, printShortcutHint, ORANGE, RED, RESET, BOLD, DIM } from "./s
 import { existsSync, readdirSync, unlinkSync } from "fs";
 import { dirname, join } from "path";
 
-const VERSION = "0.9.10";
+const VERSION = "0.9.11";
 
 // Clean up leftover files from previous /update (old EXEs that couldn't be deleted while running)
 function startupCleanup() {
@@ -114,9 +114,17 @@ async function authenticate(config) {
   console.log(ORANGE + "\nLlamaTalk Build" + DIM + `  v${VERSION}` + RESET);
 
   let attempts = 0;
-  const maxAttempts = 3;
+  const maxAttempts = 5;
+  const LOCKOUT_DELAYS = [0, 0, 5000, 15000, 30000]; // progressive delays
 
   while (attempts < maxAttempts) {
+    // Apply progressive lockout delay after repeated failures
+    if (attempts > 0 && LOCKOUT_DELAYS[attempts]) {
+      const secs = LOCKOUT_DELAYS[attempts] / 1000;
+      console.log(DIM + `  Locked out for ${secs}s...` + RESET);
+      await new Promise((r) => setTimeout(r, LOCKOUT_DELAYS[attempts]));
+    }
+
     const pin = await askMasked(BOLD + "Enter PIN: " + RESET);
     if (verifyPin(pin, config.pinHash)) {
       if (needsPinMigration(config.pinHash)) {

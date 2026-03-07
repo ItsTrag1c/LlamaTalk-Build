@@ -201,7 +201,7 @@ function compressMessages(messages, keepLast = 6) {
 export async function runAgent(rl, config, encKey, opts = {}) {
   const projectRoot = process.cwd();
   const toolRegistry = createToolRegistry();
-  const memory = new MemoryManager(config);
+  const memory = new MemoryManager(config, encKey);
   const sessionMgr = new SessionManager();
   const sessionLog = new SessionLog(projectRoot);
   const sessionTracker = new SessionTracker(projectRoot);
@@ -249,8 +249,25 @@ export async function runAgent(rl, config, encKey, opts = {}) {
     projectContext = detectProjectContext(projectRoot);
   } catch { /* context detection not critical */ }
 
+  // Session inactivity timeout (default 30 minutes)
+  const INACTIVITY_TIMEOUT_MS = (config.inactivityTimeoutMin || 30) * 60 * 1000;
+  let lastActivityTime = Date.now();
+
   // Main interaction loop
   while (true) {
+    // Check inactivity timeout — re-lock if idle too long
+    if (encKey && (Date.now() - lastActivityTime) > INACTIVITY_TIMEOUT_MS) {
+      const { verifyPin } = await import("./config.js");
+      console.log(`\n${DIM}  Session locked due to inactivity.${RESET}`);
+      const pin = await ask(BOLD + "Enter PIN to unlock: " + RESET);
+      if (!verifyPin(pin, config.pinHash)) {
+        console.log(RED + "  Incorrect PIN. Session ended." + RESET);
+        break;
+      }
+      lastActivityTime = Date.now();
+      console.log(DIM + "  Unlocked." + RESET);
+    }
+
     // Show prompt
     const promptStr = buildPromptStr();
 
@@ -262,6 +279,7 @@ export async function runAgent(rl, config, encKey, opts = {}) {
     }
 
     if (!userInput?.trim()) continue;
+    lastActivityTime = Date.now();
     const trimmed = userInput.trim();
 
     // Handle slash commands
@@ -476,10 +494,11 @@ export async function runAgent(rl, config, encKey, opts = {}) {
               sessionChanges,
             });
 
-            // Truncate large results
-            const truncated = result.length > 30000
-              ? result.slice(0, 30000) + `\n... [truncated, ${result.length - 30000} more chars]`
-              : result;
+            // Strip ANSI escape sequences and truncate large results
+            const clean = result.replace(/\x1B\[[0-9;]*[A-Za-z]/g, "");
+            const truncated = clean.length > 30000
+              ? clean.slice(0, 30000) + `\n... [truncated, ${clean.length - 30000} more chars]`
+              : clean;
 
             const summary = result.split("\n")[0].slice(0, 100);
             printToolResult(tc.name, true, summary);

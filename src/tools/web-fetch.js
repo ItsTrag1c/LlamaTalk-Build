@@ -23,8 +23,13 @@ export const webFetchTool = {
       if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
         return { ok: false, error: "URL must use http or https" };
       }
-      if (/^169\.254\./.test(parsed.hostname)) {
-        return { ok: false, error: "Link-local addresses are not permitted" };
+      const h = parsed.hostname;
+      if (/^(169\.254\.|0\.0\.0\.0$|\[::1?\]$|::1?$)/i.test(h)) {
+        return { ok: false, error: "Link-local, null-bind, and loopback addresses are not permitted" };
+      }
+      // HTTPS required except for localhost / 127.x.x.x
+      if (parsed.protocol === "http:" && h !== "localhost" && !h.startsWith("127.")) {
+        return { ok: false, error: "HTTP is only allowed for localhost. Use HTTPS for remote URLs." };
       }
     } catch {
       return { ok: false, error: "Invalid URL" };

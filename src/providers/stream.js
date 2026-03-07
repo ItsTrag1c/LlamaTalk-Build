@@ -1,6 +1,8 @@
 import { request as httpRequest } from "http";
 import { request as httpsRequest } from "https";
 
+const BLOCKED_HOSTS = /^(169\.254\.|0\.0\.0\.0$|\[::1?\]$|\[0*:0*:0*:0*:0*:0*:0*:[01]\]$|::1?$)/i;
+
 export function validateServerUrl(urlStr) {
   let parsed;
   try {
@@ -11,8 +13,30 @@ export function validateServerUrl(urlStr) {
   if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
     throw new Error("Server URL must use http or https");
   }
-  if (/^169\.254\./i.test(parsed.hostname)) {
-    throw new Error("Link-local addresses are not permitted");
+  if (BLOCKED_HOSTS.test(parsed.hostname)) {
+    throw new Error("Link-local, null-bind, and IPv6 loopback addresses are not permitted");
+  }
+}
+
+const ALLOWED_CLOUD_DOMAINS = [
+  "api.anthropic.com",
+  "generativelanguage.googleapis.com",
+  "api.openai.com",
+  "opencode.ai",
+];
+
+export function validateCloudUrl(urlStr) {
+  let parsed;
+  try {
+    parsed = new URL(urlStr);
+  } catch {
+    throw new Error(`Invalid cloud URL: ${urlStr}`);
+  }
+  if (parsed.protocol !== "https:") {
+    throw new Error("Cloud API calls must use HTTPS");
+  }
+  if (!ALLOWED_CLOUD_DOMAINS.some((d) => parsed.hostname === d || parsed.hostname.endsWith("." + d))) {
+    throw new Error(`Cloud URL domain '${parsed.hostname}' is not in the allowed list`);
   }
 }
 

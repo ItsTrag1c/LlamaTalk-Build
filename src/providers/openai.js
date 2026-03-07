@@ -1,5 +1,5 @@
 import { BaseProvider } from "./base.js";
-import { streamRequest, streamLines } from "./stream.js";
+import { streamRequest, streamLines, validateCloudUrl } from "./stream.js";
 
 const CONTEXT_WINDOWS = {
   "gpt-4o": 128000,
@@ -15,6 +15,8 @@ export class OpenAIProvider extends BaseProvider {
     this.baseUrl = options.baseUrl || "https://api.openai.com";
     this.apiKey = options.apiKey || config.apiKey_openai;
     this.isCloud = options.isCloud ?? true;
+    // Validate cloud URLs against domain allowlist
+    if (this.isCloud) validateCloudUrl(this.baseUrl);
   }
 
   formatTools(tools) {
