@@ -1,6 +1,13 @@
 # Changelog — LlamaTalk Build
 
-Last updated: 2026-03-06 (v0.9.11)
+Last updated: 2026-03-06 (v0.9.12)
+
+---
+
+## v0.9.12 — 2026-03-06
+
+### Agent Behavior
+- **Cloud models now use tools properly** — updated the system prompt to explicitly authorize the agent to read, write, edit, and execute tools regardless of provider. Cloud API models (Claude, GPT, Gemini via OpenCode, etc.) previously refused to make file changes due to their built-in safety guardrails conflicting with the "local coding assistant" framing. The agent is now told it runs inside a local tool with user permission and must never decline a tool call.
 
 ---
 
