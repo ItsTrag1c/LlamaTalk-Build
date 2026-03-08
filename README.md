@@ -47,11 +47,11 @@ The desktop version provides the same agentic engine in a windowed interface. Av
 - **ReAct agent loop** — iterative reason-and-act cycle with streaming + tool calling
 - **14 built-in tools** — read_file, write_file, edit_file, list_directory, search_files, glob_files, bash, git, web_fetch, web_search, npm_install, pip_install, install_tool, generate_file
 - **Local models** — connects to [Ollama](https://ollama.com/), llama.cpp, LM Studio, vLLM, and other OpenAI-compatible backends
-- **Cloud models** — Anthropic Claude, Google Gemini, OpenAI GPT (API key required)
+- **Cloud models** — Anthropic Claude, Google Gemini, OpenAI GPT, OpenCode (API key required)
 - **Native tool-calling** — each provider uses its own tool-call protocol; XML fallback for models without native support
 - **Multi-server support** — connect to multiple local servers simultaneously; models auto-discovered and routed
 - **Persistent memory** — global + topic-based memory files, plus per-project `.llamabuild.md`
-- **3-tier safety system** — tools classified as Safe, Moderate, or Dangerous with confirmation prompts
+- **3-tier safety system** — tools classified as Low, Medium, or High risk with confirmation prompts
 - **PIN protection** — optional, PBKDF2-hashed; API keys encrypted at rest (AES-256-GCM)
 - **Session tracking** — `/undo` to restore last file change, `/diff` to see all changes
 

@@ -1,13 +1,13 @@
 # LlamaTalk — Privacy Policy
 
 **Effective Date:** March 2, 2026
-**Last Updated:** March 6, 2026 (rev. 6)
+**Last Updated:** March 8, 2026 (rev. 8)
 
 ---
 
 ## Overview
 
-The LlamaTalk suite consists of two applications: **LlamaTalk Desktop**, a desktop application for conversing with local and cloud AI models, and **LlamaTalkCLI**, a terminal companion that provides the same capability from any CMD or PowerShell window.
+The LlamaTalk suite consists of four applications: **LlamaTalk Chat Desktop** (also known as LlamaTalk Desktop), a desktop application for conversing with local and cloud AI models; **LlamaTalk Chat CLI** (also known as LlamaTalkCLI), a terminal companion that provides the same capability from any CMD or PowerShell window; **LlamaTalk Build CLI**, an agentic coding assistant with file tools, project memory, and multi-provider support; and **LlamaTalk Build Desktop**, the same agentic engine in a windowed interface.
 
 **The short version:** All your data stays on your computer. We don't collect, share, or transmit any information about you or your conversations — except when you explicitly choose to use a cloud AI provider, in which case only your messages are sent to that provider's servers as described below.
 
@@ -47,7 +47,20 @@ LlamaTalkCLI stores the following data **locally on your device only**, in `%APP
 
 Both files are restricted to the current Windows user via file system permissions (`icacls`). Other users on the same machine cannot read them.
 
-**Session history:** Conversation history is cleared automatically when you exit LlamaTalkCLI cleanly. If the application exits unexpectedly, the previous session's messages remain in `history.json` and are available on the next launch for recovery. Closing normally always starts a fresh session.
+### LlamaTalk Build
+
+LlamaTalk Build stores the following data **locally on your device only**, in `%APPDATA%\LlamaTalkBuild\`:
+
+- **Config** (`config.json`) — Your name, hashed PIN, server URLs, per-model system prompts, model nicknames, and session preferences. When a PIN is set, cloud API keys are **encrypted at rest** using AES-256-GCM with a key derived from your PIN.
+- **Memory** (`memory/`) — Persistent project knowledge stored as Markdown files. Global `MEMORY.md` plus topic files. When a PIN is set, memory files are **encrypted at rest** using AES-256-GCM.
+- **Project memory** (`.llamabuild.md`) — Per-project context file stored in the project directory you're working in.
+- **Session logs** (`.llamabuild-session.md`) — Per-project session activity log in the project directory.
+
+Config files are restricted to the current Windows user via file system permissions. Memory files containing sensitive project information are encrypted when a PIN is set.
+
+LlamaTalk Build Desktop (the GUI version) stores data in the same `%APPDATA%\LlamaTalkBuild\` directory and shares config, memory, sessions, and API keys with the CLI version. Both versions can be installed side-by-side — data stays in sync.
+
+**Session history (Chat CLI):** Conversation history is cleared automatically when you exit LlamaTalk Chat CLI cleanly. If the application exits unexpectedly, the previous session's messages remain in `history.json` and are available on the next launch for recovery. Closing normally always starts a fresh session.
 
 ### Data Retention
 
@@ -55,6 +68,8 @@ Both files are restricted to the current Windows user via file system permission
 - **CLI conversation history** — Cleared on every clean exit; only persists between sessions in the event of a crash
 - **Profile & Settings (Desktop)** — Retained until you click "Clear Data & Users"
 - **Profile & Settings (CLI)** — Retained in `config.json` until you uninstall or manually delete the file
+- **Profile & Settings (Build)** — Retained in `%APPDATA%\LlamaTalkBuild\config.json` until you uninstall or manually delete the file
+- **Memory (Build)** — Retained in `%APPDATA%\LlamaTalkBuild\memory\` until you manually delete files or use memory management commands
 - **Exported profiles** — If you export your profile, the resulting JSON file is stored wherever you save it — you are responsible for managing that file
 
 ---
@@ -89,13 +104,13 @@ When you send a message to a local model:
 
 ### Cloud AI Providers (Optional)
 
-LlamaTalk Desktop and LlamaTalkCLI both support optional cloud AI providers: **Anthropic (Claude)**, **Google (Gemini)**, and **OpenAI (GPT)**. These are **disabled by default** and must be explicitly enabled and configured with your own API key.
+All LlamaTalk apps support optional cloud AI providers: **Anthropic (Claude)**, **Google (Gemini)**, **OpenAI (GPT)**, and **OpenCode**. These are **disabled by default** and must be explicitly enabled and configured with your own API key.
 
 When you send a message to a cloud model:
 
 1. Your message is transmitted to the selected provider's servers over HTTPS
 2. The provider's own privacy policy and data handling practices apply to that message
-3. LlamaTalk Desktop displays a notice in the chat area identifying which provider will receive your message, and updates that notice when you switch models
+3. LlamaTalk Chat Desktop displays a notice in the chat area identifying which provider will receive your message, and updates that notice when you switch models
 4. Your API keys are stored locally — they are **never** sent anywhere except directly to the API endpoint of the provider they belong to
 5. API keys are **never** included in exported profile files
 6. Token usage metadata returned by the provider (input/output token counts) is used **locally only** for display — it is never stored or transmitted
@@ -104,9 +119,9 @@ You remain in full control of which providers are enabled and can disable them a
 
 ### Automatic Update Checks
 
-Both LlamaTalk Desktop and LlamaTalkCLI check for new versions automatically when the app starts. This is the only automatic network activity either app performs. Here is exactly what happens:
+LlamaTalk Chat (Desktop and CLI) and LlamaTalk Build CLI check for new versions automatically when the app starts. This is the only automatic network activity these apps perform. Here is exactly what happens:
 
-1. A single HTTPS GET request is made to the public GitHub Releases API (`https://api.github.com/repos/ItsTrag1c/LlamaTalk-Desktop/releases/latest` or `.../LlamaTalk-CLI/...`)
+1. A single HTTPS GET request is made to the public GitHub Releases API (`https://api.github.com/repos/ItsTrag1c/LlamaTalk-Chat/releases/latest` or `.../LlamaTalk-Build/...`)
 2. The request includes only a `User-Agent` header identifying the app (e.g. "LlamaTalk Desktop") — **no user data, device identifiers, or analytics are sent**
 3. If a newer version is found, a notification appears in the app (Desktop: orange dot on Settings tab; CLI: dim hint after the banner)
 4. **No update is downloaded or installed without your explicit confirmation**
@@ -162,6 +177,10 @@ GitHub will log the IP address of the request as with any public API call — th
 - **Stream Cancellation** — Both apps support cancelling an in-progress response. Desktop's Stop button and CLI's Esc key immediately cancel the active stream on the server side, ensuring no orphaned requests continue. Partial responses are preserved in the conversation.
 - **API Key Exclusion from Exports** — Cloud API keys are stripped from all exported profile files in both apps.
 - **Import Validation** — Imported profiles are validated for type, format, and value constraints before being applied. The CLI restricts imports to `.json` files only.
+- **Path Traversal Protection (Build)** — All file operations validate paths to prevent directory traversal attacks. Symbolic link resolution and `..` path segments are checked before any read or write.
+- **Destructive Command Detection (Build)** — The bash tool detects destructive commands (`rm -rf`, `format`, `del /s`, etc.) and elevates them to high-risk confirmation regardless of the tool's base safety level.
+- **Tool Safety Levels (Build)** — Every tool is classified as Low, Medium, or High risk. Low-risk tools (read-only) auto-approve by default. Medium-risk tools (file mutations) prompt for confirmation. High-risk tools (bash, system commands) always require explicit approval. Users can adjust these thresholds in settings.
+- **File Operation Tracking (Build)** — All file changes made during a session are tracked with before/after snapshots. The `/undo` command restores the last file change, and `/diff` shows all changes made in the current session.
 
 ---
 
@@ -186,6 +205,7 @@ You have full control over your data:
 - **Access** — Export your profile and conversations at any time
 - **Deletion (Desktop)** — Delete individual conversations via the trash icon, or clear all data via "Clear Data & Users"
 - **Deletion (CLI)** — Delete `%APPDATA%\LlamaTalkCLI\config.json` and `history.json` to remove all stored data; or uninstall the application
+- **Deletion (Build)** — Delete `%APPDATA%\LlamaTalkBuild\` to remove all stored data including memory; or uninstall the application
 - **Portability** — Your exported profile JSON can be imported into another LlamaTalk installation on another device
 - **Encryption control (CLI)** — Set a PIN to enable encryption; remove your PIN to revert to plaintext storage
 
@@ -203,6 +223,17 @@ You have full control over your data:
 ### LlamaTalkCLI
 
 - No runtime dependencies — built on Node.js built-in modules only
+
+### LlamaTalk Build CLI
+
+- No runtime dependencies — built on Node.js built-in modules only
+
+### LlamaTalk Build Desktop
+
+- **React** (UI framework)
+- **Tauri** (desktop framework)
+- **Vite** (build tool)
+- **Tailwind CSS** (styling)
 
 None of these libraries collect personal data from your usage of LlamaTalk. All dependencies are reviewed periodically for privacy and security compliance.
 
@@ -244,6 +275,8 @@ LlamaTalk is designed with privacy-by-default principles consistent with:
 - **2026-03-04 (rev. 4)** — Added Automatic Update Checks section documenting the startup GitHub API check in both apps (the only automatic network activity). Clarified "Data We Do NOT Collect" with cross-reference to update check disclosure. Covers Desktop v0.12.1 and CLI v0.8.1.
 - **2026-03-04 (rev. 5)** — Added OpenAI-compatible local server support (llama.cpp, LM Studio, vLLM) to local model privacy section. Renamed "Local Ollama Models" to "Local AI Models" to reflect broader backend support. Added token usage metadata disclosure (used locally for TK/S display, never transmitted). Added `backendType` to Desktop stored settings. Updated stream cancellation to cover both apps (Desktop Stop button + CLI Esc). Updated URL validation to cover all local backends. Covers Desktop v0.12.1 and CLI v0.8.1.
 - **2026-03-06 (rev. 6)** — Desktop v0.15.0 security hardening. Cloud API keys moved from localStorage to OS credential store (Windows Credential Manager / macOS Keychain). Added credential key allowlist. Added PIN rate limiting with progressive lockout. Added cloud URL domain allowlist and disabled HTTP redirects. Updated integrity verification to fail-closed model with GitHub URL validation. Google API keys now sent via header instead of URL parameter. Added macOS Keychain references throughout.
+- **2026-03-07 (rev. 7)** — Added LlamaTalk Build as third application. Documented Build data storage (config, memory, session logs), data retention, deletion, and encryption. Updated overview to cover all apps. Added OpenCode cloud provider support (Desktop v0.16.0). Website launched at llamatalksuite.dev.
+- **2026-03-08 (rev. 8)** — Expanded to four applications (Build CLI + Build Desktop). Added Build-specific security: path traversal protection, destructive command detection, tool safety levels (low/medium/high), file operation tracking. Added Build Desktop to third-party dependencies. Fixed update check URLs to current repo names. Added OpenCode to all cloud provider references.
 
 ---
 
