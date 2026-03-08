@@ -54,12 +54,28 @@ struct SidecarMessage {
 
 // --- Sidecar lifecycle ---
 
+fn get_sidecar_name() -> &'static str {
+    #[cfg(target_os = "windows")]
+    {
+        "llamabuild-sidecar.exe"
+    }
+    #[cfg(target_os = "macos")]
+    {
+        "llamabuild-sidecar"
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    {
+        "llamabuild-sidecar"
+    }
+}
+
 fn spawn_sidecar(app: &AppHandle) -> Result<Sidecar, String> {
     // In dev: run `node sidecar/main.js` directly
     // In prod: run the compiled standalone sidecar EXE (no Node.js needed)
     let mut cmd = if cfg!(debug_assertions) {
         let manifest_dir = env!("CARGO_MANIFEST_DIR");
-        let project_root = std::path::Path::new(manifest_dir).parent()
+        let project_root = std::path::Path::new(manifest_dir)
+            .parent()
             .ok_or("Failed to find project root")?;
         let script = project_root.join("sidecar").join("main.js");
         if !script.exists() {
@@ -69,22 +85,28 @@ fn spawn_sidecar(app: &AppHandle) -> Result<Sidecar, String> {
         c.arg(script.to_string_lossy().as_ref());
         c
     } else {
-        // Production: the sidecar is a standalone EXE bundled via externalBin.
+        // Production: the sidecar is a standalone binary bundled via externalBin.
         // Tauri places it next to the main binary with the target triple stripped.
+        let sidecar_name = get_sidecar_name();
         let exe_dir = app
             .path()
             .resource_dir()
             .map_err(|e| format!("Failed to get resource dir: {}", e))?;
-        let sidecar_exe = exe_dir.join("llamabuild-sidecar.exe");
+        let sidecar_exe = exe_dir.join(sidecar_name);
 
         // Fallback: try next to the main executable
         let sidecar_path = if sidecar_exe.exists() {
             sidecar_exe
         } else if let Ok(current_exe) = std::env::current_exe() {
-            let beside = current_exe.parent()
+            let beside = current_exe
+                .parent()
                 .unwrap_or(std::path::Path::new("."))
-                .join("llamabuild-sidecar.exe");
-            if beside.exists() { beside } else { sidecar_exe }
+                .join(sidecar_name);
+            if beside.exists() {
+                beside
+            } else {
+                sidecar_exe
+            }
         } else {
             sidecar_exe
         };
@@ -99,13 +121,18 @@ fn spawn_sidecar(app: &AppHandle) -> Result<Sidecar, String> {
     #[cfg(windows)]
     cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
 
-    let child = cmd.spawn()
+    let child = cmd
+        .spawn()
         .map_err(|e| format!("Failed to spawn sidecar: {}", e))?;
 
     Ok(Sidecar { child, next_id: 1 })
 }
 
-fn send_to_sidecar(sidecar: &mut Sidecar, method: &str, params: serde_json::Value) -> Result<u64, String> {
+fn send_to_sidecar(
+    sidecar: &mut Sidecar,
+    method: &str,
+    params: serde_json::Value,
+) -> Result<u64, String> {
     let id = sidecar.next_id;
     sidecar.next_id += 1;
 
@@ -124,12 +151,18 @@ fn send_to_sidecar(sidecar: &mut Sidecar, method: &str, params: serde_json::Valu
 
     let json = serde_json::to_string(&call).map_err(|e| e.to_string())?;
     writeln!(stdin, "{}", json).map_err(|e| format!("Failed to write to sidecar: {}", e))?;
-    stdin.flush().map_err(|e| format!("Failed to flush sidecar stdin: {}", e))?;
+    stdin
+        .flush()
+        .map_err(|e| format!("Failed to flush sidecar stdin: {}", e))?;
 
     Ok(id)
 }
 
-fn resolve_prompt(sidecar: &mut Sidecar, prompt_id: &str, data: serde_json::Value) -> Result<(), String> {
+fn resolve_prompt(
+    sidecar: &mut Sidecar,
+    prompt_id: &str,
+    data: serde_json::Value,
+) -> Result<(), String> {
     let msg = RpcResolve {
         msg_type: "resolve",
         id: prompt_id.to_string(),
@@ -176,24 +209,33 @@ fn start_stdout_reader(app: AppHandle, child_stdout: std::process::ChildStdout) 
                 }
                 "result" => {
                     // Forward RPC results
-                    let _ = app.emit("engine:result", serde_json::json!({
-                        "id": msg.id,
-                        "data": msg.data,
-                    }));
+                    let _ = app.emit(
+                        "engine:result",
+                        serde_json::json!({
+                            "id": msg.id,
+                            "data": msg.data,
+                        }),
+                    );
                 }
                 "prompt" => {
                     // Forward prompts (confirmation, session lock, plan complete)
-                    let _ = app.emit("engine:prompt", serde_json::json!({
-                        "id": msg.id,
-                        "event": msg.event,
-                        "data": msg.data,
-                    }));
+                    let _ = app.emit(
+                        "engine:prompt",
+                        serde_json::json!({
+                            "id": msg.id,
+                            "event": msg.event,
+                            "data": msg.data,
+                        }),
+                    );
                 }
                 "error" => {
-                    let _ = app.emit("engine:error", serde_json::json!({
-                        "id": msg.id,
-                        "message": msg.message,
-                    }));
+                    let _ = app.emit(
+                        "engine:error",
+                        serde_json::json!({
+                            "id": msg.id,
+                            "message": msg.message,
+                        }),
+                    );
                 }
                 _ => {}
             }

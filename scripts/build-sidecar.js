@@ -1,16 +1,19 @@
 /**
- * Build the sidecar Node.js process into a standalone EXE.
+ * Build the sidecar Node.js process into a standalone binary.
  *
  * 1. esbuild bundles sidecar/main.js + llamatalkbuild-engine into a single CJS file
- * 2. pkg compiles that bundle into a standalone Windows EXE (no Node.js required)
- * 3. The EXE is placed in src-tauri/binaries/ with Tauri's naming convention
+ * 2. pkg compiles that bundle into a standalone binary (no Node.js required)
+ * 3. The binary is placed in src-tauri/binaries/ with Tauri's naming convention
  *
  * The naming convention for Tauri externalBin is:
- *   {name}-{target-triple}.exe
+ *   {name}-{target-triple}
+ * For macOS arm64: llamabuild-sidecar-aarch64-apple-darwin
+ * For macOS x64: llamabuild-sidecar-x86_64-apple-darwin
  * For Windows x64: llamabuild-sidecar-x86_64-pc-windows-msvc.exe
  */
 import { execSync } from "child_process";
 import { mkdirSync, existsSync } from "fs";
+import { cpus } from "os";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
 
@@ -19,10 +22,30 @@ const root = join(__dirname, "..");
 const sidecarDir = join(root, "sidecar");
 const binDir = join(root, "src-tauri", "binaries");
 
-const triple = "x86_64-pc-windows-msvc";
-const outName = `llamabuild-sidecar-${triple}.exe`;
+const platform = process.platform;
+const arch = process.arch;
 
-console.log("Building sidecar...");
+let triple, outName, pkgTarget;
+
+if (platform === "win32") {
+  triple = "x86_64-pc-windows-msvc";
+  outName = `llamabuild-sidecar-${triple}.exe`;
+  pkgTarget = "node18-win-x64";
+} else if (platform === "darwin") {
+  if (arch === "arm64") {
+    triple = "aarch64-apple-darwin";
+  } else {
+    triple = "x86_64-apple-darwin";
+  }
+  outName = `llamabuild-sidecar-${triple}`;
+  pkgTarget = `node18-macos-${arch === "arm64" ? "arm64" : "x64"}`;
+} else {
+  triple = `${arch}-unknown-linux-gnu`;
+  outName = `llamabuild-sidecar-${triple}`;
+  pkgTarget = `node18-linux-${arch === "arm64" ? "arm64" : "x64"}`;
+}
+
+console.log(`Building sidecar for ${platform} (${arch})...`);
 
 // Ensure output directory exists
 if (!existsSync(binDir)) {
@@ -36,10 +59,10 @@ execSync(
   { stdio: "inherit", cwd: sidecarDir }
 );
 
-// Step 2: Compile to standalone EXE with pkg
-console.log("  Packaging with pkg...");
+// Step 2: Compile to standalone binary with pkg
+console.log(`  Packaging with pkg (target: ${pkgTarget})...`);
 execSync(
-  `npx pkg "${join(binDir, "sidecar-bundle.cjs")}" --target node18-win-x64 --output "${join(binDir, outName)}"`,
+  `npx pkg "${join(binDir, "sidecar-bundle.cjs")}" --target ${pkgTarget} --output "${join(binDir, outName)}"`,
   { stdio: "inherit", cwd: root }
 );
 

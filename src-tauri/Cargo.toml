@@ -1,6 +1,6 @@
 [package]
 name = "llamabuilddesktop"
-version = "0.2.0"
+version = "2.1.0"
 description = "LlamaTalk Build Desktop — Agentic Coding Assistant"
 authors = ["ItsTrag1c"]
 edition = "2021"

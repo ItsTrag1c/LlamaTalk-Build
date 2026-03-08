@@ -229,6 +229,10 @@ export default function App() {
         setMode(data.to as AgentMode);
       });
 
+      await register("memory-loading", (data: { status: string }) => {
+        setIsLoadingMemory(data.status === "start");
+      });
+
       // Prompts use the raw listen API, handle similarly
       const promptUnlisten = await onPrompt((prompt) => {
         if (prompt.event === "confirm-needed") {
