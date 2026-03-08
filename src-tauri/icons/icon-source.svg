@@ -1,27 +1,54 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <!-- Dark rounded-square background -->
-  <rect width="512" height="512" rx="96" fill="#1e1e2e"/>
-  <!-- Llama: 36x28 design scaled 10x, centered with 76px equal padding on all sides -->
-  <!-- translate(76,116): left/right pad=76, top/bottom pad=116; scale(10): each unit=10px -->
-  <g fill="#f97316" transform="translate(76, 116) scale(10)" shape-rendering="crispEdges">
-    <!-- Ear -->
-    <rect x="28" y="0" width="3" height="6"/>
-    <!-- Head -->
-    <rect x="23" y="4" width="10" height="7"/>
-    <!-- Snout -->
-    <rect x="33" y="6" width="3" height="4"/>
-    <!-- Neck -->
-    <rect x="17" y="9" width="9" height="8"/>
-    <!-- Body -->
-    <rect x="1" y="15" width="23" height="8"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <rect width="512" height="512" rx="108" fill="#1e1e2e"/>
+  
     <!-- Tail -->
-    <rect x="0" y="15" width="3" height="5"/>
-    <!-- Legs -->
-    <rect x="16" y="23" width="3" height="5"/>
-    <rect x="11" y="23" width="3" height="5"/>
-    <rect x="6" y="23" width="3" height="5"/>
-    <rect x="1" y="23" width="3" height="5"/>
+    <path d="M102,252 Q76,220 94,196" stroke="#f97316" stroke-width="18" fill="none" stroke-linecap="round"/>
+
+    <!-- Back legs (darker for depth) -->
+    <rect x="125" y="340" width="30" height="74" rx="12" fill="#e5690e"/>
+    <rect x="167" y="340" width="30" height="74" rx="12" fill="#e5690e"/>
+
+    <!-- Body -->
+    <ellipse cx="230" cy="284" rx="130" ry="76" fill="#f97316"/>
+
+    <!-- Front legs -->
+    <rect x="282" y="340" width="30" height="74" rx="12" fill="#f97316"/>
+    <rect x="322" y="340" width="30" height="74" rx="12" fill="#f97316"/>
+
+    <!-- Neck -->
+    <path d="M290,232 C298,180 312,142 320,112 L356,112 C348,142 336,180 330,232 Z" fill="#f97316"/>
+
+    <!-- Head -->
+    <ellipse cx="343" cy="100" rx="44" ry="34" fill="#f97316"/>
+
+    <!-- Snout -->
+    <ellipse cx="382" cy="112" rx="22" ry="16" fill="#f97316"/>
+
+    <!-- Left ear -->
+    <polygon points="318,78 304,26 336,68" fill="#f97316"/>
+    <polygon points="320,75 310,38 332,68" fill="#e06510"/>
+
+    <!-- Right ear -->
+    <polygon points="352,72 356,18 370,64" fill="#f97316"/>
+    <polygon points="354,70 356,30 366,64" fill="#e06510"/>
+
     <!-- Eye -->
-    <rect x="30" y="6" width="2" height="2" fill="#2a1810"/>
-  </g>
+    <circle cx="360" cy="94" r="8" fill="#1e1e2e"/>
+    <circle cx="362" cy="92" r="3" fill="rgba(255,255,255,0.5)"/>
+
+    <!-- Nostril -->
+    <circle cx="396" cy="112" r="3.5" fill="#d05a08"/>
+
+    <!-- Mouth -->
+    <path d="M388,122 Q395,128 391,126" stroke="#d05a08" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+  
+    <circle cx="428" cy="428" r="58" fill="#1e1e2e" stroke="#3a3b50" stroke-width="4"/>
+    <path d="
+      M 410,398 L 410,458 L 436,458
+      Q 456,458 456,443 Q 456,432 442,430
+      Q 454,428 454,416 Q 454,398 436,398 Z
+    " fill="#f97316"/>
+    <rect x="418" y="405" width="14" height="19" rx="3" fill="#1e1e2e"/>
+    <rect x="418" y="432" width="16" height="19" rx="3" fill="#1e1e2e"/>
+  
 </svg>
