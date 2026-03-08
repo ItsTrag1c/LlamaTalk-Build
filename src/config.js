@@ -30,9 +30,9 @@ const DEFAULTS = {
   // Agent-specific settings
   maxIterations: 50,
   autoApprove: {
-    safe: true,
-    moderate: false,
-    dangerous: false,
+    low: true,
+    medium: false,
+    high: false,
   },
   showThinking: true,
   showToolCalls: true,
@@ -74,7 +74,18 @@ export function loadConfig() {
   try {
     const raw = readFileSync(configPath, "utf8");
     const parsed = JSON.parse(raw);
-    return deepMerge({ ...DEFAULTS }, parsed);
+    const config = deepMerge({ ...DEFAULTS }, parsed);
+    // Migrate old safety level keys (safe/moderate/dangerous → low/medium/high)
+    if (config.autoApprove && ("safe" in config.autoApprove || "moderate" in config.autoApprove || "dangerous" in config.autoApprove)) {
+      const old = config.autoApprove;
+      config.autoApprove = {
+        low: old.low ?? old.safe ?? true,
+        medium: old.medium ?? old.moderate ?? false,
+        high: old.high ?? old.dangerous ?? false,
+      };
+      writeFileSync(configPath, JSON.stringify(config, null, 2), "utf8");
+    }
+    return config;
   } catch {
     return { ...DEFAULTS };
   }

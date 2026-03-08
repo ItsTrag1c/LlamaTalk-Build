@@ -14,7 +14,7 @@ export const webSearchTool = {
     },
   },
 
-  safetyLevel: SafetyLevel.SAFE,
+  safetyLevel: SafetyLevel.LOW,
 
   validate(args) {
     if (!args.query) return { ok: false, error: "query is required" };

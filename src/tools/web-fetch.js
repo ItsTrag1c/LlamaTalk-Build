@@ -14,7 +14,7 @@ export const webFetchTool = {
     },
   },
 
-  safetyLevel: SafetyLevel.SAFE,
+  safetyLevel: SafetyLevel.LOW,
 
   validate(args) {
     if (!args.url) return { ok: false, error: "url is required" };

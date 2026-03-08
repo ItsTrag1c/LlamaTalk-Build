@@ -168,7 +168,7 @@ async function main() {
   // Apply CLI overrides
   if (args.model) config.selectedModel = args.model;
   if (args.trust) {
-    config.autoApprove = { safe: true, moderate: true, dangerous: true };
+    config.autoApprove = { low: true, medium: true, high: true };
   }
 
   // Detect backend type in background

@@ -136,7 +136,7 @@ ${BOLD}Settings${RESET}
   Memory:       ${config.memoryEnabled ? "Enabled" : "Disabled"}
   Thinking:     ${config.showThinking ? "Shown" : "Hidden"}
   Tool calls:   ${config.showToolCalls ? "Shown" : "Hidden"}
-  Auto-approve: safe=${config.autoApprove?.safe}, moderate=${config.autoApprove?.moderate}, dangerous=${config.autoApprove?.dangerous}
+  Auto-approve: low=${config.autoApprove?.low}, medium=${config.autoApprove?.medium}, high=${config.autoApprove?.high}
   Anthropic:    ${config.enabledProviders?.anthropic ? GREEN + "Enabled" + RESET : DIM + "Disabled" + RESET}
   Google:       ${config.enabledProviders?.google ? GREEN + "Enabled" + RESET : DIM + "Disabled" + RESET}
   OpenAI:       ${config.enabledProviders?.openai ? GREEN + "Enabled" + RESET : DIM + "Disabled" + RESET}
@@ -153,9 +153,9 @@ ${BOLD}Settings${RESET}
       console.log(BOLD + "\n  Available tools:" + RESET);
       for (const tool of agent.toolRegistry.getAll()) {
         const level = typeof tool.safetyLevel === "function" ? "dynamic" : tool.safetyLevel;
-        const color = level === "safe" ? GREEN : level === "moderate" ? YELLOW : RED;
+        const color = level === "low" ? GREEN : level === "medium" ? YELLOW : RED;
         const icon = toolIcons[tool.definition.name] || icons.arrow;
-        const dot = level === "safe" ? `${GREEN}${icons.success}${RESET}` : level === "moderate" ? `${YELLOW}${icons.warning}${RESET}` : `${RED}${icons.error}${RESET}`;
+        const dot = level === "low" ? `${GREEN}${icons.success}${RESET}` : level === "medium" ? `${YELLOW}${icons.warning}${RESET}` : `${RED}${icons.error}${RESET}`;
         console.log(`  ${theme.toolIcon}${icon}${theme.reset} ${theme.toolName}${tool.definition.name}${theme.reset} ${dot} ${theme.dim}${tool.definition.description.split(".")[0]}${theme.reset}`);
       }
       console.log("");
@@ -331,7 +331,7 @@ ${BOLD}Settings${RESET}
     }
 
     case "/trust": {
-      config.autoApprove = { safe: true, moderate: true, dangerous: true };
+      config.autoApprove = { low: true, medium: true, high: true };
       console.log(YELLOW + "  Auto-approve enabled for all tool safety levels this session." + RESET);
       return { handled: true };
     }

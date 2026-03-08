@@ -1,7 +1,7 @@
 export const SafetyLevel = {
-  SAFE: "safe",
-  MODERATE: "moderate",
-  DANGEROUS: "dangerous",
+  LOW: "low",
+  MEDIUM: "medium",
+  HIGH: "high",
 };
 
 /**

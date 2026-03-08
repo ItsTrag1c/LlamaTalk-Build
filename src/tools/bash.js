@@ -17,7 +17,7 @@ export const bashTool = {
     },
   },
 
-  safetyLevel: SafetyLevel.DANGEROUS,
+  safetyLevel: SafetyLevel.HIGH,
 
   validate(args, context) {
     if (!args.command) return { ok: false, error: "command is required" };

@@ -516,8 +516,8 @@ export async function runAgent(rl, config, encKey, opts = {}) {
             if (!config.autoApprove) config.autoApprove = {};
             for (const c of needsConfirm) {
               const level = typeof c.tool.safetyLevel === "function" ? c.tool.safetyLevel(c.tc.arguments) : c.tool.safetyLevel;
-              if (level === "moderate") config.autoApprove.moderate = true;
-              if (level === "dangerous") config.autoApprove.dangerous = true;
+              if (level === "medium") config.autoApprove.medium = true;
+              if (level === "high") config.autoApprove.high = true;
             }
           } else if (!result) {
             batchApproved = false;

@@ -57,7 +57,7 @@ export const installToolTool = {
     },
   },
 
-  safetyLevel: SafetyLevel.DANGEROUS,
+  safetyLevel: SafetyLevel.HIGH,
 
   validate(args) {
     if (!args.package) return { ok: false, error: "package is required" };

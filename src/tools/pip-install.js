@@ -15,7 +15,7 @@ export const pipInstallTool = {
     },
   },
 
-  safetyLevel: SafetyLevel.MODERATE,
+  safetyLevel: SafetyLevel.MEDIUM,
 
   validate(args) {
     if (!args.package) return { ok: false, error: "package is required" };

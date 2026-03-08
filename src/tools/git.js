@@ -25,8 +25,8 @@ export const gitTool = {
   // Dynamic safety level
   safetyLevel(args) {
     const sub = getSubcommand(args);
-    if (SAFE_SUBCOMMANDS.has(sub)) return SafetyLevel.SAFE;
-    return SafetyLevel.DANGEROUS;
+    if (SAFE_SUBCOMMANDS.has(sub)) return SafetyLevel.LOW;
+    return SafetyLevel.HIGH;
   },
 
   validate(args, context) {

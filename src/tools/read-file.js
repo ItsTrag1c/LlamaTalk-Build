@@ -65,9 +65,9 @@ export const readFileTool = {
 
   safetyLevel(args) {
     const result = validatePath(args?.path || "", process.cwd(), { allowExternal: true });
-    if (result.external && result.trusted) return SafetyLevel.SAFE;
-    if (result.external) return SafetyLevel.MODERATE;
-    return SafetyLevel.SAFE;
+    if (result.external && result.trusted) return SafetyLevel.LOW;
+    if (result.external) return SafetyLevel.MEDIUM;
+    return SafetyLevel.LOW;
   },
 
   validate(args, context) {

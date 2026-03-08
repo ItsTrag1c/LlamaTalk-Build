@@ -82,13 +82,13 @@ export function isDestructiveCommand(command) {
 export function requireConfirmation(tool, args, config, agentMode = "build") {
   const level = typeof tool.safetyLevel === "function" ? tool.safetyLevel(args) : tool.safetyLevel;
 
-  if (level === "dangerous") {
-    return !config.autoApprove?.dangerous;
+  if (level === "high") {
+    return !config.autoApprove?.high;
   }
-  if (level === "moderate") {
-    return !config.autoApprove?.moderate;
+  if (level === "medium") {
+    return !config.autoApprove?.medium;
   }
-  return false; // safe
+  return false; // low
 }
 
 /**
@@ -107,8 +107,8 @@ export async function promptConfirmation(tool, args, config, rl, agentMode) {
     // Remember approval for this safety level for the session
     if (!config.autoApprove) config.autoApprove = {};
     const level = typeof tool.safetyLevel === "function" ? tool.safetyLevel(args) : tool.safetyLevel;
-    if (level === "moderate") config.autoApprove.moderate = true;
-    if (level === "dangerous") config.autoApprove.dangerous = true;
+    if (level === "medium") config.autoApprove.medium = true;
+    if (level === "high") config.autoApprove.high = true;
     return true;
   }
 

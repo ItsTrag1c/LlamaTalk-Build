@@ -4,6 +4,14 @@ Last updated: 2026-03-08 (v2.1.0)
 
 ---
 
+## v2.1.0 — 2026-03-08 (patch 2026-03-08)
+
+### Changed
+- **Safety level rename** — tool risk labels renamed from safe/moderate/dangerous to low/medium/high for clearer, more intuitive labeling. Config auto-migrates existing `autoApprove` keys on load.
+- Updated application icon
+
+---
+
 ## v2.1.0 — 2026-03-08
 
 ### New Features

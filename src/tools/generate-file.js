@@ -41,9 +41,9 @@ export const generateFileTool = {
 
   safetyLevel(args) {
     const result = validatePath(args?.path || "", process.cwd(), { allowExternal: true });
-    if (result.external && result.trusted) return SafetyLevel.MODERATE;
-    if (result.external) return SafetyLevel.DANGEROUS;
-    return SafetyLevel.MODERATE;
+    if (result.external && result.trusted) return SafetyLevel.MEDIUM;
+    if (result.external) return SafetyLevel.HIGH;
+    return SafetyLevel.MEDIUM;
   },
 
   validate(args, context) {
