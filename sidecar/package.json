@@ -1,0 +1,9 @@
+{
+  "name": "llamabuild-sidecar",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "main.js",
+  "dependencies": {
+    "llamatalkbuild-engine": "file:../../llamatalkbuild-engine"
+  }
+}

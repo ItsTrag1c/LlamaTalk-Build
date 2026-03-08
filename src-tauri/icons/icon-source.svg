@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Dark rounded-square background -->
+  <rect width="512" height="512" rx="96" fill="#1e1e2e"/>
+  <!-- Llama: 36x28 design scaled 10x, centered with 76px equal padding on all sides -->
+  <!-- translate(76,116): left/right pad=76, top/bottom pad=116; scale(10): each unit=10px -->
+  <g fill="#f97316" transform="translate(76, 116) scale(10)" shape-rendering="crispEdges">
+    <!-- Ear -->
+    <rect x="28" y="0" width="3" height="6"/>
+    <!-- Head -->
+    <rect x="23" y="4" width="10" height="7"/>
+    <!-- Snout -->
+    <rect x="33" y="6" width="3" height="4"/>
+    <!-- Neck -->
+    <rect x="17" y="9" width="9" height="8"/>
+    <!-- Body -->
+    <rect x="1" y="15" width="23" height="8"/>
+    <!-- Tail -->
+    <rect x="0" y="15" width="3" height="5"/>
+    <!-- Legs -->
+    <rect x="16" y="23" width="3" height="5"/>
+    <rect x="11" y="23" width="3" height="5"/>
+    <rect x="6" y="23" width="3" height="5"/>
+    <rect x="1" y="23" width="3" height="5"/>
+    <!-- Eye -->
+    <rect x="30" y="6" width="2" height="2" fill="#2a1810"/>
+  </g>
+</svg>
