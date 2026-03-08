@@ -67,15 +67,22 @@ llamabuild [options]
 | Command | Description |
 |---------|-------------|
 | `/help` | Full command reference |
-| `/model` | Show or switch model |
+| `/model [name]` | Show or switch model |
 | `/models` | List available models |
+| `/mode [build\|plan]` | Toggle or set agent mode |
+| `/session` | Browse and resume past sessions |
 | `/memory` | Manage memories |
+| `/instructions` | Show project agent instructions |
 | `/tools` | List available tools |
 | `/context` | Show context usage |
+| `/activity` | Show session file changes |
 | `/settings` | Show current config |
 | `/clear` | Clear conversation |
 | `/undo` | Undo last file change |
 | `/diff` | Show all session changes |
+| `/compact` | Toggle compact output |
+| `/trust` | Toggle auto-approve for session |
+| `/update` | Pull latest & rebuild from GitHub |
 | `/quit` | Exit |
 
 ---

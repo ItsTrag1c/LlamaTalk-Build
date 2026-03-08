@@ -1,10 +1,16 @@
 # Changelog — LlamaTalk Build
 
-Last updated: 2026-03-07 (v2.0.0)
+Last updated: 2026-03-08 (v2.0.0)
 
 ---
 
 ## v2.0.0 — 2026-03-07
+
+### UI Redesign (post-release patch — 2026-03-08)
+- **New startup banner** — Claude Code-style bordered two-panel box replaces the ASCII text logo. Left panel shows greeting, braille-dot llama art, model/provider/mode status, and working directory. Right panel shows orange-highlighted tips and recent session history.
+- **Responsive breakpoints** — banner adapts to terminal width: full two-panel (≥62 cols), compact single-panel (40–61), minimal bordered title (<40). Box scales from 62 to 120 columns and centers in the viewport.
+- **Recent sessions in banner** — up to 3 recent sessions displayed with relative timestamps ("2h ago", "yesterday", etc.).
+- **`/mode` toggle** — `/mode` now instantly toggles between build and plan instead of prompting for text input. Direct `/mode build` or `/mode plan` still works.
 
 ### Security (post-release patch — 2026-03-07)
 - **Shell injection prevention** — all `execSync()` calls with string interpolation replaced with `spawnSync()` using argument arrays in `read-file.js` (PDF extraction), `generate-file.js` (pandoc fallback), `npm-install.js`, and `pip-install.js`. File paths and package names are no longer interpolated into shell command strings.
@@ -20,9 +26,9 @@ Last updated: 2026-03-07 (v2.0.0)
 
 ### Improvements
 - **Debounced thinking spinner** — spinner only appears after 400ms of model silence (avoids flicker on fast responses) and shows elapsed time.
-- **Richer banner** — startup banner now shows active model, provider, and mode in a formatted status line with separators.
+- **Richer banner** — startup banner shows active model, provider, and mode (now superseded by the two-panel redesign in the 2026-03-08 patch).
 - **Better `/tools` display** — tool list now shows per-tool icons and safety dots instead of plain text tags.
-- **`/mode` accepts arguments** — `/mode build` or `/mode plan` sets mode directly instead of cycling.
+- **`/mode` accepts arguments** — `/mode build` or `/mode plan` sets mode directly (now also toggles without arguments, see 2026-03-08 patch).
 - **Cleaner `/help`** — updated command reference with new commands and removed sidebar toggle.
 - **Agent prompt header** — agent response header uses `printAgentHeader()` for consistent formatting.
 - **Turn timing** — agent loop tracks turn start time for future performance metrics.
