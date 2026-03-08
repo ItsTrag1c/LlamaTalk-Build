@@ -84,7 +84,8 @@ export type EngineEventName =
   | "token" | "tool-start" | "tool-result"
   | "context-compacting" | "file-changed"
   | "turn-complete" | "mode-change"
-  | "cancelled" | "error" | "usage" | "ready";
+  | "cancelled" | "error" | "usage" | "ready"
+  | "memory-loading";
 
 export async function onEngineEvent(event: EngineEventName, handler: (data: any) => void): Promise<UnlistenFn> {
   return listen(`engine:${event}`, (e) => handler(e.payload));
@@ -111,4 +112,8 @@ export const engine = {
   setModel: (model: string) => engineCall("setModel", { model }),
   clearMessages: () => engineCall("clearMessages"),
   getMessages: () => engineCall("getMessages"),
+  listTasks: () => engineCall("listTasks"),
+  addTask: (description: string, dueDate?: string) => engineCall("addTask", { description, dueDate }),
+  completeTask: (index: number) => engineCall("completeTask", { index }),
+  removeTask: (index: number) => engineCall("removeTask", { index }),
 };

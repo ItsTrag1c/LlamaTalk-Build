@@ -85,3 +85,18 @@ export interface Session {
 }
 
 export type AgentMode = "build" | "plan";
+
+export interface MemoryLoadingEvent {
+  status: "start" | "done";
+}
+
+export interface Task {
+  description: string;
+  dueDate: string | null;
+  created: string;
+}
+
+export interface TaskList {
+  active: Task[];
+  completed: Task[];
+}

@@ -399,6 +399,9 @@ function ToolsTab() {
 function ActivityTab({ onAction }: { onAction: (action: string, payload?: any) => void }) {
   return (
     <div className="space-y-3">
+      {/* Tasks Section */}
+      <TasksSection />
+
       <div className="text-sm uppercase tracking-wider text-[var(--text-dim)] px-3 py-2 font-semibold">
         Session Activity
       </div>
@@ -431,9 +434,149 @@ function ActivityButton({ icon, title, desc, cmd, onClick }: { icon: string; tit
   );
 }
 
-// --- Settings Tab ---
+// --- Tasks Section ---
 
-import { engineCall } from "../lib/engine";
+import { engine, engineCall } from "../lib/engine";
+import type { Task, TaskList } from "../lib/types";
+
+function TasksSection() {
+  const [tasks, setTasks] = useState<TaskList>({ active: [], completed: [] });
+  const [newTask, setNewTask] = useState("");
+  const [newDue, setNewDue] = useState("");
+  const [showCompleted, setShowCompleted] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+
+  const refresh = async () => {
+    try {
+      const data = await engine.listTasks() as unknown as TaskList;
+      setTasks(data || { active: [], completed: [] });
+    } catch { /* */ }
+  };
+
+  useEffect(() => {
+    if (!loaded) { refresh(); setLoaded(true); }
+  }, [loaded]);
+
+  const handleAdd = async () => {
+    const desc = newTask.trim();
+    if (!desc) return;
+    try {
+      await engine.addTask(desc, newDue || undefined);
+      setNewTask("");
+      setNewDue("");
+      await refresh();
+    } catch { /* */ }
+  };
+
+  const handleComplete = async (index: number) => {
+    try {
+      await engine.completeTask(index);
+      await refresh();
+    } catch { /* */ }
+  };
+
+  const handleRemove = async (index: number) => {
+    try {
+      await engine.removeTask(index);
+      await refresh();
+    } catch { /* */ }
+  };
+
+  const today = new Date().toISOString().split("T")[0];
+
+  return (
+    <div className="mb-4">
+      <div className="text-sm uppercase tracking-wider text-[var(--text-dim)] px-3 py-2 font-semibold">
+        Tasks
+      </div>
+
+      {/* Active tasks */}
+      {tasks.active.length === 0 && (
+        <div className="text-sm text-[var(--text-dim)] px-4 py-1">No active tasks</div>
+      )}
+      {tasks.active.map((t: Task, i: number) => {
+        const overdue = t.dueDate && t.dueDate < today;
+        const dueToday = t.dueDate && t.dueDate === today;
+        return (
+          <div key={i} className="flex items-start gap-2 px-4 py-1.5 group">
+            <button
+              onClick={() => handleComplete(i + 1)}
+              className="mt-0.5 w-4 h-4 rounded border border-[var(--border)] hover:border-[var(--accent)] hover:bg-[var(--accent)]/20 transition-colors shrink-0"
+              title="Mark complete"
+            />
+            <div className="flex-1 min-w-0">
+              <div className="text-[14px] text-[var(--text)] truncate">{t.description}</div>
+              {t.dueDate && (
+                <div className={`text-xs ${overdue ? "text-[var(--error)]" : dueToday ? "text-[var(--warning)]" : "text-[var(--text-dim)]"}`}>
+                  {overdue ? "Overdue: " : dueToday ? "Due today: " : "Due: "}{t.dueDate}
+                </div>
+              )}
+            </div>
+            <button
+              onClick={() => handleRemove(i + 1)}
+              className="opacity-0 group-hover:opacity-100 text-[var(--text-dim)] hover:text-[var(--error)] text-xs transition-opacity"
+              title="Remove"
+            >
+              ✕
+            </button>
+          </div>
+        );
+      })}
+
+      {/* Add task input */}
+      <div className="px-4 pt-2">
+        <div className="flex gap-1.5">
+          <input
+            type="text"
+            value={newTask}
+            onChange={(e) => setNewTask(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") handleAdd(); }}
+            placeholder="+ Add task..."
+            className="flex-1 px-2.5 py-1.5 text-sm rounded-lg bg-[var(--bg)] border border-[var(--border)] text-[var(--text)] placeholder-[var(--text-dim)] focus:outline-none focus:border-[var(--accent)]"
+          />
+        </div>
+        <div className="flex gap-1.5 mt-1.5">
+          <input
+            type="date"
+            value={newDue}
+            onChange={(e) => setNewDue(e.target.value)}
+            className="flex-1 px-2.5 py-1 text-xs rounded-lg bg-[var(--bg)] border border-[var(--border)] text-[var(--text-dim)] focus:outline-none focus:border-[var(--accent)]"
+          />
+          <button
+            onClick={handleAdd}
+            disabled={!newTask.trim()}
+            className="px-3 py-1 text-xs font-medium rounded-lg bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white transition-colors disabled:opacity-40"
+          >
+            Add
+          </button>
+        </div>
+      </div>
+
+      {/* Completed (collapsible) */}
+      {tasks.completed.length > 0 && (
+        <div className="px-4 pt-2">
+          <button
+            onClick={() => setShowCompleted(!showCompleted)}
+            className="text-xs text-[var(--text-dim)] hover:text-[var(--text-muted)] transition-colors"
+          >
+            {showCompleted ? "▼" : "▶"} Completed ({tasks.completed.length})
+          </button>
+          {showCompleted && (
+            <div className="mt-1 space-y-0.5">
+              {tasks.completed.slice(-10).map((t: Task, i: number) => (
+                <div key={i} className="text-xs text-[var(--text-dim)] line-through truncate px-1">
+                  {t.description}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// --- Settings Tab ---
 
 const PROVIDERS = [
   { key: "anthropic", label: "Anthropic (Claude)", emoji: "🟣" },
@@ -470,7 +613,7 @@ function SettingsTab({
           onChange={(v) => onAction("setSetting", { key: "showThinking", value: v })}
         />
         <SettingToggle
-          label="Memory enabled"
+          label="Memory in prompt"
           checked={config.memoryEnabled !== false}
           onChange={(v) => onAction("setSetting", { key: "memoryEnabled", value: v })}
         />
@@ -493,9 +636,10 @@ function SettingsTab({
       </SettingsSection>
 
       <SettingsSection title="Server">
-        <ServerUrlSetting
-          url={config.ollamaUrl || "http://localhost:11434"}
-          onSave={(url) => onAction("setSetting", { key: "ollamaUrl", value: url })}
+        <MultiServerSettings
+          primaryUrl={config.ollamaUrl || "http://localhost:11434"}
+          localServers={config.localServers || []}
+          onAction={onAction}
         />
       </SettingsSection>
 
@@ -752,7 +896,113 @@ function ProviderBlock({
   );
 }
 
-// --- Server URL Setting with connection test ---
+// --- Multi-Server Settings ---
+
+function MultiServerSettings({
+  primaryUrl,
+  localServers,
+  onAction,
+}: {
+  primaryUrl: string;
+  localServers: string[];
+  onAction: (action: string, payload?: any) => void;
+}) {
+  const [newUrl, setNewUrl] = useState("");
+  const [statuses, setStatuses] = useState<Record<string, "idle" | "checking" | "ok" | "error">>({});
+
+  const testServer = async (url: string) => {
+    setStatuses((s) => ({ ...s, [url]: "checking" }));
+    try {
+      const result = await engineCall<{ ok: boolean }>("testServer", { url });
+      setStatuses((s) => ({ ...s, [url]: result.ok ? "ok" : "error" }));
+    } catch {
+      setStatuses((s) => ({ ...s, [url]: "error" }));
+    }
+  };
+
+  const handleAddServer = async () => {
+    const url = newUrl.trim().replace(/\/$/, "");
+    if (!url) return;
+    await testServer(url);
+    const updated = [...localServers, url];
+    onAction("setSetting", { key: "localServers", value: updated });
+    setNewUrl("");
+  };
+
+  const handleRemoveServer = (index: number) => {
+    const updated = localServers.filter((_: string, i: number) => i !== index);
+    onAction("setSetting", { key: "localServers", value: updated });
+  };
+
+  const statusDot = (url: string) => {
+    const s = statuses[url] || "idle";
+    return s === "ok"
+      ? "bg-[var(--success)]"
+      : s === "error"
+        ? "bg-[var(--error)]"
+        : s === "checking"
+          ? "bg-[var(--warning)] animate-pulse"
+          : "bg-[var(--text-dim)]";
+  };
+
+  return (
+    <div className="px-4 py-2.5 space-y-2.5">
+      {/* Primary server */}
+      <div className="flex items-center gap-2">
+        <span className={`w-2 h-2 rounded-full shrink-0 ${statusDot(primaryUrl)}`} />
+        <span className="text-[14px] text-[var(--text)] flex-1 truncate">{primaryUrl}</span>
+        <span className="text-xs text-[var(--text-dim)]">primary</span>
+        <button
+          onClick={() => testServer(primaryUrl)}
+          className="text-xs text-[var(--accent)] hover:text-[var(--accent-hover)] transition-colors"
+        >
+          Test
+        </button>
+      </div>
+
+      {/* Additional servers */}
+      {localServers.map((url: string, i: number) => (
+        <div key={i} className="flex items-center gap-2">
+          <span className={`w-2 h-2 rounded-full shrink-0 ${statusDot(url)}`} />
+          <span className="text-[14px] text-[var(--text)] flex-1 truncate">{url}</span>
+          <button
+            onClick={() => testServer(url)}
+            className="text-xs text-[var(--accent)] hover:text-[var(--accent-hover)] transition-colors"
+          >
+            Test
+          </button>
+          <button
+            onClick={() => handleRemoveServer(i)}
+            className="text-xs text-[var(--error)] hover:text-[var(--error)]/80 transition-colors"
+          >
+            ✕
+          </button>
+        </div>
+      ))}
+
+      {/* Add server row */}
+      <div className="flex gap-1.5 pt-1">
+        <input
+          type="text"
+          value={newUrl}
+          onChange={(e) => setNewUrl(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") handleAddServer(); }}
+          placeholder="http://localhost:11434"
+          className="flex-1 px-2.5 py-1.5 text-sm rounded-lg bg-[var(--bg)] border border-[var(--border)] text-[var(--text)] placeholder-[var(--text-dim)] focus:outline-none focus:border-[var(--accent)]"
+        />
+        <button
+          onClick={handleAddServer}
+          disabled={!newUrl.trim()}
+          className="px-3 py-1.5 text-xs font-medium rounded-lg bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white transition-colors disabled:opacity-40"
+        >
+          + Add
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// --- Server URL Setting with connection test (legacy, kept for reference) ---
 
 function ServerUrlSetting({
   url,

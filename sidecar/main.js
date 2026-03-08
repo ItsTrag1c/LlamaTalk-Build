@@ -15,7 +15,7 @@
 import { createInterface } from "readline";
 import {
   AgentEngine, loadConfig, saveConfig, SessionManager, getAllLocalModels,
-  CLOUD_MODELS, detectBackend,
+  CLOUD_MODELS, detectBackend, TaskManager,
 } from "llamatalkbuild-engine";
 
 // --- Protocol helpers ---
@@ -70,6 +70,7 @@ function wireEvents(engine) {
     "thinking-start", "thinking-stop", "response-start", "response-end",
     "token", "tool-start", "tool-result", "context-compacting",
     "file-changed", "turn-complete", "mode-change", "cancelled", "error", "usage",
+    "memory-loading",
   ];
 
   for (const evt of passthrough) {
@@ -304,6 +305,26 @@ const methods = {
       }
       return cloudModels;
     }
+  },
+
+  listTasks() {
+    const tm = engine ? engine.getTaskManager() : new TaskManager();
+    return tm.list();
+  },
+
+  addTask({ description, dueDate }) {
+    const tm = engine ? engine.getTaskManager() : new TaskManager();
+    return tm.add(description, dueDate || null);
+  },
+
+  completeTask({ index }) {
+    const tm = engine ? engine.getTaskManager() : new TaskManager();
+    return tm.complete(index);
+  },
+
+  removeTask({ index }) {
+    const tm = engine ? engine.getTaskManager() : new TaskManager();
+    return tm.remove(index);
   },
 
   renameSession({ id, title }) {

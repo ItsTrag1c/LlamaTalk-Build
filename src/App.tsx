@@ -23,6 +23,7 @@ export default function App() {
     actions: string[];
   } | null>(null);
   const [availableModels, setAvailableModels] = useState<string[]>([]);
+  const [isLoadingMemory, setIsLoadingMemory] = useState(false);
 
   const streamRef = useRef("");
   const turnToolsRef = useRef<ToolCall[]>([]);
@@ -220,6 +221,10 @@ export default function App() {
         setMessages((prev) => [...prev, msg]);
       });
 
+      await register("memory-loading", (data: { status: string }) => {
+        setIsLoadingMemory(data.status === "start");
+      });
+
       await register("mode-change", (data: { from: string; to: string }) => {
         setMode(data.to as AgentMode);
       });
@@ -412,6 +417,7 @@ export default function App() {
             streamingContent={streamingContent}
             pendingToolCalls={pendingToolCalls}
             isThinking={isThinking}
+            isLoadingMemory={isLoadingMemory}
             profileName={config.profileName}
             modelName={model}
           />

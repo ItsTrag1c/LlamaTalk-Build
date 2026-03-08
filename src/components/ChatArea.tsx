@@ -8,18 +8,19 @@ interface ChatAreaProps {
   streamingContent: string;
   pendingToolCalls: ToolCall[];
   isThinking: boolean;
+  isLoadingMemory?: boolean;
   profileName?: string;
   modelName?: string;
 }
 
-export function ChatArea({ messages, streamingContent, pendingToolCalls, isThinking, profileName, modelName }: ChatAreaProps) {
+export function ChatArea({ messages, streamingContent, pendingToolCalls, isThinking, isLoadingMemory, profileName, modelName }: ChatAreaProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, streamingContent, pendingToolCalls]);
 
-  const hasContent = messages.length > 0 || streamingContent || isThinking;
+  const hasContent = messages.length > 0 || streamingContent || isThinking || isLoadingMemory;
 
   return (
     <div className="flex-1 overflow-y-auto flex flex-col">
@@ -49,6 +50,15 @@ export function ChatArea({ messages, streamingContent, pendingToolCalls, isThink
             modelName={modelName}
           />
         ))}
+
+        {/* Memory loading indicator */}
+        {isLoadingMemory && !streamingContent && !isThinking && (
+          <div className="py-2">
+            <div className="flex items-center gap-2 text-[var(--text-muted)] text-sm">
+              <span className="animate-pulse text-lg">🧠</span>
+            </div>
+          </div>
+        )}
 
         {/* Streaming / thinking state */}
         {(streamingContent || isThinking || pendingToolCalls.length > 0) && (
