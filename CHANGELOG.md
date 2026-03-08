@@ -1,6 +1,13 @@
 # Changelog — LlamaTalk Build
 
-Last updated: 2026-03-08 (v2.0.0)
+Last updated: 2026-03-08 (v2.0.1)
+
+---
+
+## v2.0.1 — 2026-03-08
+
+### Changed
+- Updated application icons to reflect new suite-wide branding
 
 ---
 
@@ -401,4 +408,4 @@ Initial release of LlamaTalk Build, the agentic coding assistant for the LlamaTa
 
 ---
 
-Last updated: 2026-03-07 (v2.0.0)
+Last updated: 2026-03-08 (v2.0.1)

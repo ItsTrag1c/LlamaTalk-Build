@@ -12,7 +12,7 @@ import { SessionManager } from "./src/sessions.js";
 import { existsSync, readdirSync, unlinkSync } from "fs";
 import { dirname, join } from "path";
 
-const VERSION = "2.0.0";
+const VERSION = "2.0.1";
 
 // Clean up leftover files from previous /update (old EXEs that couldn't be deleted while running)
 function startupCleanup() {
