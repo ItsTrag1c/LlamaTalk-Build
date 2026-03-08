@@ -297,27 +297,12 @@ ${BOLD}Settings${RESET}
         return { handled: true };
       }
 
-      // /mode — show selection
-      console.log(`\n${BOLD}  Mode${RESET}\n`);
-      for (const [key, m] of Object.entries(MODES)) {
-        const active = key === current;
-        const marker = active ? ` ${ORANGE}◀ current${RESET}` : "";
-        console.log(`  ${m.color}${m.icon} ${m.label}${RESET}  ${DIM}${m.description}${RESET}${marker}`);
-      }
-
-      // Prompt for selection
-      const answer = await ask(rl, `\n  ${BOLD}Switch to:${RESET} `);
-      const target = answer.trim().toLowerCase();
-      if (target in MODES && target !== current) {
-        agent.setMode(target);
-        const m = MODES[target];
-        console.log(`\n  ${m.color}${m.icon} ${m.label}${RESET} ${DIM}${m.description}${RESET}`);
-      } else if (target === current) {
-        console.log(DIM + `  Already in ${MODES[current].label} mode.` + RESET);
-      } else if (target) {
-        console.log(DIM + "  No change." + RESET);
-      }
-      console.log("");
+      // /mode — toggle to the other mode
+      const target = current === "build" ? "plan" : "build";
+      agent.setMode(target);
+      const prev = MODES[current];
+      const next = MODES[target];
+      console.log(`\n  ${prev.color}${prev.icon} ${prev.label}${RESET} ${DIM}→${RESET} ${next.color}${next.icon} ${next.label}${RESET}  ${DIM}${next.description}${RESET}\n`);
       return { handled: true };
     }
 

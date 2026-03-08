@@ -7,7 +7,8 @@ import { runOnboarding } from "./src/onboarding.js";
 import { runAgent } from "./src/agent.js";
 import { detectBackend, getAllLocalModels, CLOUD_MODELS } from "./src/providers/router.js";
 import { printBanner } from "./src/ui/banner.js";
-import { askMasked, printShortcutHint, ORANGE, RED, RESET, BOLD, DIM } from "./src/ui/ui.js";
+import { askMasked, ORANGE, RED, RESET, BOLD, DIM } from "./src/ui/ui.js";
+import { SessionManager } from "./src/sessions.js";
 import { existsSync, readdirSync, unlinkSync } from "fs";
 import { dirname, join } from "path";
 
@@ -245,8 +246,15 @@ async function main() {
   }
 
   if (!args.noBanner) {
-    printBanner(VERSION, { model: config.selectedModel, mode: "build" });
-    printShortcutHint();
+    const sm = new SessionManager();
+    const recentSessions = sm.list().slice(0, 3);
+    printBanner(VERSION, {
+      model: config.selectedModel,
+      mode: "build",
+      provider: config.backendType,
+      cwd: process.cwd(),
+      sessions: recentSessions,
+    });
   }
 
   await runAgent(rl, config, encKey, { version: VERSION, ...args });
