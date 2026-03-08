@@ -6,6 +6,11 @@ Last updated: 2026-03-08 (v2.0.0)
 
 ## v2.0.0 — 2026-03-07
 
+### Icon & Branding Redesign (post-release patch — 2026-03-08)
+- **New app icon** — replaced flat geometric llama with the 🦙 emoji tinted orange on a dark rounded-rect background, with a "B" badge overlay for Build. Generated via `@napi-rs/canvas` + `sharp` HSL hue-shifting pipeline.
+- **CLI EXE icon** — pkg now embeds the Build icon via `--icon icons/build-icon.ico`.
+- **GitHub branch rename** — `main` renamed to `cli`, Desktop branch is `desktop`. Default branch is now `cli`.
+
 ### UI Redesign (post-release patch — 2026-03-08)
 - **New startup banner** — Claude Code-style bordered two-panel box replaces the ASCII text logo. Left panel shows greeting, braille-dot llama art, model/provider/mode status, and working directory. Right panel shows orange-highlighted tips and recent session history.
 - **Responsive breakpoints** — banner adapts to terminal width: full two-panel (≥62 cols), compact single-panel (40–61), minimal bordered title (<40). Box scales from 62 to 120 columns and centers in the viewport.

@@ -9,7 +9,7 @@ LlamaTalk Build is an agentic coding assistant — available as a standalone ter
 ## Install
 
 ```powershell
-irm https://raw.githubusercontent.com/ItsTrag1c/LlamaTalk-Build/master/install.ps1 | iex
+irm https://raw.githubusercontent.com/ItsTrag1c/LlamaTalk-Build/cli/install.ps1 | iex
 ```
 
 Run this in PowerShell to download and install the latest release. Open a new terminal and type `llamabuild`.
@@ -30,11 +30,15 @@ Run this in PowerShell to download and install the latest release. Open a new te
 
 ## Desktop App
 
-The desktop version provides the same agentic engine in a windowed interface.
+The desktop version provides the same agentic engine in a windowed interface. Available on Windows and macOS.
 
 **[→ Latest Desktop Release](https://github.com/ItsTrag1c/LlamaTalk-Build/releases/latest)**
 
-Install via the NSIS or MSI installer from the releases page.
+| File | Description |
+|------|-------------|
+| `LlamaTalk Build Desktop_x.y.z_x64-setup.exe` | Windows installer |
+| `LlamaTalk Build Desktop_x.y.z_aarch64.dmg` | macOS Apple Silicon |
+| `LlamaTalk Build Desktop_x.y.z_x64_en-US.msi` | Windows MSI |
 
 ---
 
