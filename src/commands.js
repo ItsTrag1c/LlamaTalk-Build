@@ -52,6 +52,15 @@ ${ORANGE}/set temp <0.0-1.0>${RESET}      Set temperature
 ${ORANGE}/set pin${RESET}                 Set or change PIN
 ${ORANGE}/mode [build|plan]${RESET}       Show or switch agent mode
 ${ORANGE}/activity${RESET}                Show session file changes
+${ORANGE}/task${RESET}                    List active tasks
+${ORANGE}/task add <desc>${RESET}         Add a task (--due YYYY-MM-DD)
+${ORANGE}/task done <n>${RESET}           Mark task #n complete
+${ORANGE}/task remove <n>${RESET}         Remove task #n
+${ORANGE}/task due${RESET}                Show only due/overdue tasks
+${ORANGE}/server${RESET}                  List all servers with status
+${ORANGE}/server add <url>${RESET}        Add & test a new server
+${ORANGE}/server remove <n>${RESET}       Remove server #n
+${ORANGE}/server test${RESET}             Test all server connections
 ${ORANGE}/trust${RESET}                   Toggle auto-approve for session
 ${ORANGE}/compact${RESET}                 Toggle compact output
 ${ORANGE}/update${RESET}                   Pull latest & rebuild from GitHub
@@ -430,6 +439,182 @@ ${BOLD}Settings${RESET}
 
     case "/set": {
       return await handleSet(args, config, rl, encKey);
+    }
+
+    case "/task": {
+      if (!agent?.taskManager) {
+        console.log(DIM + "  Task system not available." + RESET);
+        return { handled: true };
+      }
+      const tm = agent.taskManager;
+      const subCmd = args[0];
+
+      if (!subCmd || subCmd === "list") {
+        const data = tm.list();
+        if (data.active.length === 0) {
+          console.log(DIM + "  No active tasks." + RESET);
+          return { handled: true };
+        }
+        const today = new Date().toISOString().split("T")[0];
+        console.log(BOLD + "\n  Active Tasks:" + RESET);
+        data.active.forEach((t, i) => {
+          const overdue = t.dueDate && t.dueDate < today;
+          const dueToday = t.dueDate && t.dueDate === today;
+          const due = t.dueDate ? ` ${DIM}(due: ${t.dueDate})${RESET}` : "";
+          const tag = overdue ? ` ${RED}[OVERDUE]${RESET}` : dueToday ? ` ${YELLOW}[DUE TODAY]${RESET}` : "";
+          console.log(`  ${ORANGE}${i + 1}.${RESET} ${t.description}${due}${tag}`);
+        });
+        console.log("");
+        return { handled: true };
+      }
+
+      if (subCmd === "add") {
+        // Parse --due flag
+        let dueDate = null;
+        const dueIdx = args.indexOf("--due");
+        let descParts = args.slice(1);
+        if (dueIdx > 0) {
+          dueDate = args[dueIdx + 1] || null;
+          descParts = [...args.slice(1, dueIdx), ...args.slice(dueIdx + 2)];
+        }
+        const desc = descParts.join(" ").trim();
+        if (!desc) {
+          console.log(DIM + "  Usage: /task add <description> [--due YYYY-MM-DD]" + RESET);
+          return { handled: true };
+        }
+        const task = tm.add(desc, dueDate);
+        console.log(GREEN + `  Added: ${task.description}${task.dueDate ? ` (due: ${task.dueDate})` : ""}` + RESET);
+        return { handled: true };
+      }
+
+      if (subCmd === "done") {
+        const n = parseInt(args[1], 10);
+        const task = tm.complete(n);
+        if (!task) {
+          console.log(RED + "  Invalid task number." + RESET);
+        } else {
+          console.log(GREEN + `  Completed: ${task.description}` + RESET);
+        }
+        return { handled: true };
+      }
+
+      if (subCmd === "remove") {
+        const n = parseInt(args[1], 10);
+        const task = tm.remove(n);
+        if (!task) {
+          console.log(RED + "  Invalid task number." + RESET);
+        } else {
+          console.log(GREEN + `  Removed: ${task.description}` + RESET);
+        }
+        return { handled: true };
+      }
+
+      if (subCmd === "due") {
+        const dueTasks = tm.getDueTasks();
+        if (dueTasks.length === 0) {
+          console.log(DIM + "  No tasks due today or overdue." + RESET);
+        } else {
+          console.log(BOLD + "\n  Due/Overdue Tasks:" + RESET);
+          for (const t of dueTasks) {
+            console.log(`  ${RED}●${RESET} ${t.description} ${DIM}(due: ${t.dueDate})${RESET}`);
+          }
+          console.log("");
+        }
+        return { handled: true };
+      }
+
+      console.log(DIM + "  Usage: /task [add|done|remove|due]" + RESET);
+      return { handled: true };
+    }
+
+    case "/server": {
+      const subCmd = args[0];
+
+      if (!subCmd || subCmd === "list") {
+        console.log(BOLD + "\n  Servers:" + RESET);
+        // Primary
+        const primaryUrl = config.ollamaUrl || "http://localhost:11434";
+        let primaryStatus = DIM + "untested" + RESET;
+        try {
+          const bt = await detectBackend(primaryUrl);
+          primaryStatus = bt !== "unknown" ? `${GREEN}${bt}${RESET}` : `${RED}unreachable${RESET}`;
+        } catch { primaryStatus = `${RED}unreachable${RESET}`; }
+        console.log(`  ${ORANGE}1.${RESET} ${primaryUrl} ${primaryStatus} ${DIM}(primary)${RESET}`);
+
+        // Additional servers
+        const servers = config.localServers || [];
+        for (let i = 0; i < servers.length; i++) {
+          let status = DIM + "untested" + RESET;
+          try {
+            const bt = await detectBackend(servers[i]);
+            status = bt !== "unknown" ? `${GREEN}${bt}${RESET}` : `${RED}unreachable${RESET}`;
+          } catch { status = `${RED}unreachable${RESET}`; }
+          console.log(`  ${ORANGE}${i + 2}.${RESET} ${servers[i]} ${status}`);
+        }
+        console.log("");
+        return { handled: true };
+      }
+
+      if (subCmd === "add") {
+        const url = args[1];
+        if (!url) {
+          console.log(DIM + "  Usage: /server add <url>" + RESET);
+          return { handled: true };
+        }
+        const cleanUrl = url.replace(/\/$/, "");
+        console.log(DIM + `  Testing ${cleanUrl}...` + RESET);
+        try {
+          const bt = await detectBackend(cleanUrl);
+          if (bt === "unknown") {
+            console.log(YELLOW + `  Server reachable but backend unknown. Added anyway.` + RESET);
+          } else {
+            console.log(GREEN + `  Connected: ${bt}` + RESET);
+          }
+        } catch {
+          console.log(YELLOW + "  Could not reach server. Added anyway." + RESET);
+        }
+        if (!config.localServers) config.localServers = [];
+        config.localServers.push(cleanUrl);
+        saveConfig(config);
+        console.log(GREEN + `  Server added: ${cleanUrl}` + RESET);
+        return { handled: true };
+      }
+
+      if (subCmd === "remove") {
+        const n = parseInt(args[1], 10);
+        if (n === 1) {
+          console.log(RED + "  Cannot remove the primary server. Use /set server-url to change it." + RESET);
+          return { handled: true };
+        }
+        const servers = config.localServers || [];
+        const idx = n - 2;
+        if (idx < 0 || idx >= servers.length) {
+          console.log(RED + "  Invalid server number." + RESET);
+          return { handled: true };
+        }
+        const removed = servers.splice(idx, 1)[0];
+        saveConfig(config);
+        console.log(GREEN + `  Removed: ${removed}` + RESET);
+        return { handled: true };
+      }
+
+      if (subCmd === "test") {
+        console.log(DIM + "  Testing all servers..." + RESET);
+        const all = [config.ollamaUrl || "http://localhost:11434", ...(config.localServers || [])];
+        for (const url of all) {
+          try {
+            const bt = await detectBackend(url);
+            const status = bt !== "unknown" ? `${GREEN}${bt}${RESET}` : `${RED}unreachable${RESET}`;
+            console.log(`  ${url} ${status}`);
+          } catch {
+            console.log(`  ${url} ${RED}unreachable${RESET}`);
+          }
+        }
+        return { handled: true };
+      }
+
+      console.log(DIM + "  Usage: /server [add|remove|test]" + RESET);
+      return { handled: true };
     }
 
     default: {

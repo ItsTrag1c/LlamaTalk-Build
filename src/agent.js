@@ -6,6 +6,7 @@ import { isReadOnlyTool } from "./tools/base.js";
 import { requireConfirmation, promptConfirmation } from "./safety.js";
 import { handleCommand } from "./commands.js";
 import { MemoryManager } from "./memory/memory.js";
+import { TaskManager } from "./memory/tasks.js";
 import { ContextManager } from "./context/context.js";
 import { saveConversation, loadConversation, getMemoryDir } from "./config.js";
 import { SessionManager } from "./sessions.js";
@@ -208,6 +209,7 @@ export async function runAgent(rl, config, encKey, opts = {}) {
   const projectRoot = process.cwd();
   const toolRegistry = createToolRegistry();
   const memory = new MemoryManager(config, encKey);
+  const taskManager = new TaskManager();
   const sessionMgr = new SessionManager();
   const sessionLog = new SessionLog(projectRoot);
   const sessionTracker = new SessionTracker(projectRoot);
@@ -294,6 +296,7 @@ export async function runAgent(rl, config, encKey, opts = {}) {
       const result = await handleCommand(trimmed, config, rl, messages, opts.version, encKey, {
         toolRegistry,
         memory,
+        taskManager,
         sessionChanges,
         conversationId,
         activityPanel,
@@ -323,10 +326,19 @@ export async function runAgent(rl, config, encKey, opts = {}) {
       firstMessageSent = true;
     }
 
-    // Build system prompt with memory injection
+    // Build system prompt with memory injection — always load, brain icon flash
     let memoryBlock = "";
-    if (config.memoryEnabled && !opts.noMemory) {
-      memoryBlock = memory.buildMemoryBlock(trimmed, projectRoot);
+    process.stdout.write("\r\u{1F9E0}");
+    memoryBlock = memory.buildMemoryBlock(trimmed, projectRoot);
+    // Append task block
+    const taskBlock = taskManager.buildTaskBlock();
+    if (taskBlock) {
+      memoryBlock = memoryBlock ? `${memoryBlock}\n\n${taskBlock}` : taskBlock;
+    }
+    process.stdout.write("\r  \r");
+    // If memory is disabled, don't inject into system prompt
+    if (!config.memoryEnabled || opts.noMemory) {
+      memoryBlock = "";
     }
 
     // Get provider
@@ -677,6 +689,20 @@ export async function runAgent(rl, config, encKey, opts = {}) {
     // Save session changes file (only writes if file modifications occurred)
     try {
       sessionTracker.save();
+    } catch { /* non-fatal */ }
+
+    // Build and save a one-line session summary for recursive memory
+    try {
+      const changes = sessionTracker.getRecentChanges();
+      const filesTouched = changes.map((c) => c.path?.split(/[/\\]/).pop()).filter(Boolean);
+      const parts = [];
+      if (filesTouched.length > 0) {
+        const unique = [...new Set(filesTouched)].slice(0, 5);
+        parts.push(`files: ${unique.join(", ")}`);
+      }
+      if (parts.length > 0) {
+        memory.appendSessionSummary(conversationId, parts.join(" | "));
+      }
     } catch { /* non-fatal */ }
   }
 }

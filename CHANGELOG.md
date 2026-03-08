@@ -1,6 +1,22 @@
 # Changelog — LlamaTalk Build
 
-Last updated: 2026-03-08 (v2.0.1)
+Last updated: 2026-03-08 (v2.1.0)
+
+---
+
+## v2.1.0 — 2026-03-08
+
+### New Features
+- **Always-on memory** — memory now loads silently before every interaction regardless of config. A brief 🧠 brain icon flashes during loading. The `memoryEnabled` setting now only controls whether memory is injected into the system prompt.
+- **Recursive memory (session summaries)** — each session automatically saves a one-line summary (tools used, files touched) to `sessions.md`. The agent sees the last 15 session summaries in its context, giving it awareness of prior work across sessions.
+- **Task scheduling** — persistent task list stored as markdown in memory. New `/task` command: `/task add <desc> [--due YYYY-MM-DD]`, `/task done <n>`, `/task remove <n>`, `/task due`. Active tasks and due dates are injected into the agent's system prompt each turn.
+- **`/server` command** — manage multiple local model servers: `/server` lists all with live status, `/server add <url>` tests and adds, `/server remove <n>` removes, `/server test` checks all connections.
+
+### Improvements
+- **Faster memory cache** — memory cache TTL reduced from 60s to 5s, keeping memory fresh without redundant file reads on every agent loop iteration.
+
+### Bug Fixes
+- **Git stash safety** — removed `stash` from `SAFE_SUBCOMMANDS` (it was in both SAFE and DANGEROUS sets). `git stash` now correctly requires confirmation as a DANGEROUS operation.
 
 ---
 
@@ -408,4 +424,4 @@ Initial release of LlamaTalk Build, the agentic coding assistant for the LlamaTa
 
 ---
 
-Last updated: 2026-03-08 (v2.0.1)
+Last updated: 2026-03-08 (v2.1.0)

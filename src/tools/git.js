@@ -1,7 +1,7 @@
 import { execSync } from "child_process";
 import { SafetyLevel } from "./base.js";
 
-const SAFE_SUBCOMMANDS = new Set(["status", "diff", "log", "branch", "show", "remote", "tag", "stash", "rev-parse", "shortlog", "blame"]);
+const SAFE_SUBCOMMANDS = new Set(["status", "diff", "log", "branch", "show", "remote", "tag", "rev-parse", "shortlog", "blame"]);
 const DANGEROUS_SUBCOMMANDS = new Set(["commit", "push", "merge", "rebase", "reset", "checkout", "stash", "clean", "cherry-pick", "revert"]);
 
 function getSubcommand(args) {

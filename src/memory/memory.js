@@ -23,7 +23,7 @@ export class MemoryManager {
     this.globalDir = getMemoryDir();
     this.encKey = encKey;
     this._cache = new Map();
-    this._cacheTTL = 60_000;
+    this._cacheTTL = 5_000;
     this._instructionsCache = null;
     this._instructionsCacheRoot = null;
     this.ensureDir();
@@ -146,6 +146,45 @@ export class MemoryManager {
     this._write(join(this.globalDir, `${topicName}.md`), content);
   }
 
+  /** Append a one-line session summary to sessions.md in memory dir. */
+  appendSessionSummary(sessionId, summary, date = new Date()) {
+    const sessFile = join(this.globalDir, "sessions.md");
+    const dateStr = date.toISOString().split("T")[0];
+    const entry = `- ${dateStr} | ${summary}`;
+
+    let content = "";
+    if (existsSync(sessFile)) {
+      try { content = readFileSync(sessFile, "utf8"); } catch { /* */ }
+    }
+
+    if (!content.includes("## Recent Sessions")) {
+      content = "# Session History\n\n## Recent Sessions\n";
+    }
+
+    // Parse existing entries, append new one, trim to last 30
+    const lines = content.split("\n");
+    const headerIdx = lines.findIndex((l) => l.startsWith("## Recent Sessions"));
+    const entries = lines.slice(headerIdx + 1).filter((l) => l.startsWith("- "));
+    entries.push(entry);
+    const trimmed = entries.slice(-30);
+
+    const newContent = `# Session History\n\n## Recent Sessions\n${trimmed.join("\n")}\n`;
+    try { writeFileSync(sessFile, newContent, "utf8"); } catch { /* */ }
+    this._cache.delete(sessFile);
+  }
+
+  /** Load the last N session summaries for system prompt injection. */
+  _loadSessionSummaries(count = 15) {
+    const sessFile = join(this.globalDir, "sessions.md");
+    if (!existsSync(sessFile)) return null;
+    try {
+      const content = readFileSync(sessFile, "utf8");
+      const entries = content.split("\n").filter((l) => l.startsWith("- "));
+      if (entries.length === 0) return null;
+      return entries.slice(-count).join("\n");
+    } catch { return null; }
+  }
+
   /**
    * Build the full memory block for system prompt injection.
    * Now includes agent instructions (OpenCode-style).
@@ -176,6 +215,12 @@ export class MemoryManager {
     if (relevant.length > 0) {
       const topicBlock = relevant.map((r) => `### ${r.topic}\n${r.content}`).join("\n\n");
       sections.push(`## Relevant Context\n${topicBlock}`);
+    }
+
+    // Recent session history
+    const sessionSummaries = this._loadSessionSummaries();
+    if (sessionSummaries) {
+      sections.push(`## Recent Session History\n${sessionSummaries}`);
     }
 
     if (sections.length === 0) return "";
