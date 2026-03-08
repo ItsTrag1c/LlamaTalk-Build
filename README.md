@@ -1,8 +1,8 @@
-# LlamaTalk Build
+# LlamaTalk Build — CLI & Desktop
 
-> Agentic coding assistant from the terminal — part of the LlamaTalk Suite.
+> Agentic coding assistant — terminal and GUI — part of the LlamaTalk Suite.
 
-LlamaTalk Build is a standalone Windows terminal app that uses a ReAct-style agent loop to help you with coding tasks. It reasons about what to do, uses tools to read/edit files, run commands, and search code, then explains what it did. Works with local models via Ollama and cloud providers.
+LlamaTalk Build is an agentic coding assistant — available as a standalone terminal app (CLI) and a desktop GUI. Both versions share the same engine, config, memory, and sessions. It uses a ReAct-style agent loop to help you with coding tasks: it reasons about what to do, uses tools to read/edit files, run commands, and search code, then explains what it did. Works with local models via Ollama and cloud providers.
 
 ---
 
@@ -25,6 +25,16 @@ Run this in PowerShell to download and install the latest release. Open a new te
 | `LlamaTalk Build_x.y.z_setup.exe` | Windows installer — installs to Program Files, adds `llamabuild` to PATH |
 | `LlamaTalkBuild_x.y.z.exe` | Standalone EXE — run anywhere, no admin rights needed |
 | `checksums.txt` | SHA-256 checksums for verification |
+
+---
+
+## Desktop App
+
+The desktop version provides the same agentic engine in a windowed interface.
+
+**[→ Latest Desktop Release](https://github.com/ItsTrag1c/LlamaTalk-Build/releases/latest)**
+
+Install via the NSIS or MSI installer from the releases page.
 
 ---
 
@@ -91,4 +101,4 @@ llamabuild [options]
 
 [MIT](LICENSE)
 
-Part of the [LlamaTalk Suite](https://llamatalksuite.dev) — Created by [ItsTrag1c](https://github.com/ItsTrag1c).
+Part of the [LlamaTalk Suite](https://llamatalksuite.dev) — CLI & Desktop — Created by [ItsTrag1c](https://github.com/ItsTrag1c).
