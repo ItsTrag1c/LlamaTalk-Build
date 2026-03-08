@@ -17,7 +17,7 @@ execSync("npx esbuild index.js --bundle --platform=node --format=cjs --outfile=d
 // Step 2: Package with pkg (node18-win-x64)
 const out = `dist/LlamaTalkBuild_${version}.exe`;
 console.log("  Packaging with pkg...");
-execSync(`npx pkg dist/bundle.cjs --target node18-win-x64 --output "${out}"`, {
+execSync(`npx pkg dist/bundle.cjs --target node18-win-x64 --output "${out}" --icon icons/build-icon.ico`, {
   stdio: "inherit",
 });
 
