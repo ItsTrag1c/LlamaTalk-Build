@@ -349,20 +349,20 @@ function SessionItem({
 // --- Tools Tab ---
 
 const TOOLS = [
-  { name: "read_file", icon: "📄", level: "safe", desc: "Read file contents" },
-  { name: "write_file", icon: "✏️", level: "moderate", desc: "Create or overwrite a file" },
-  { name: "edit_file", icon: "✂️", level: "moderate", desc: "Replace text in a file" },
-  { name: "list_directory", icon: "📁", level: "safe", desc: "List directory contents" },
-  { name: "search_files", icon: "🔍", level: "safe", desc: "Search file contents with regex" },
-  { name: "glob_files", icon: "🔍", level: "safe", desc: "Find files by pattern" },
-  { name: "bash", icon: "⚡", level: "dangerous", desc: "Run a shell command" },
-  { name: "git", icon: "🌿", level: "moderate", desc: "Run a git command" },
-  { name: "web_fetch", icon: "🌐", level: "moderate", desc: "Fetch a web page" },
-  { name: "web_search", icon: "🌐", level: "moderate", desc: "Search the web" },
-  { name: "npm_install", icon: "📦", level: "moderate", desc: "Install npm packages" },
-  { name: "pip_install", icon: "📦", level: "moderate", desc: "Install pip packages" },
-  { name: "install_tool", icon: "🔧", level: "dangerous", desc: "Install a system tool" },
-  { name: "generate_file", icon: "📝", level: "moderate", desc: "Generate a document file" },
+  { name: "read_file", icon: "📄", level: "low", desc: "Read file contents" },
+  { name: "write_file", icon: "✏️", level: "medium", desc: "Create or overwrite a file" },
+  { name: "edit_file", icon: "✂️", level: "medium", desc: "Replace text in a file" },
+  { name: "list_directory", icon: "📁", level: "low", desc: "List directory contents" },
+  { name: "search_files", icon: "🔍", level: "low", desc: "Search file contents with regex" },
+  { name: "glob_files", icon: "🔍", level: "low", desc: "Find files by pattern" },
+  { name: "bash", icon: "⚡", level: "high", desc: "Run a shell command" },
+  { name: "git", icon: "🌿", level: "medium", desc: "Run a git command" },
+  { name: "web_fetch", icon: "🌐", level: "medium", desc: "Fetch a web page" },
+  { name: "web_search", icon: "🌐", level: "medium", desc: "Search the web" },
+  { name: "npm_install", icon: "📦", level: "medium", desc: "Install npm packages" },
+  { name: "pip_install", icon: "📦", level: "medium", desc: "Install pip packages" },
+  { name: "install_tool", icon: "🔧", level: "high", desc: "Install a system tool" },
+  { name: "generate_file", icon: "📝", level: "medium", desc: "Generate a document file" },
 ];
 
 function ToolsTab() {
@@ -382,8 +382,8 @@ function ToolsTab() {
             <div className="text-sm text-[var(--text-dim)] truncate">{t.desc}</div>
           </div>
           <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
-            t.level === "safe" ? "bg-[var(--success)]/15 text-[var(--success)]" :
-            t.level === "moderate" ? "bg-[var(--warning)]/15 text-[var(--warning)]" :
+            t.level === "low" ? "bg-[var(--success)]/15 text-[var(--success)]" :
+            t.level === "medium" ? "bg-[var(--warning)]/15 text-[var(--warning)]" :
             "bg-[var(--error)]/15 text-[var(--error)]"
           }`}>
             {t.level}
@@ -663,14 +663,14 @@ function SettingsTab({
       <SettingsSection title="Safety">
         <SettingRow label="PIN" value={config.pinHash ? "Set" : "Not set"} />
         <SettingToggle
-          label="Auto-approve moderate"
-          checked={!!config.autoApprove?.moderate}
-          onChange={(v) => onAction("setSetting", { key: "autoApprove.moderate", value: v })}
+          label="Auto-approve medium"
+          checked={!!config.autoApprove?.medium}
+          onChange={(v) => onAction("setSetting", { key: "autoApprove.medium", value: v })}
         />
         <SettingToggle
-          label="Auto-approve dangerous"
-          checked={!!config.autoApprove?.dangerous}
-          onChange={(v) => onAction("setSetting", { key: "autoApprove.dangerous", value: v })}
+          label="Auto-approve high"
+          checked={!!config.autoApprove?.high}
+          onChange={(v) => onAction("setSetting", { key: "autoApprove.high", value: v })}
         />
       </SettingsSection>
 

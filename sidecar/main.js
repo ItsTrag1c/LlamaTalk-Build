@@ -129,7 +129,7 @@ const methods = {
 
   saveSetting({ key, value }) {
     const cfg = loadConfig();
-    // Handle nested keys like "enabledProviders.anthropic" or "autoApprove.moderate"
+    // Handle nested keys like "enabledProviders.anthropic" or "autoApprove.medium"
     const parts = key.split(".");
     if (parts.length === 2) {
       if (!cfg[parts[0]] || typeof cfg[parts[0]] !== "object") cfg[parts[0]] = {};

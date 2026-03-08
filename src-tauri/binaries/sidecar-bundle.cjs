@@ -81,7 +81,17 @@ function loadConfig() {
   try {
     const raw = (0, import_fs.readFileSync)(configPath, "utf8");
     const parsed = JSON.parse(raw);
-    return deepMerge({ ...DEFAULTS }, parsed);
+    const config2 = deepMerge({ ...DEFAULTS }, parsed);
+    if (config2.autoApprove && ("safe" in config2.autoApprove || "moderate" in config2.autoApprove || "dangerous" in config2.autoApprove)) {
+      const old = config2.autoApprove;
+      config2.autoApprove = {
+        low: old.low ?? old.safe ?? true,
+        medium: old.medium ?? old.moderate ?? false,
+        high: old.high ?? old.dangerous ?? false
+      };
+      (0, import_fs.writeFileSync)(configPath, JSON.stringify(config2, null, 2), "utf8");
+    }
+    return config2;
   } catch {
     return { ...DEFAULTS };
   }
@@ -270,9 +280,9 @@ var init_config = __esm({
       // Agent-specific settings
       maxIterations: 50,
       autoApprove: {
-        safe: true,
-        moderate: false,
-        dangerous: false
+        low: true,
+        medium: false,
+        high: false
       },
       showThinking: true,
       showToolCalls: true,
@@ -287,8 +297,8 @@ var import_readline = require("readline");
 
 // ../../llamatalkbuild-engine/src/agent.js
 var import_events = require("events");
-var import_path15 = require("path");
-var import_fs16 = require("fs");
+var import_path16 = require("path");
+var import_fs17 = require("fs");
 
 // ../../llamatalkbuild-engine/src/providers/base.js
 var BaseProvider = class {
@@ -1354,9 +1364,9 @@ var ToolRegistry = class {
 
 // ../../llamatalkbuild-engine/src/tools/base.js
 var SafetyLevel = {
-  SAFE: "safe",
-  MODERATE: "moderate",
-  DANGEROUS: "dangerous"
+  LOW: "low",
+  MEDIUM: "medium",
+  HIGH: "high"
 };
 var READ_ONLY_TOOLS = /* @__PURE__ */ new Set([
   "read_file",
@@ -1430,11 +1440,11 @@ function isDestructiveCommand(command) {
 }
 function requireConfirmation(tool, args, config2, agentMode = "build") {
   const level = typeof tool.safetyLevel === "function" ? tool.safetyLevel(args) : tool.safetyLevel;
-  if (level === "dangerous") {
-    return !config2.autoApprove?.dangerous;
+  if (level === "high") {
+    return !config2.autoApprove?.high;
   }
-  if (level === "moderate") {
-    return !config2.autoApprove?.moderate;
+  if (level === "medium") {
+    return !config2.autoApprove?.medium;
   }
   return false;
 }
@@ -1702,7 +1712,7 @@ var MemoryManager = class {
     this.globalDir = getMemoryDir();
     this.encKey = encKey;
     this._cache = /* @__PURE__ */ new Map();
-    this._cacheTTL = 6e4;
+    this._cacheTTL = 5e3;
     this._instructionsCache = null;
     this._instructionsCacheRoot = null;
     this.ensureDir();
@@ -1810,6 +1820,50 @@ var MemoryManager = class {
     this.ensureDir();
     this._write((0, import_path4.join)(this.globalDir, `${topicName}.md`), content);
   }
+  /** Append a one-line session summary to sessions.md in memory dir. */
+  appendSessionSummary(sessionId, summary, date = /* @__PURE__ */ new Date()) {
+    const sessFile = (0, import_path4.join)(this.globalDir, "sessions.md");
+    const dateStr = date.toISOString().split("T")[0];
+    const entry = `- ${dateStr} | ${summary}`;
+    let content = "";
+    if ((0, import_fs4.existsSync)(sessFile)) {
+      try {
+        content = (0, import_fs4.readFileSync)(sessFile, "utf8");
+      } catch {
+      }
+    }
+    if (!content.includes("## Recent Sessions")) {
+      content = "# Session History\n\n## Recent Sessions\n";
+    }
+    const lines = content.split("\n");
+    const headerIdx = lines.findIndex((l) => l.startsWith("## Recent Sessions"));
+    const entries = lines.slice(headerIdx + 1).filter((l) => l.startsWith("- "));
+    entries.push(entry);
+    const trimmed = entries.slice(-30);
+    const newContent = `# Session History
+
+## Recent Sessions
+${trimmed.join("\n")}
+`;
+    try {
+      (0, import_fs4.writeFileSync)(sessFile, newContent, "utf8");
+    } catch {
+    }
+    this._cache.delete(sessFile);
+  }
+  /** Load the last N session summaries for system prompt injection. */
+  _loadSessionSummaries(count = 15) {
+    const sessFile = (0, import_path4.join)(this.globalDir, "sessions.md");
+    if (!(0, import_fs4.existsSync)(sessFile)) return null;
+    try {
+      const content = (0, import_fs4.readFileSync)(sessFile, "utf8");
+      const entries = content.split("\n").filter((l) => l.startsWith("- "));
+      if (entries.length === 0) return null;
+      return entries.slice(-count).join("\n");
+    } catch {
+      return null;
+    }
+  }
   /**
    * Build the full memory block for system prompt injection.
    * Now includes agent instructions (OpenCode-style).
@@ -1837,6 +1891,11 @@ ${r.content}`).join("\n\n");
       sections.push(`## Relevant Context
 ${topicBlock}`);
     }
+    const sessionSummaries = this._loadSessionSummaries();
+    if (sessionSummaries) {
+      sections.push(`## Recent Session History
+${sessionSummaries}`);
+    }
     if (sections.length === 0) return "";
     return `# Memory & Instructions
 
@@ -1854,32 +1913,166 @@ ${sections.join("\n\n")}`;
   }
 };
 
+// ../../llamatalkbuild-engine/src/memory/tasks.js
+var import_fs5 = require("fs");
+var import_path5 = require("path");
+init_config();
+var TaskManager = class {
+  constructor(memoryDir = null) {
+    this.memoryDir = memoryDir || getMemoryDir();
+    this.tasksFile = (0, import_path5.join)(this.memoryDir, "tasks.md");
+  }
+  /** Parse the tasks.md file into structured data. */
+  _parse() {
+    if (!(0, import_fs5.existsSync)(this.tasksFile)) return { active: [], completed: [] };
+    try {
+      const content = (0, import_fs5.readFileSync)(this.tasksFile, "utf8");
+      const lines = content.split("\n");
+      const active = [];
+      const completed = [];
+      let section = null;
+      for (const line of lines) {
+        if (line.startsWith("## Active")) {
+          section = "active";
+          continue;
+        }
+        if (line.startsWith("## Completed")) {
+          section = "completed";
+          continue;
+        }
+        if (!line.startsWith("- ")) continue;
+        const isDone = line.startsWith("- [x]");
+        const text = line.replace(/^- \[[ x]\]\s*/, "");
+        const parts = text.split(" | ");
+        const description = parts[0]?.trim() || "";
+        let dueDate = null;
+        let created = null;
+        for (const p of parts.slice(1)) {
+          const t = p.trim();
+          if (t.startsWith("Due: ")) dueDate = t.slice(5).trim();
+          if (t.startsWith("Created: ")) created = t.slice(9).trim();
+        }
+        const task = { description, dueDate, created: created || (/* @__PURE__ */ new Date()).toISOString().split("T")[0] };
+        if (isDone || section === "completed") {
+          completed.push(task);
+        } else {
+          active.push(task);
+        }
+      }
+      return { active, completed };
+    } catch {
+      return { active: [], completed: [] };
+    }
+  }
+  /** Serialize tasks back to markdown. */
+  _save(data) {
+    const lines = ["# Tasks", ""];
+    lines.push("## Active");
+    for (const t of data.active) {
+      let entry = `- [ ] ${t.description}`;
+      if (t.dueDate) entry += ` | Due: ${t.dueDate}`;
+      entry += ` | Created: ${t.created}`;
+      lines.push(entry);
+    }
+    lines.push("");
+    lines.push("## Completed");
+    const recent = data.completed.slice(-20);
+    for (const t of recent) {
+      let entry = `- [x] ${t.description}`;
+      if (t.dueDate) entry += ` | Due: ${t.dueDate}`;
+      entry += ` | Created: ${t.created}`;
+      lines.push(entry);
+    }
+    lines.push("");
+    (0, import_fs5.writeFileSync)(this.tasksFile, lines.join("\n"), "utf8");
+  }
+  /** List all tasks. */
+  list() {
+    return this._parse();
+  }
+  /** Add a new task. Returns the created task. */
+  add(description, dueDate = null) {
+    const data = this._parse();
+    const task = {
+      description,
+      dueDate: dueDate || null,
+      created: (/* @__PURE__ */ new Date()).toISOString().split("T")[0]
+    };
+    data.active.push(task);
+    this._save(data);
+    return task;
+  }
+  /** Mark task #index (1-based) as complete. */
+  complete(index) {
+    const data = this._parse();
+    if (index < 1 || index > data.active.length) return null;
+    const [task] = data.active.splice(index - 1, 1);
+    data.completed.push(task);
+    this._save(data);
+    return task;
+  }
+  /** Remove task #index (1-based) entirely. */
+  remove(index) {
+    const data = this._parse();
+    if (index < 1 || index > data.active.length) return null;
+    const [task] = data.active.splice(index - 1, 1);
+    this._save(data);
+    return task;
+  }
+  /** Get tasks that are due today or overdue. */
+  getDueTasks() {
+    const data = this._parse();
+    const today = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
+    return data.active.filter((t) => t.dueDate && t.dueDate <= today);
+  }
+  /** Build markdown block for system prompt injection. */
+  buildTaskBlock() {
+    const data = this._parse();
+    if (data.active.length === 0) return "";
+    const lines = ["## Tasks"];
+    const today = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
+    for (let i = 0; i < data.active.length; i++) {
+      const t = data.active[i];
+      const overdue = t.dueDate && t.dueDate < today;
+      const dueToday = t.dueDate && t.dueDate === today;
+      let marker = "";
+      if (overdue) marker = " **[OVERDUE]**";
+      else if (dueToday) marker = " **[DUE TODAY]**";
+      let entry = `${i + 1}. ${t.description}`;
+      if (t.dueDate) entry += ` (due: ${t.dueDate})`;
+      entry += marker;
+      lines.push(entry);
+    }
+    return lines.join("\n");
+  }
+};
+
 // ../../llamatalkbuild-engine/src/agent.js
 init_config();
 
 // ../../llamatalkbuild-engine/src/sessions.js
-var import_fs5 = require("fs");
-var import_path5 = require("path");
+var import_fs6 = require("fs");
+var import_path6 = require("path");
 var import_crypto2 = require("crypto");
 init_config();
 var MAX_SESSIONS = 50;
 function getIndexPath() {
   const dir = getConversationDir();
-  if (!(0, import_fs5.existsSync)(dir)) (0, import_fs5.mkdirSync)(dir, { recursive: true });
-  return (0, import_path5.join)(dir, "sessions.json");
+  if (!(0, import_fs6.existsSync)(dir)) (0, import_fs6.mkdirSync)(dir, { recursive: true });
+  return (0, import_path6.join)(dir, "sessions.json");
 }
 function loadIndex() {
   const path = getIndexPath();
-  if (!(0, import_fs5.existsSync)(path)) return [];
+  if (!(0, import_fs6.existsSync)(path)) return [];
   try {
-    const raw = (0, import_fs5.readFileSync)(path, "utf8");
+    const raw = (0, import_fs6.readFileSync)(path, "utf8");
     return JSON.parse(raw);
   } catch {
     return [];
   }
 }
 function saveIndex(sessions) {
-  (0, import_fs5.writeFileSync)(getIndexPath(), JSON.stringify(sessions, null, 2), "utf8");
+  (0, import_fs6.writeFileSync)(getIndexPath(), JSON.stringify(sessions, null, 2), "utf8");
 }
 function generateTitle(message) {
   const clean = message.replace(/[\r\n]+/g, " ").trim();
@@ -1941,9 +2134,9 @@ var SessionManager = class {
   delete(id) {
     this.sessions = this.sessions.filter((s) => s.id !== id);
     saveIndex(this.sessions);
-    const convPath = (0, import_path5.join)(getConversationDir(), `${id}.json`);
+    const convPath = (0, import_path6.join)(getConversationDir(), `${id}.json`);
     try {
-      if ((0, import_fs5.existsSync)(convPath)) (0, import_fs5.unlinkSync)(convPath);
+      if ((0, import_fs6.existsSync)(convPath)) (0, import_fs6.unlinkSync)(convPath);
     } catch {
     }
   }
@@ -2033,12 +2226,12 @@ function compactMessages(messages, { targetReduction = 5e4 } = {}) {
 }
 
 // ../../llamatalkbuild-engine/src/session-log.js
-var import_fs6 = require("fs");
-var import_path6 = require("path");
+var import_fs7 = require("fs");
+var import_path7 = require("path");
 var SessionLog = class {
   constructor(projectRoot) {
     this.projectRoot = projectRoot;
-    this.filePath = (0, import_path6.join)(projectRoot, ".llamabuild-session.md");
+    this.filePath = (0, import_path7.join)(projectRoot, ".llamabuild-session.md");
     this.steps = [];
     this.sessionStart = /* @__PURE__ */ new Date();
   }
@@ -2063,26 +2256,26 @@ var SessionLog = class {
       "",
       ""
     ].join("\n");
-    if ((0, import_fs6.existsSync)(this.filePath)) {
-      const existing = (0, import_fs6.readFileSync)(this.filePath, "utf8");
+    if ((0, import_fs7.existsSync)(this.filePath)) {
+      const existing = (0, import_fs7.readFileSync)(this.filePath, "utf8");
       const headerEnd = existing.indexOf("\n\n");
       if (headerEnd >= 0) {
         const header = existing.slice(0, headerEnd + 2);
         const rest = existing.slice(headerEnd + 2);
-        (0, import_fs6.writeFileSync)(this.filePath, header + sessionBlock + rest, "utf8");
+        (0, import_fs7.writeFileSync)(this.filePath, header + sessionBlock + rest, "utf8");
       } else {
-        (0, import_fs6.writeFileSync)(this.filePath, existing + "\n\n" + sessionBlock, "utf8");
+        (0, import_fs7.writeFileSync)(this.filePath, existing + "\n\n" + sessionBlock, "utf8");
       }
     } else {
       const header = "# LlamaTalk Build Session Log\n\n";
-      (0, import_fs6.writeFileSync)(this.filePath, header + sessionBlock, "utf8");
+      (0, import_fs7.writeFileSync)(this.filePath, header + sessionBlock, "utf8");
     }
   }
 };
 
 // ../../llamatalkbuild-engine/src/session-tracker.js
-var import_fs7 = require("fs");
-var import_path7 = require("path");
+var import_fs8 = require("fs");
+var import_path8 = require("path");
 var SessionTracker = class {
   constructor(projectRoot) {
     this.projectRoot = projectRoot;
@@ -2095,7 +2288,7 @@ var SessionTracker = class {
     return `session-changes-llamabuild-${this.date}.md`;
   }
   get filePath() {
-    return (0, import_path7.join)(this.projectRoot, this.fileName);
+    return (0, import_path8.join)(this.projectRoot, this.fileName);
   }
   /**
    * Record a file change. Only write_file and edit_file count as "dirty".
@@ -2106,7 +2299,7 @@ var SessionTracker = class {
     if (currentDate !== this.date) {
       this.date = currentDate;
     }
-    const relPath = (0, import_path7.relative)(this.projectRoot, filePath) || filePath;
+    const relPath = (0, import_path8.relative)(this.projectRoot, filePath) || filePath;
     this.changes.push({
       time: now,
       type: toolName,
@@ -2146,15 +2339,15 @@ var SessionTracker = class {
       "",
       ""
     ].join("\n");
-    if ((0, import_fs7.existsSync)(this.filePath)) {
-      const existing = (0, import_fs7.readFileSync)(this.filePath, "utf8");
+    if ((0, import_fs8.existsSync)(this.filePath)) {
+      const existing = (0, import_fs8.readFileSync)(this.filePath, "utf8");
       const headerEnd = existing.indexOf("\n\n");
       if (headerEnd >= 0) {
         const header = existing.slice(0, headerEnd + 2);
         const rest = existing.slice(headerEnd + 2);
-        (0, import_fs7.writeFileSync)(this.filePath, header + sessionBlock + rest, "utf8");
+        (0, import_fs8.writeFileSync)(this.filePath, header + sessionBlock + rest, "utf8");
       } else {
-        (0, import_fs7.writeFileSync)(this.filePath, existing + "\n\n" + sessionBlock, "utf8");
+        (0, import_fs8.writeFileSync)(this.filePath, existing + "\n\n" + sessionBlock, "utf8");
       }
     } else {
       const header = `# Session Changes \u2014 LlamaTalk Build
@@ -2162,7 +2355,7 @@ var SessionTracker = class {
 Project: \`${this.projectRoot}\`
 
 `;
-      (0, import_fs7.writeFileSync)(this.filePath, header + sessionBlock, "utf8");
+      (0, import_fs8.writeFileSync)(this.filePath, header + sessionBlock, "utf8");
     }
   }
   /**
@@ -2171,24 +2364,24 @@ Project: \`${this.projectRoot}\`
    */
   _cleanOldFiles() {
     try {
-      const files = (0, import_fs7.readdirSync)(this.projectRoot);
+      const files = (0, import_fs8.readdirSync)(this.projectRoot);
       const pattern = /^session-changes-llamabuild-(\d{4}-\d{2}-\d{2})\.md$/;
       for (const f of files) {
         const match = f.match(pattern);
         if (match && match[1] !== this.date) {
-          const oldPath = (0, import_path7.join)(this.projectRoot, f);
-          const oldContent = (0, import_fs7.readFileSync)(oldPath, "utf8");
+          const oldPath = (0, import_path8.join)(this.projectRoot, f);
+          const oldContent = (0, import_fs8.readFileSync)(oldPath, "utf8");
           const headerEnd = oldContent.indexOf("\n\n");
           if (headerEnd >= 0) {
             const blocks = oldContent.slice(headerEnd + 2);
             const projectHeader = oldContent.includes("Project:") ? "" : "";
-            if ((0, import_fs7.existsSync)(this.filePath)) {
-              const current = (0, import_fs7.readFileSync)(this.filePath, "utf8");
-              (0, import_fs7.writeFileSync)(this.filePath, current + blocks, "utf8");
+            if ((0, import_fs8.existsSync)(this.filePath)) {
+              const current = (0, import_fs8.readFileSync)(this.filePath, "utf8");
+              (0, import_fs8.writeFileSync)(this.filePath, current + blocks, "utf8");
             }
           }
           try {
-            (0, import_fs7.unlinkSync)(oldPath);
+            (0, import_fs8.unlinkSync)(oldPath);
           } catch {
           }
         }
@@ -2202,13 +2395,13 @@ Project: \`${this.projectRoot}\`
 };
 
 // ../../llamatalkbuild-engine/src/context/context.js
-var import_fs8 = require("fs");
-var import_path8 = require("path");
+var import_fs9 = require("fs");
+var import_path9 = require("path");
 function detectProjectContext(projectRoot) {
   const context = [];
-  if ((0, import_fs8.existsSync)((0, import_path8.join)(projectRoot, "package.json"))) {
+  if ((0, import_fs9.existsSync)((0, import_path9.join)(projectRoot, "package.json"))) {
     try {
-      const pkg = JSON.parse((0, import_fs8.readFileSync)((0, import_path8.join)(projectRoot, "package.json"), "utf8"));
+      const pkg = JSON.parse((0, import_fs9.readFileSync)((0, import_path9.join)(projectRoot, "package.json"), "utf8"));
       context.push(`Node.js project: ${pkg.name || "unnamed"} v${pkg.version || "?"}`);
       if (pkg.dependencies) {
         const deps = Object.keys(pkg.dependencies).slice(0, 10);
@@ -2217,20 +2410,20 @@ function detectProjectContext(projectRoot) {
     } catch {
     }
   }
-  if ((0, import_fs8.existsSync)((0, import_path8.join)(projectRoot, "pyproject.toml")) || (0, import_fs8.existsSync)((0, import_path8.join)(projectRoot, "setup.py"))) {
+  if ((0, import_fs9.existsSync)((0, import_path9.join)(projectRoot, "pyproject.toml")) || (0, import_fs9.existsSync)((0, import_path9.join)(projectRoot, "setup.py"))) {
     context.push("Python project");
   }
-  if ((0, import_fs8.existsSync)((0, import_path8.join)(projectRoot, "Cargo.toml"))) {
+  if ((0, import_fs9.existsSync)((0, import_path9.join)(projectRoot, "Cargo.toml"))) {
     context.push("Rust project");
   }
-  if ((0, import_fs8.existsSync)((0, import_path8.join)(projectRoot, "go.mod"))) {
+  if ((0, import_fs9.existsSync)((0, import_path9.join)(projectRoot, "go.mod"))) {
     context.push("Go project");
   }
-  if ((0, import_fs8.existsSync)((0, import_path8.join)(projectRoot, ".git"))) {
+  if ((0, import_fs9.existsSync)((0, import_path9.join)(projectRoot, ".git"))) {
     context.push("Git repository");
   }
   try {
-    const items = (0, import_fs8.readdirSync)(projectRoot).filter((f) => !f.startsWith(".") && f !== "node_modules" && f !== "dist" && f !== "build").slice(0, 20);
+    const items = (0, import_fs9.readdirSync)(projectRoot).filter((f) => !f.startsWith(".") && f !== "node_modules" && f !== "dist" && f !== "build").slice(0, 20);
     context.push(`Top-level: ${items.join(", ")}`);
   } catch {
   }
@@ -2238,8 +2431,8 @@ function detectProjectContext(projectRoot) {
 }
 
 // ../../llamatalkbuild-engine/src/tools/read-file.js
-var import_fs9 = require("fs");
-var import_path9 = require("path");
+var import_fs10 = require("fs");
+var import_path10 = require("path");
 var import_child_process2 = require("child_process");
 var BINARY_EXTENSIONS = /* @__PURE__ */ new Set([
   ".png",
@@ -2278,10 +2471,10 @@ var BINARY_EXTENSIONS = /* @__PURE__ */ new Set([
   ".lock"
 ]);
 function isBinaryFile(filePath) {
-  const ext = (0, import_path9.extname)(filePath).toLowerCase();
+  const ext = (0, import_path10.extname)(filePath).toLowerCase();
   if (BINARY_EXTENSIONS.has(ext)) return true;
   try {
-    const buf = (0, import_fs9.readFileSync)(filePath, { encoding: null, flag: "r" });
+    const buf = (0, import_fs10.readFileSync)(filePath, { encoding: null, flag: "r" });
     const sample = buf.subarray(0, Math.min(512, buf.length));
     for (let i = 0; i < sample.length; i++) {
       if (sample[i] === 0) return true;
@@ -2324,9 +2517,9 @@ var readFileTool = {
   },
   safetyLevel(args) {
     const result = validatePath(args?.path || "", process.cwd(), { allowExternal: true });
-    if (result.external && result.trusted) return SafetyLevel.SAFE;
-    if (result.external) return SafetyLevel.MODERATE;
-    return SafetyLevel.SAFE;
+    if (result.external && result.trusted) return SafetyLevel.LOW;
+    if (result.external) return SafetyLevel.MEDIUM;
+    return SafetyLevel.LOW;
   },
   validate(args, context) {
     if (!args.path) return { ok: false, error: "path is required" };
@@ -2337,13 +2530,13 @@ var readFileTool = {
   async execute(args, context) {
     const { valid, resolved, error } = validatePath(args.path, context.projectRoot, { allowExternal: true });
     if (!valid) return `Error: ${error}`;
-    if (!(0, import_fs9.existsSync)(resolved)) {
+    if (!(0, import_fs10.existsSync)(resolved)) {
       return `Error: File not found: ${args.path}`;
     }
-    const ext = (0, import_path9.extname)(resolved).toLowerCase();
+    const ext = (0, import_path10.extname)(resolved).toLowerCase();
     if (ext === ".pdf") {
       try {
-        const stat = (0, import_fs9.statSync)(resolved);
+        const stat = (0, import_fs10.statSync)(resolved);
         const sizeMB = (stat.size / 1048576).toFixed(1);
         const text = extractPdfText(resolved);
         const lines = text.split("\n");
@@ -2363,12 +2556,12 @@ var readFileTool = {
       }
     }
     if (isBinaryFile(resolved)) {
-      const stat = (0, import_fs9.statSync)(resolved);
+      const stat = (0, import_fs10.statSync)(resolved);
       const sizeMB = (stat.size / 1048576).toFixed(2);
       return `[Binary file: ${args.path} (${ext || "unknown"}, ${sizeMB} MB) \u2014 cannot display contents]`;
     }
     try {
-      const content = (0, import_fs9.readFileSync)(resolved, "utf8");
+      const content = (0, import_fs10.readFileSync)(resolved, "utf8");
       const lines = content.split("\n");
       const offset = Math.max(1, args.offset || 1);
       const limit = args.limit || lines.length;
@@ -2395,8 +2588,8 @@ var readFileTool = {
 };
 
 // ../../llamatalkbuild-engine/src/tools/write-file.js
-var import_fs10 = require("fs");
-var import_path10 = require("path");
+var import_fs11 = require("fs");
+var import_path11 = require("path");
 var writeFileTool = {
   definition: {
     name: "write_file",
@@ -2412,9 +2605,9 @@ var writeFileTool = {
   },
   safetyLevel(args) {
     const result = validatePath(args?.path || "", process.cwd(), { allowExternal: true });
-    if (result.external && result.trusted) return SafetyLevel.MODERATE;
-    if (result.external) return SafetyLevel.DANGEROUS;
-    return SafetyLevel.MODERATE;
+    if (result.external && result.trusted) return SafetyLevel.MEDIUM;
+    if (result.external) return SafetyLevel.HIGH;
+    return SafetyLevel.MEDIUM;
   },
   validate(args, context) {
     if (!args.path) return { ok: false, error: "path is required" };
@@ -2425,9 +2618,9 @@ var writeFileTool = {
   },
   async execute(args, context) {
     const { resolved } = validatePath(args.path, context.projectRoot, { allowExternal: true });
-    if ((0, import_fs10.existsSync)(resolved)) {
+    if ((0, import_fs11.existsSync)(resolved)) {
       try {
-        const oldContent = (0, import_fs10.readFileSync)(resolved, "utf8");
+        const oldContent = (0, import_fs11.readFileSync)(resolved, "utf8");
         context.sessionChanges?.push({
           type: "write",
           path: resolved,
@@ -2443,11 +2636,11 @@ var writeFileTool = {
         timestamp: Date.now()
       });
     }
-    const dir = (0, import_path10.dirname)(resolved);
-    if (!(0, import_fs10.existsSync)(dir)) {
-      (0, import_fs10.mkdirSync)(dir, { recursive: true });
+    const dir = (0, import_path11.dirname)(resolved);
+    if (!(0, import_fs11.existsSync)(dir)) {
+      (0, import_fs11.mkdirSync)(dir, { recursive: true });
     }
-    (0, import_fs10.writeFileSync)(resolved, args.content, "utf8");
+    (0, import_fs11.writeFileSync)(resolved, args.content, "utf8");
     const bytes = Buffer.byteLength(args.content, "utf8");
     return `Successfully wrote ${bytes} bytes to ${args.path}`;
   },
@@ -2460,7 +2653,7 @@ var writeFileTool = {
 };
 
 // ../../llamatalkbuild-engine/src/tools/edit-file.js
-var import_fs11 = require("fs");
+var import_fs12 = require("fs");
 var editFileTool = {
   definition: {
     name: "edit_file",
@@ -2477,9 +2670,9 @@ var editFileTool = {
   },
   safetyLevel(args) {
     const result = validatePath(args?.path || "", process.cwd(), { allowExternal: true });
-    if (result.external && result.trusted) return SafetyLevel.MODERATE;
-    if (result.external) return SafetyLevel.DANGEROUS;
-    return SafetyLevel.MODERATE;
+    if (result.external && result.trusted) return SafetyLevel.MEDIUM;
+    if (result.external) return SafetyLevel.HIGH;
+    return SafetyLevel.MEDIUM;
   },
   validate(args, context) {
     if (!args.path) return { ok: false, error: "path is required" };
@@ -2491,10 +2684,10 @@ var editFileTool = {
   },
   async execute(args, context) {
     const { resolved } = validatePath(args.path, context.projectRoot, { allowExternal: true });
-    if (!(0, import_fs11.existsSync)(resolved)) {
+    if (!(0, import_fs12.existsSync)(resolved)) {
       return `Error: File not found: ${args.path}`;
     }
-    const content = (0, import_fs11.readFileSync)(resolved, "utf8");
+    const content = (0, import_fs12.readFileSync)(resolved, "utf8");
     const occurrences = content.split(args.old_text).length - 1;
     if (occurrences === 0) {
       return `Error: old_text not found in ${args.path}. Make sure you're using the exact text from the file.`;
@@ -2509,7 +2702,7 @@ var editFileTool = {
       timestamp: Date.now()
     });
     const newContent = content.replace(args.old_text, args.new_text);
-    (0, import_fs11.writeFileSync)(resolved, newContent, "utf8");
+    (0, import_fs12.writeFileSync)(resolved, newContent, "utf8");
     const oldLines = args.old_text.split("\n").length;
     const newLines = args.new_text.split("\n").length;
     return `Successfully edited ${args.path}: replaced ${oldLines} line(s) with ${newLines} line(s)`;
@@ -2523,8 +2716,8 @@ var editFileTool = {
 };
 
 // ../../llamatalkbuild-engine/src/tools/list-directory.js
-var import_fs12 = require("fs");
-var import_path11 = require("path");
+var import_fs13 = require("fs");
+var import_path12 = require("path");
 var IGNORED = /* @__PURE__ */ new Set(["node_modules", ".git", "dist", "build", "__pycache__", ".next", ".venv", "venv", "target"]);
 var listDirectoryTool = {
   definition: {
@@ -2540,11 +2733,11 @@ var listDirectoryTool = {
     }
   },
   safetyLevel(args) {
-    if (!args?.path) return SafetyLevel.SAFE;
+    if (!args?.path) return SafetyLevel.LOW;
     const result = validatePath(args.path, process.cwd(), { allowExternal: true });
-    if (result.external && result.trusted) return SafetyLevel.SAFE;
-    if (result.external) return SafetyLevel.MODERATE;
-    return SafetyLevel.SAFE;
+    if (result.external && result.trusted) return SafetyLevel.LOW;
+    if (result.external) return SafetyLevel.MEDIUM;
+    return SafetyLevel.LOW;
   },
   validate(args, context) {
     if (args.path) {
@@ -2560,15 +2753,15 @@ var listDirectoryTool = {
     function walk(dir, depth) {
       if (entries.length >= maxEntries) return;
       try {
-        const items = (0, import_fs12.readdirSync)(dir);
+        const items = (0, import_fs13.readdirSync)(dir);
         for (const item of items) {
           if (entries.length >= maxEntries) break;
           if (IGNORED.has(item)) continue;
           if (item.startsWith(".") && item !== ".env" && item !== ".gitignore") continue;
-          const fullPath = (0, import_path11.join)(dir, item);
+          const fullPath = (0, import_path12.join)(dir, item);
           try {
-            const stat = (0, import_fs12.statSync)(fullPath);
-            const rel = (0, import_path11.relative)(context.projectRoot, fullPath);
+            const stat = (0, import_fs13.statSync)(fullPath);
+            const rel = (0, import_path12.relative)(context.projectRoot, fullPath);
             const prefix = "  ".repeat(depth);
             if (stat.isDirectory()) {
               entries.push(`${prefix}${item}/`);
@@ -2599,8 +2792,8 @@ var listDirectoryTool = {
 };
 
 // ../../llamatalkbuild-engine/src/tools/search-files.js
-var import_fs13 = require("fs");
-var import_path12 = require("path");
+var import_fs14 = require("fs");
+var import_path13 = require("path");
 var IGNORED_DIRS = /* @__PURE__ */ new Set(["node_modules", ".git", "dist", "build", "__pycache__", ".next", ".venv", "venv", "target", ".cache"]);
 var BINARY_EXTENSIONS2 = /* @__PURE__ */ new Set([".png", ".jpg", ".jpeg", ".gif", ".bmp", ".ico", ".svg", ".woff", ".woff2", ".ttf", ".eot", ".mp3", ".mp4", ".avi", ".zip", ".tar", ".gz", ".exe", ".dll", ".so", ".dylib", ".pdf", ".lock"]);
 var searchFilesTool = {
@@ -2619,11 +2812,11 @@ var searchFilesTool = {
     }
   },
   safetyLevel(args) {
-    if (!args?.path) return SafetyLevel.SAFE;
+    if (!args?.path) return SafetyLevel.LOW;
     const result = validatePath(args.path, process.cwd(), { allowExternal: true });
-    if (result.external && result.trusted) return SafetyLevel.SAFE;
-    if (result.external) return SafetyLevel.MODERATE;
-    return SafetyLevel.SAFE;
+    if (result.external && result.trusted) return SafetyLevel.LOW;
+    if (result.external) return SafetyLevel.MEDIUM;
+    return SafetyLevel.LOW;
   },
   validate(args, context) {
     if (!args.pattern) return { ok: false, error: "pattern is required" };
@@ -2645,27 +2838,27 @@ var searchFilesTool = {
     function walk(dir) {
       if (results.length >= maxResults) return;
       try {
-        const items = (0, import_fs13.readdirSync)(dir);
+        const items = (0, import_fs14.readdirSync)(dir);
         for (const item of items) {
           if (results.length >= maxResults) break;
           if (IGNORED_DIRS.has(item)) continue;
-          const fullPath = (0, import_path12.join)(dir, item);
+          const fullPath = (0, import_path13.join)(dir, item);
           try {
-            const stat = (0, import_fs13.statSync)(fullPath);
+            const stat = (0, import_fs14.statSync)(fullPath);
             if (stat.isDirectory()) {
               walk(fullPath);
             } else if (stat.isFile()) {
-              const ext = (0, import_path12.extname)(item).toLowerCase();
+              const ext = (0, import_path13.extname)(item).toLowerCase();
               if (BINARY_EXTENSIONS2.has(ext)) continue;
               if (stat.size > 1048576) continue;
               if (globPattern && !globPattern.test(item)) continue;
               try {
-                const content = (0, import_fs13.readFileSync)(fullPath, "utf8");
+                const content = (0, import_fs14.readFileSync)(fullPath, "utf8");
                 const lines = content.split("\n");
                 for (let i = 0; i < lines.length; i++) {
                   if (results.length >= maxResults) break;
                   if (regex.test(lines[i])) {
-                    const rel = (0, import_path12.relative)(context.projectRoot, fullPath);
+                    const rel = (0, import_path13.relative)(context.projectRoot, fullPath);
                     const trimmedLine = lines[i].length > 200 ? lines[i].slice(0, 200) + "..." : lines[i];
                     results.push(`${rel}:${i + 1}: ${trimmedLine}`);
                   }
@@ -2696,8 +2889,8 @@ var searchFilesTool = {
 };
 
 // ../../llamatalkbuild-engine/src/tools/glob-files.js
-var import_fs14 = require("fs");
-var import_path13 = require("path");
+var import_fs15 = require("fs");
+var import_path14 = require("path");
 var IGNORED_DIRS2 = /* @__PURE__ */ new Set(["node_modules", ".git", "dist", "build", "__pycache__", ".next", ".venv", "venv", "target", ".cache"]);
 function globToRegex(pattern) {
   let regex = pattern.replace(/\\/g, "/").replace(/\./g, "\\.").replace(/\*\*/g, "<<<GLOBSTAR>>>").replace(/\*/g, "[^/]*").replace(/\?/g, "[^/]").replace(/<<<GLOBSTAR>>>/g, ".*");
@@ -2717,11 +2910,11 @@ var globFilesTool = {
     }
   },
   safetyLevel(args) {
-    if (!args?.path) return SafetyLevel.SAFE;
+    if (!args?.path) return SafetyLevel.LOW;
     const result = validatePath(args.path, process.cwd(), { allowExternal: true });
-    if (result.external && result.trusted) return SafetyLevel.SAFE;
-    if (result.external) return SafetyLevel.MODERATE;
-    return SafetyLevel.SAFE;
+    if (result.external && result.trusted) return SafetyLevel.LOW;
+    if (result.external) return SafetyLevel.MEDIUM;
+    return SafetyLevel.LOW;
   },
   validate(args, context) {
     if (!args.pattern) return { ok: false, error: "pattern is required" };
@@ -2735,14 +2928,14 @@ var globFilesTool = {
     function walk(dir) {
       if (results.length >= maxResults) return;
       try {
-        const items = (0, import_fs14.readdirSync)(dir);
+        const items = (0, import_fs15.readdirSync)(dir);
         for (const item of items) {
           if (results.length >= maxResults) break;
           if (IGNORED_DIRS2.has(item)) continue;
-          const fullPath = (0, import_path13.join)(dir, item);
+          const fullPath = (0, import_path14.join)(dir, item);
           try {
-            const stat = (0, import_fs14.statSync)(fullPath);
-            const rel = (0, import_path13.relative)(baseDir, fullPath).replace(/\\/g, "/");
+            const stat = (0, import_fs15.statSync)(fullPath);
+            const rel = (0, import_path14.relative)(baseDir, fullPath).replace(/\\/g, "/");
             if (stat.isDirectory()) {
               walk(fullPath);
             } else if (stat.isFile()) {
@@ -2789,7 +2982,7 @@ var bashTool = {
       required: ["command"]
     }
   },
-  safetyLevel: SafetyLevel.DANGEROUS,
+  safetyLevel: SafetyLevel.HIGH,
   validate(args, context) {
     if (!args.command) return { ok: false, error: "command is required" };
     if (isDestructiveCommand(args.command)) {
@@ -2841,7 +3034,7 @@ ${output}`;
 
 // ../../llamatalkbuild-engine/src/tools/git.js
 var import_child_process4 = require("child_process");
-var SAFE_SUBCOMMANDS = /* @__PURE__ */ new Set(["status", "diff", "log", "branch", "show", "remote", "tag", "stash", "rev-parse", "shortlog", "blame"]);
+var SAFE_SUBCOMMANDS = /* @__PURE__ */ new Set(["status", "diff", "log", "branch", "show", "remote", "tag", "rev-parse", "shortlog", "blame"]);
 function getSubcommand(args) {
   return (args.subcommand || "").split(/\s+/)[0].toLowerCase();
 }
@@ -2861,8 +3054,8 @@ var gitTool = {
   // Dynamic safety level
   safetyLevel(args) {
     const sub = getSubcommand(args);
-    if (SAFE_SUBCOMMANDS.has(sub)) return SafetyLevel.SAFE;
-    return SafetyLevel.DANGEROUS;
+    if (SAFE_SUBCOMMANDS.has(sub)) return SafetyLevel.LOW;
+    return SafetyLevel.HIGH;
   },
   validate(args, context) {
     if (!args.subcommand) return { ok: false, error: "subcommand is required" };
@@ -2916,7 +3109,7 @@ var webFetchTool = {
       required: ["url"]
     }
   },
-  safetyLevel: SafetyLevel.SAFE,
+  safetyLevel: SafetyLevel.LOW,
   validate(args) {
     if (!args.url) return { ok: false, error: "url is required" };
     try {
@@ -2985,7 +3178,7 @@ var webSearchTool = {
       required: ["query"]
     }
   },
-  safetyLevel: SafetyLevel.SAFE,
+  safetyLevel: SafetyLevel.LOW,
   validate(args) {
     if (!args.query) return { ok: false, error: "query is required" };
     return { ok: true };
@@ -3060,7 +3253,7 @@ var npmInstallTool = {
       required: ["package"]
     }
   },
-  safetyLevel: SafetyLevel.MODERATE,
+  safetyLevel: SafetyLevel.MEDIUM,
   validate(args) {
     if (!args.package) return { ok: false, error: "package is required" };
     const name = args.package.split("@")[0] || args.package;
@@ -3117,7 +3310,7 @@ var pipInstallTool = {
       required: ["package"]
     }
   },
-  safetyLevel: SafetyLevel.MODERATE,
+  safetyLevel: SafetyLevel.MEDIUM,
   validate(args) {
     if (!args.package) return { ok: false, error: "package is required" };
     if (!validatePackageName(args.package)) {
@@ -3203,7 +3396,7 @@ var installToolTool = {
       required: ["package", "manager", "reason"]
     }
   },
-  safetyLevel: SafetyLevel.DANGEROUS,
+  safetyLevel: SafetyLevel.HIGH,
   validate(args) {
     if (!args.package) return { ok: false, error: "package is required" };
     if (!args.manager) return { ok: false, error: "manager is required" };
@@ -3266,8 +3459,8 @@ ${output.slice(0, 1e4)}`;
 };
 
 // ../../llamatalkbuild-engine/src/tools/generate-file.js
-var import_fs15 = require("fs");
-var import_path14 = require("path");
+var import_fs16 = require("fs");
+var import_path15 = require("path");
 var import_child_process8 = require("child_process");
 var SUPPORTED_TYPES = ["md", "txt", "html", "csv", "json", "xml", "yaml", "yml", "log", "pdf"];
 var generateFileTool = {
@@ -3300,16 +3493,16 @@ var generateFileTool = {
   },
   safetyLevel(args) {
     const result = validatePath(args?.path || "", process.cwd(), { allowExternal: true });
-    if (result.external && result.trusted) return SafetyLevel.MODERATE;
-    if (result.external) return SafetyLevel.DANGEROUS;
-    return SafetyLevel.MODERATE;
+    if (result.external && result.trusted) return SafetyLevel.MEDIUM;
+    if (result.external) return SafetyLevel.HIGH;
+    return SafetyLevel.MEDIUM;
   },
   validate(args, context) {
     if (!args.path) return { ok: false, error: "path is required" };
     if (args.content === void 0) return { ok: false, error: "content is required" };
     const { valid, error } = validatePath(args.path, context.projectRoot, { allowExternal: true });
     if (!valid) return { ok: false, error };
-    const ext = (args.format || (0, import_path14.extname)(args.path).slice(1)).toLowerCase();
+    const ext = (args.format || (0, import_path15.extname)(args.path).slice(1)).toLowerCase();
     if (ext && !SUPPORTED_TYPES.includes(ext)) {
       return { ok: false, error: `Unsupported format: ${ext}. Supported: ${SUPPORTED_TYPES.join(", ")}` };
     }
@@ -3317,19 +3510,19 @@ var generateFileTool = {
   },
   async execute(args, context) {
     const { resolved } = validatePath(args.path, context.projectRoot, { allowExternal: true });
-    const ext = (args.format || (0, import_path14.extname)(resolved).slice(1)).toLowerCase();
-    if ((0, import_fs15.existsSync)(resolved)) {
+    const ext = (args.format || (0, import_path15.extname)(resolved).slice(1)).toLowerCase();
+    if ((0, import_fs16.existsSync)(resolved)) {
       try {
-        const oldContent = (0, import_fs15.readFileSync)(resolved, "utf8");
+        const oldContent = (0, import_fs16.readFileSync)(resolved, "utf8");
         context.sessionChanges?.push({ type: "write", path: resolved, oldContent, timestamp: Date.now() });
       } catch {
       }
     } else {
       context.sessionChanges?.push({ type: "create", path: resolved, timestamp: Date.now() });
     }
-    const dir = (0, import_path14.dirname)(resolved);
-    if (!(0, import_fs15.existsSync)(dir)) {
-      (0, import_fs15.mkdirSync)(dir, { recursive: true });
+    const dir = (0, import_path15.dirname)(resolved);
+    if (!(0, import_fs16.existsSync)(dir)) {
+      (0, import_fs16.mkdirSync)(dir, { recursive: true });
     }
     if (ext === "pdf") {
       return await generatePdf(resolved, args.content, args.title);
@@ -3348,12 +3541,12 @@ var generateFileTool = {
         }
       }
     }
-    (0, import_fs15.writeFileSync)(resolved, output, "utf8");
+    (0, import_fs16.writeFileSync)(resolved, output, "utf8");
     const bytes = Buffer.byteLength(output, "utf8");
     return `Generated ${ext.toUpperCase()} file: ${args.path} (${bytes} bytes)`;
   },
   formatConfirmation(args) {
-    const ext = (args.format || (0, import_path14.extname)(args.path).slice(1)).toLowerCase();
+    const ext = (args.format || (0, import_path15.extname)(args.path).slice(1)).toLowerCase();
     const result = validatePath(args.path, process.cwd(), { allowExternal: true });
     const loc = result.external ? " (outside project)" : "";
     return `Generate ${ext.toUpperCase()} file${loc}: ${args.path}?`;
@@ -3384,7 +3577,7 @@ async function generatePdf(outputPath, content, title) {
     const PDFDocument = (await import("pdfkit")).default;
     const doc = new PDFDocument({ margin: 50 });
     return new Promise((resolve4, reject) => {
-      const stream = (0, import_fs15.createWriteStream)(outputPath);
+      const stream = (0, import_fs16.createWriteStream)(outputPath);
       doc.pipe(stream);
       if (title) {
         doc.fontSize(22).font("Helvetica-Bold").text(title, { align: "center" });
@@ -3433,7 +3626,7 @@ async function generatePdf(outputPath, content, title) {
       stream.on("finish", () => {
         let size = 0;
         try {
-          size = (0, import_fs15.statSync)(outputPath).size;
+          size = (0, import_fs16.statSync)(outputPath).size;
         } catch {
         }
         resolve4(`Generated PDF: ${outputPath} (${size} bytes)`);
@@ -3443,11 +3636,11 @@ async function generatePdf(outputPath, content, title) {
   } catch {
     try {
       const tmpMd = outputPath.replace(/\.pdf$/i, ".tmp.md");
-      (0, import_fs15.writeFileSync)(tmpMd, content, "utf8");
+      (0, import_fs16.writeFileSync)(tmpMd, content, "utf8");
       const pandocResult = (0, import_child_process8.spawnSync)("pandoc", [tmpMd, "-o", outputPath], { timeout: 6e4, stdio: ["pipe", "pipe", "pipe"] });
       if (pandocResult.status !== 0) throw new Error(pandocResult.stderr?.toString() || "pandoc failed");
       try {
-        (0, import_fs15.unlinkSync)(tmpMd);
+        (0, import_fs16.unlinkSync)(tmpMd);
       } catch {
       }
       return `Generated PDF via pandoc: ${outputPath}`;
@@ -3596,6 +3789,7 @@ var AgentEngine = class extends import_events.EventEmitter {
     this.showThinking = options.showThinking !== false && config2.showThinking;
     this.toolRegistry = createToolRegistry();
     this.memory = new MemoryManager(config2, this.encKey);
+    this.taskManager = new TaskManager();
     this.sessionMgr = new SessionManager();
     this.sessionLog = new SessionLog(this.projectRoot);
     this.sessionTracker = new SessionTracker(this.projectRoot);
@@ -3696,6 +3890,9 @@ var AgentEngine = class extends import_events.EventEmitter {
   getMemoryStatus() {
     return this.memory.buildMemoryBlock("", this.projectRoot);
   }
+  getTaskManager() {
+    return this.taskManager;
+  }
   getSessionTracker() {
     return this.sessionTracker;
   }
@@ -3717,8 +3914,17 @@ var AgentEngine = class extends import_events.EventEmitter {
       this.firstMessageSent = true;
     }
     let memoryBlock = "";
-    if (this.config.memoryEnabled && !this.noMemory) {
-      memoryBlock = this.memory.buildMemoryBlock(text, this.projectRoot);
+    this.emit("memory-loading", { status: "start" });
+    memoryBlock = this.memory.buildMemoryBlock(text, this.projectRoot);
+    const taskBlock = this.taskManager.buildTaskBlock();
+    if (taskBlock) {
+      memoryBlock = memoryBlock ? `${memoryBlock}
+
+${taskBlock}` : taskBlock;
+    }
+    this.emit("memory-loading", { status: "done" });
+    if (!this.config.memoryEnabled || this.noMemory) {
+      memoryBlock = "";
     }
     const { provider, providerName, formatAssistantToolUse, formatToolResult } = getProviderForModel(this.config);
     let iterationCount = 0;
@@ -3859,8 +4065,8 @@ var AgentEngine = class extends import_events.EventEmitter {
             if (!this.config.autoApprove) this.config.autoApprove = {};
             for (const c of needsConfirm) {
               const level = typeof c.tool.safetyLevel === "function" ? c.tool.safetyLevel(c.tc.arguments) : c.tool.safetyLevel;
-              if (level === "moderate") this.config.autoApprove.moderate = true;
-              if (level === "dangerous") this.config.autoApprove.dangerous = true;
+              if (level === "medium") this.config.autoApprove.medium = true;
+              if (level === "high") this.config.autoApprove.high = true;
             }
           } else if (!result) {
             batchApproved = false;
@@ -3901,15 +4107,15 @@ var AgentEngine = class extends import_events.EventEmitter {
             this.sessionLog.addStep(`${tc.name}: ${summary}`);
             if (tc.arguments?.path) {
               try {
-                const absPath = (0, import_path15.resolve)(this.projectRoot, tc.arguments.path);
+                const absPath = (0, import_path16.resolve)(this.projectRoot, tc.arguments.path);
                 this.sessionTracker.addChange(tc.name, absPath, summary);
               } catch {
               }
             }
             if (tc.name === "write_file" || tc.name === "edit_file") {
               try {
-                const filePath = (0, import_path15.resolve)(this.projectRoot, tc.arguments.path);
-                const newContent = (0, import_fs16.readFileSync)(filePath, "utf8");
+                const filePath = (0, import_path16.resolve)(this.projectRoot, tc.arguments.path);
+                const newContent = (0, import_fs17.readFileSync)(filePath, "utf8");
                 const lastChange = this.sessionChanges[this.sessionChanges.length - 1];
                 const oldContent = lastChange?.oldContent || null;
                 this.emit("file-changed", { path: tc.arguments.path, toolName: tc.name, args: tc.arguments, newContent, oldContent });
@@ -3986,6 +4192,26 @@ var AgentEngine = class extends import_events.EventEmitter {
       this.sessionTracker.save();
     } catch {
     }
+    try {
+      const changes = this.sessionTracker.getRecentChanges();
+      const toolNames = this._lastToolCalls.map((tc) => tc.name);
+      const filesTouched = changes.map((c) => c.path?.split(/[/\\]/).pop()).filter(Boolean);
+      const parts = [];
+      if (toolNames.length > 0) {
+        const counts = {};
+        for (const n of toolNames) counts[n] = (counts[n] || 0) + 1;
+        const top = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 3);
+        parts.push(top.map(([n, c]) => `${n}\xD7${c}`).join(", "));
+      }
+      if (filesTouched.length > 0) {
+        const unique = [...new Set(filesTouched)].slice(0, 5);
+        parts.push(`files: ${unique.join(", ")}`);
+      }
+      if (parts.length > 0) {
+        this.memory.appendSessionSummary(this.conversationId, parts.join(" | "));
+      }
+    } catch {
+    }
   }
   // --- Internal helpers ---
   async _checkInactivityLock() {
@@ -4058,7 +4284,8 @@ function wireEvents(engine2) {
     "mode-change",
     "cancelled",
     "error",
-    "usage"
+    "usage",
+    "memory-loading"
   ];
   for (const evt of passthrough) {
     engine2.on(evt, (data) => sendEvent(evt, data));
@@ -4259,6 +4486,22 @@ var methods = {
       }
       return cloudModels;
     }
+  },
+  listTasks() {
+    const tm = engine ? engine.getTaskManager() : new TaskManager();
+    return tm.list();
+  },
+  addTask({ description, dueDate }) {
+    const tm = engine ? engine.getTaskManager() : new TaskManager();
+    return tm.add(description, dueDate || null);
+  },
+  completeTask({ index }) {
+    const tm = engine ? engine.getTaskManager() : new TaskManager();
+    return tm.complete(index);
+  },
+  removeTask({ index }) {
+    const tm = engine ? engine.getTaskManager() : new TaskManager();
+    return tm.remove(index);
   },
   renameSession({ id, title }) {
     const sm = new SessionManager();
