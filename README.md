@@ -101,6 +101,14 @@ llamabuild [options]
 
 ---
 
+## Privacy
+
+All data is stored locally on your device at `%APPDATA%\LlamaTalkBuild\`. When a PIN is set, API keys are encrypted at rest using AES-256-GCM. Nothing is collected, tracked, or synced to any server.
+
+See our [Privacy Policy](https://llamatalksuite.dev/privacy) for full details.
+
+---
+
 ## License
 
 [MIT](LICENSE)
