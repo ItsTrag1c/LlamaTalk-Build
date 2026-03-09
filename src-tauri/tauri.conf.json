@@ -1,6 +1,6 @@
 {
   "productName": "LlamaTalk Build Desktop",
-  "version": "2.1.0",
+  "version": "2.1.1",
   "identifier": "com.llamatalk.build.desktop",
   "build": {
     "frontendDist": "../dist",

@@ -272,6 +272,142 @@ fn get_platform() -> String {
     std::env::consts::OS.to_string()
 }
 
+#[tauri::command]
+fn get_app_version(app: AppHandle) -> String {
+    app.package_info().version.to_string()
+}
+
+#[tauri::command]
+async fn check_for_desktop_update(
+    app: AppHandle,
+) -> Result<serde_json::Value, String> {
+    let current = app.package_info().version.to_string();
+
+    let client = reqwest::Client::builder()
+        .user_agent("LlamaTalk-Build-Desktop")
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    // Fetch releases and find the latest desktop release (tag: desktop-vX.Y.Z)
+    let releases: Vec<serde_json::Value> = client
+        .get("https://api.github.com/repos/ItsTrag1c/LlamaTalk-Build/releases")
+        .send()
+        .await
+        .map_err(|e| e.to_string())?
+        .json()
+        .await
+        .map_err(|e| e.to_string())?;
+
+    for release in &releases {
+        let tag = release["tag_name"].as_str().unwrap_or("");
+        if !tag.starts_with("desktop-v") {
+            continue;
+        }
+        let remote_version = tag.trim_start_matches("desktop-v");
+
+        // Simple semver comparison
+        let is_newer = semver_newer(remote_version, &current);
+        if !is_newer {
+            break;
+        }
+
+        // Find the NSIS installer asset
+        if let Some(assets) = release["assets"].as_array() {
+            for asset in assets {
+                let name = asset["name"].as_str().unwrap_or("");
+                if name.contains("x64-setup") && name.ends_with(".exe") {
+                    return Ok(serde_json::json!({
+                        "available": true,
+                        "version": remote_version,
+                        "download_url": asset["browser_download_url"],
+                        "asset_name": name,
+                    }));
+                }
+            }
+        }
+        break;
+    }
+
+    Ok(serde_json::json!({
+        "available": false,
+        "version": current,
+    }))
+}
+
+fn semver_newer(remote: &str, current: &str) -> bool {
+    let parse = |s: &str| -> (u32, u32, u32) {
+        let parts: Vec<u32> = s.split('.').filter_map(|p| p.parse().ok()).collect();
+        (
+            *parts.first().unwrap_or(&0),
+            *parts.get(1).unwrap_or(&0),
+            *parts.get(2).unwrap_or(&0),
+        )
+    };
+    parse(remote) > parse(current)
+}
+
+#[tauri::command]
+async fn download_and_install_update(
+    app: AppHandle,
+    download_url: String,
+    asset_name: String,
+) -> Result<(), String> {
+    use futures_util::StreamExt;
+    use tokio::io::AsyncWriteExt;
+
+    let client = reqwest::Client::builder()
+        .user_agent("LlamaTalk-Build-Desktop")
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    let response = client
+        .get(&download_url)
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let total = response.content_length().unwrap_or(0);
+    let mut downloaded: u64 = 0;
+
+    let temp_path = std::env::temp_dir().join(&asset_name);
+    let mut file = tokio::fs::File::create(&temp_path)
+        .await
+        .map_err(|e| format!("Failed to create temp file: {}", e))?;
+
+    let mut stream = response.bytes_stream();
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk.map_err(|e| e.to_string())?;
+        file.write_all(&chunk)
+            .await
+            .map_err(|e| format!("Failed to write: {}", e))?;
+        downloaded += chunk.len() as u64;
+
+        if total > 0 {
+            let _ = app.emit(
+                "update:download-progress",
+                serde_json::json!({
+                    "downloaded": downloaded,
+                    "total": total,
+                }),
+            );
+        }
+    }
+
+    file.flush().await.map_err(|e| e.to_string())?;
+    drop(file);
+
+    // Launch the NSIS installer
+    let mut cmd = Command::new(&temp_path);
+    #[cfg(windows)]
+    cmd.creation_flags(0); // Allow the installer window to show
+    cmd.spawn()
+        .map_err(|e| format!("Failed to launch installer: {}", e))?;
+
+    // Exit the app so the installer can replace files
+    app.exit(0);
+    Ok(())
+}
+
 // --- App entry ---
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -324,6 +460,9 @@ pub fn run() {
             engine_call,
             engine_resolve,
             get_platform,
+            get_app_version,
+            check_for_desktop_update,
+            download_and_install_update,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -1,4 +1,6 @@
 import { useState, useRef, useEffect } from "react";
+import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import type { Session } from "../lib/types";
 
 type SidebarTab = "sessions" | "tools" | "activity" | "settings";
@@ -690,50 +692,77 @@ function SettingsTab({
 
 // --- Provider Block with API key input and connection status ---
 
-function semverNewer(latest: string, current: string): boolean {
-  const a = latest.split(".").map(Number);
-  const b = current.split(".").map(Number);
-  for (let i = 0; i < 3; i++) {
-    if ((a[i] || 0) > (b[i] || 0)) return true;
-    if ((a[i] || 0) < (b[i] || 0)) return false;
-  }
-  return false;
+interface UpdateInfo {
+  available: boolean;
+  version: string;
+  download_url?: string;
+  asset_name?: string;
 }
 
 function UpdateButton() {
   const [label, setLabel] = useState("Check for updates");
   const [color, setColor] = useState("var(--accent)");
   const [busy, setBusy] = useState(false);
+  const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
 
-  const handleCheck = async () => {
+  const handleClick = async () => {
     if (busy) return;
+
+    // If update is available, download and install
+    if (updateInfo?.available && updateInfo.download_url && updateInfo.asset_name) {
+      setBusy(true);
+      setLabel("Downloading...");
+      setColor("var(--text-muted)");
+
+      const unlisten = await listen("update:download-progress", (event: any) => {
+        const { downloaded, total } = event.payload;
+        if (total > 0) {
+          const pct = Math.round((downloaded / total) * 100);
+          setLabel(`Downloading... ${pct}%`);
+        }
+      });
+
+      try {
+        await invoke("download_and_install_update", {
+          downloadUrl: updateInfo.download_url,
+          assetName: updateInfo.asset_name,
+        });
+      } catch (err) {
+        unlisten();
+        setLabel("Update failed");
+        setColor("var(--error)");
+        setBusy(false);
+        setTimeout(() => { setLabel("Check for updates"); setColor("var(--accent)"); setUpdateInfo(null); }, 4000);
+      }
+      return;
+    }
+
+    // Otherwise, check for updates
     setBusy(true);
     setLabel("Checking...");
     setColor("var(--text-muted)");
     try {
-      const res = await fetch("https://api.github.com/repos/ItsTrag1c/LlamaTalk-Build/releases/latest");
-      if (!res.ok) throw new Error("fetch failed");
-      const data = await res.json();
-      const latest = data.tag_name?.replace(/^v/, "") || "";
-      const current = "0.1.0";
-      if (latest && semverNewer(latest, current)) {
-        setLabel(`Update available (v${latest})`);
+      const result = await invoke<UpdateInfo>("check_for_desktop_update");
+      if (result.available) {
+        setUpdateInfo(result);
+        setLabel(`Install v${result.version}`);
         setColor("var(--warning)");
       } else {
         setLabel("Up to date");
         setColor("var(--success)");
+        setTimeout(() => { setLabel("Check for updates"); setColor("var(--accent)"); }, 4000);
       }
     } catch {
       setLabel("Check failed");
       setColor("var(--error)");
+      setTimeout(() => { setLabel("Check for updates"); setColor("var(--accent)"); }, 4000);
     }
     setBusy(false);
-    setTimeout(() => { setLabel("Check for updates"); setColor("var(--accent)"); }, 4000);
   };
 
   return (
     <button
-      onClick={handleCheck}
+      onClick={handleClick}
       disabled={busy}
       style={{ color, borderColor: color, minHeight: 46 }}
       className="w-full px-5 text-[15px] font-medium rounded-xl border hover:brightness-125 transition-colors"
