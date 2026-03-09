@@ -309,7 +309,7 @@ export async function runAgent(rl, config, encKey, opts = {}) {
         activityPanel,
         sessionTracker,
         sessionMgr,
-        currentSession,
+        get currentSession() { return currentSession; },
         getMode: () => agentMode,
         setMode: (m) => { agentMode = m; },
         switchSession: (session, loadedMessages) => {

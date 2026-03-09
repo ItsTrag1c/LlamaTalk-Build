@@ -1,6 +1,13 @@
 # Changelog — LlamaTalk Build
 
-Last updated: 2026-03-08 (v2.1.1)
+Last updated: 2026-03-08 (v2.1.2)
+
+---
+
+## v2.1.2 — 2026-03-08
+
+### Bug Fixes
+- **Fix session delete blocking all sessions** — `/session delete` was treating every session as "active" because `currentSession` was captured by value at startup instead of being a live reference. Changed to a getter so it always reflects the actual current session.
 
 ---
 
