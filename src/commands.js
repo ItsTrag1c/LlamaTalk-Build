@@ -751,14 +751,16 @@ async function handleUpdate(currentVersion) {
       }
 
       console.log(GREEN + BOLD + `\n  ✔ Updated to v${remoteVersion}!` + RESET);
-      console.log("");
-      console.log(YELLOW + BOLD + "  What to do now:" + RESET);
-      console.log(`  ${BOLD}1.${RESET} Close this window (type ${ORANGE}/quit${RESET} or press Ctrl+C)`);
-      console.log(`  ${BOLD}2.${RESET} Reopen LlamaTalk Build`);
-      console.log("");
-      console.log(DIM + "  The new version will take effect on the next launch." + RESET);
-      console.log(DIM + `  The current session is still running v${currentVersion}.` + RESET);
-      console.log("");
+      console.log(DIM + "  Restarting..." + RESET);
+
+      // Clean up temp files before restart
+      try { rmSync(tmpDir, { recursive: true, force: true }); } catch { /* */ }
+
+      // Replace this process with the updated EXE (stays in same terminal)
+      try {
+        execSync(`"${currentExe}"`, { stdio: "inherit" });
+      } catch { /* user exited the new process */ }
+      process.exit(0);
     } else {
       // Running from source — pull the latest changes instead
       console.log(GREEN + BOLD + `\n  ✔ Built v${remoteVersion} successfully.` + RESET);
