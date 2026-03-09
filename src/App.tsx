@@ -229,10 +229,6 @@ export default function App() {
         setMode(data.to as AgentMode);
       });
 
-      await register("memory-loading", (data: { status: string }) => {
-        setIsLoadingMemory(data.status === "start");
-      });
-
       // Prompts use the raw listen API, handle similarly
       const promptUnlisten = await onPrompt((prompt) => {
         if (prompt.event === "confirm-needed") {
@@ -300,7 +296,15 @@ export default function App() {
       const result = await engine.loadSession(id);
       if (result.ok) {
         setCurrentSessionId(result.id);
-        setMessages([]);
+        // Engine messages are { role, content } — map to Message type
+        const mapped = (result.messages || [])
+          .filter((m: any) => m.role === "user" || m.role === "assistant")
+          .map((m: any) => ({
+            role: m.role,
+            content: typeof m.content === "string" ? m.content : "",
+            timestamp: m.timestamp || Date.now(),
+          }));
+        setMessages(mapped);
       }
     } catch { /* */ }
   }, []);
