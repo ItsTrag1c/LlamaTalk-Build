@@ -6,11 +6,14 @@ Last updated: 2026-03-08 (v2.1.1)
 
 ## v2.1.1 — 2026-03-08
 
+### Improvements
+- **`/update` auto-restarts** — after updating, the new version launches automatically in the same terminal instead of requiring a manual relaunch.
+- **`/clear` resets terminal** — `/clear` now wipes the terminal screen and reprints the full banner with model, mode, and recent sessions, like a fresh launch.
+- **Model moved to Llama's response line** — the selected model name now appears on the `Llama` response header instead of the user's prompt line, keeping the user line clean.
+
 ### Bug Fixes
 - **Fix double-echo prompt** — Windows Terminal was displaying the user's typed input twice. The prompt line is now rewritten cleanly after input, eliminating the duplicate.
 - **Fix brain icon not visible** — the 🧠 memory-loading indicator was being written and cleared in the same event loop tick. Added a stdout flush and brief pause so it actually renders on screen.
-- **`/clear` resets terminal** — `/clear` now wipes the terminal screen and reprints the full banner with model, mode, and recent sessions, like a fresh launch.
-- **Model moved to Llama's response line** — the selected model name now appears on the `Llama` response header instead of the user's prompt line, keeping the user line clean.
 
 ---
 
