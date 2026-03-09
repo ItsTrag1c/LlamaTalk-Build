@@ -1,6 +1,13 @@
 # Changelog — LlamaTalk Build
 
-Last updated: 2026-03-08 (v2.1.2)
+Last updated: 2026-03-08 (v2.1.3)
+
+---
+
+## v2.1.3 — 2026-03-08
+
+### New Features
+- **Recall mode** — new `/mode recall` for direct Q&A without any tool usage. The model answers from its knowledge plus your saved memory and project context. No file reads, writes, or shell commands — just conversation. Cycle through modes with `/mode` (build → plan → recall) or set directly with `/mode recall`.
 
 ---
 

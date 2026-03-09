@@ -50,7 +50,7 @@ ${ORANGE}/set api-key <provider> <key>${RESET}  Set API key
 ${ORANGE}/set provider enable|disable <p>${RESET}  Toggle provider
 ${ORANGE}/set temp <0.0-1.0>${RESET}      Set temperature
 ${ORANGE}/set pin${RESET}                 Set or change PIN
-${ORANGE}/mode [build|plan]${RESET}       Show or switch agent mode
+${ORANGE}/mode [build|plan|recall]${RESET}  Show or switch agent mode
 ${ORANGE}/activity${RESET}                Show session file changes
 ${ORANGE}/task${RESET}                    List active tasks
 ${ORANGE}/task add <desc>${RESET}         Add a task (--due YYYY-MM-DD)
@@ -292,9 +292,11 @@ ${BOLD}Settings${RESET}
         return { handled: true };
       }
       const MODES = {
-        build: { label: "Build", color: theme.modeBuild, icon: icons.build, description: "Full agent — reads, writes, and executes freely" },
-        plan:  { label: "Plan",  color: theme.modePlan, icon: icons.plan, description: "Explore and plan only — no file writes or commands" },
+        build:  { label: "Build",  color: theme.modeBuild,  icon: icons.build,  description: "Full agent — reads, writes, and executes freely" },
+        plan:   { label: "Plan",   color: theme.modePlan,   icon: icons.plan,   description: "Explore and plan only — no file writes or commands" },
+        recall: { label: "Recall", color: theme.modeRecall, icon: icons.recall, description: "Direct Q&A — no tools, just conversation" },
       };
+      const MODE_CYCLE = ["build", "plan", "recall"];
       const current = agent.getMode();
 
       // /mode <name> — set directly
@@ -315,8 +317,9 @@ ${BOLD}Settings${RESET}
         return { handled: true };
       }
 
-      // /mode — toggle to the other mode
-      const target = current === "build" ? "plan" : "build";
+      // /mode — cycle to the next mode (build → plan → recall → build)
+      const currentIdx = MODE_CYCLE.indexOf(current);
+      const target = MODE_CYCLE[(currentIdx + 1) % MODE_CYCLE.length];
       agent.setMode(target);
       const prev = MODES[current];
       const next = MODES[target];

@@ -39,6 +39,12 @@ const MODES = {
     description: "Explore and plan only — no file writes or commands",
     icon: "◐",
   },
+  recall: {
+    label: "Recall",
+    color: `\x1b[36m`,  // Cyan
+    description: "Direct Q&A — no tools, just conversation",
+    icon: "◉",
+  },
 };
 
 // Tool imports
@@ -116,10 +122,16 @@ generate_file(path, content, format, title) — Generate a document file (md, tx
 - Memory directory access is always allowed without extra confirmation.`;
 
 function buildSystemPrompt(config, projectRoot, memoryBlock, projectContext, agentMode) {
-  let prompt = BASE_SYSTEM_PROMPT;
+  let prompt;
 
-  if (agentMode === "plan") {
-    prompt += `\n\n## Mode: Plan
+  if (agentMode === "recall") {
+    // Recall mode: pure Q&A, no tools — lightweight system prompt
+    prompt = `You are a knowledgeable assistant running inside LlamaTalk Build. You are in Recall Mode — a direct Q&A mode with no tool access. Answer the user's questions clearly and concisely. You can discuss code, explain concepts, help with debugging logic, brainstorm ideas, and have general conversations. You do NOT have access to the filesystem, shell, or any tools — but you DO have the user's saved memory and project context below. Use that context to give informed, project-aware answers when relevant.`;
+  } else {
+    prompt = BASE_SYSTEM_PROMPT;
+
+    if (agentMode === "plan") {
+      prompt += `\n\n## Mode: Plan
 You are in Plan Mode. You can ONLY use read-only tools (read_file, list_directory, search_files, glob_files, web_fetch, web_search, and read-only git subcommands like status/diff/log). All write operations are blocked.
 
 Your job is to:
@@ -128,6 +140,7 @@ Your job is to:
 3. For each change, specify the file path and a brief description of what will change
 
 Do NOT attempt to write, edit, or execute commands — those calls will be rejected. Focus entirely on analysis and planning. The user will review your plan and can approve it to switch to Build mode for execution.`;
+    }
   }
 
   if (memoryBlock) {
@@ -361,10 +374,11 @@ export async function runAgent(rl, config, encKey, opts = {}) {
     let contextPercent = null;
     const contextLimit = provider.contextWindow();
     const CONTEXT_THRESHOLD = config.contextThreshold || 80; // % at which to compress
-    const toolDefs = toolRegistry.getDefinitions(); // cache for all iterations
+    const toolDefs = agentMode === "recall" ? null : toolRegistry.getDefinitions(); // cache for all iterations
     const turnStartTime = Date.now();
+    const maxIter = agentMode === "recall" ? 1 : (config.maxIterations || 50);
 
-    while (iterationCount < (config.maxIterations || 50)) {
+    while (iterationCount < maxIter) {
       // Rebuild system prompt each iteration (mode may have changed)
       const systemPrompt = buildSystemPrompt(config, projectRoot, memoryBlock, projectContext, agentMode);
 
@@ -683,7 +697,7 @@ export async function runAgent(rl, config, encKey, opts = {}) {
       break;
     }
 
-    if (iterationCount >= (config.maxIterations || 50)) {
+    if (iterationCount >= maxIter && agentMode !== "recall") {
       printError(`Reached maximum iterations (${config.maxIterations || 50}). Stopping.`);
     }
 
