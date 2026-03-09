@@ -3,7 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import type { Session } from "../lib/types";
 
-type SidebarTab = "sessions" | "tools" | "activity" | "settings";
+type SidebarTab = "sessions" | "tools" | "tasks" | "activity" | "settings";
 
 interface SidebarProps {
   sessions: Session[];
@@ -35,6 +35,7 @@ function timeAgo(dateStr: string): string {
 const TAB_ICONS: Record<SidebarTab, string> = {
   sessions: "💬",
   tools: "🔧",
+  tasks: "✅",
   activity: "📋",
   settings: "⚙️",
 };
@@ -42,6 +43,7 @@ const TAB_ICONS: Record<SidebarTab, string> = {
 const TAB_LABELS: Record<SidebarTab, string> = {
   sessions: "Sessions",
   tools: "Tools",
+  tasks: "Tasks",
   activity: "Activity",
   settings: "Settings",
 };
@@ -73,12 +75,12 @@ export function Sidebar({
       />
 
       {/* Tab bar */}
-      <div className="flex px-4 gap-1.5 py-3">
-        {(["sessions", "tools", "activity", "settings"] as SidebarTab[]).map((t) => (
+      <div className="flex px-3 gap-1 py-2.5">
+        {(["sessions", "tools", "tasks", "activity", "settings"] as SidebarTab[]).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
-            className={`flex-1 py-2.5 text-center rounded-xl text-lg transition-colors ${
+            className={`flex-1 py-2 text-center rounded-lg text-base transition-colors ${
               tab === t
                 ? "bg-[var(--bg-hover)] text-[var(--text)]"
                 : "text-[var(--text-dim)] hover:text-[var(--text-muted)] hover:bg-[var(--bg)]/50"
@@ -103,6 +105,7 @@ export function Sidebar({
           />
         )}
         {tab === "tools" && <ToolsTab />}
+        {tab === "tasks" && <TasksTab />}
         {tab === "activity" && <ActivityTab onAction={onAction} />}
         {tab === "settings" && <SettingsTab config={config} onAction={onAction} />}
       </div>
@@ -400,15 +403,9 @@ function ToolsTab() {
 
 function ActivityTab({ onAction }: { onAction: (action: string, payload?: any) => void }) {
   return (
-    <div className="space-y-3">
-      {/* Tasks Section */}
-      <TasksSection />
-
-      <div className="text-sm uppercase tracking-wider text-[var(--text-dim)] px-3 py-2 font-semibold">
-        Session Activity
-      </div>
-      <div className="text-sm text-[var(--text-dim)] px-3 pb-1">
-        These actions are also accessible as <span className="text-[var(--accent)] font-mono">/commands</span> in chat
+    <div className="space-y-2 pb-4">
+      <div className="text-sm text-[var(--text-dim)] px-3 py-1">
+        Also accessible as <span className="text-[var(--accent)] font-mono">/commands</span> in chat
       </div>
 
       <ActivityButton icon="↩️" title="Undo" desc="Revert the last file change" cmd="/undo" onClick={() => onAction("undo")} />
@@ -441,7 +438,7 @@ function ActivityButton({ icon, title, desc, cmd, onClick }: { icon: string; tit
 import { engine, engineCall } from "../lib/engine";
 import type { Task, TaskList } from "../lib/types";
 
-function TasksSection() {
+function TasksTab() {
   const [tasks, setTasks] = useState<TaskList>({ active: [], completed: [] });
   const [newTask, setNewTask] = useState("");
   const [newDue, setNewDue] = useState("");
@@ -487,14 +484,10 @@ function TasksSection() {
   const today = new Date().toISOString().split("T")[0];
 
   return (
-    <div className="mb-4">
-      <div className="text-sm uppercase tracking-wider text-[var(--text-dim)] px-3 py-2 font-semibold">
-        Tasks
-      </div>
-
+    <div className="pb-4">
       {/* Active tasks */}
       {tasks.active.length === 0 && (
-        <div className="text-sm text-[var(--text-dim)] px-4 py-1">No active tasks</div>
+        <div className="text-sm text-[var(--text-dim)] px-3 py-3">No active tasks. Add one below.</div>
       )}
       {tasks.active.map((t: Task, i: number) => {
         const overdue = t.dueDate && t.dueDate < today;

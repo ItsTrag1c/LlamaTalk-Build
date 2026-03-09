@@ -1,6 +1,25 @@
 # Changelog — LlamaTalk Build Desktop
 
-Last updated: 2026-03-08 (v2.1.3)
+Last updated: 2026-03-09 (v2.2.0)
+
+---
+
+## v2.2.0 — 2026-03-09
+
+### New Features
+- **Self-learning agent** — the agent now learns over time. It saves personal preferences, successful patterns, mistakes, and problem-solution pairs to `lessons.md`. Lessons are injected into the system prompt each session for increasingly personalized responses.
+- **`/reflect` command** — manually trigger session review and lesson extraction. Works in any mode.
+- **Heuristic error capture** — tool errors are automatically saved as lessons at session end.
+- **Tasks tab** — tasks moved from the Activity tab to their own dedicated sidebar tab with a checkmark icon, keeping the UI clean and organized.
+
+### Improvements
+- **Title bar version** — version number now pulled dynamically from Tauri API instead of being hard-coded. Always matches the build version.
+- **Sidebar tab bar** — tightened spacing to accommodate 5 tabs (Sessions, Tools, Tasks, Activity, Settings).
+- **Activity tab cleanup** — removed tasks section, now shows only session action buttons with cleaner layout.
+- **Aggressive context compaction** — nuclear fallback when gentle compaction fails, instead of giving up.
+
+### Bug Fixes
+- **Fix prompt doubling after mode switch** — ANSI echo-fix now skips after slash commands where cursor geometry differs.
 
 ---
 

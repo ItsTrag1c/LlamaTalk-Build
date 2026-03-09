@@ -1,8 +1,13 @@
+import { useState, useEffect } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { getVersion } from "@tauri-apps/api/app";
 
 const appWindow = getCurrentWindow();
 
 export function TitleBar() {
+  const [version, setVersion] = useState("");
+  useEffect(() => { getVersion().then(setVersion).catch(() => {}); }, []);
+
   return (
     <div
       data-tauri-drag-region
@@ -11,7 +16,7 @@ export function TitleBar() {
       {/* Left: app title */}
       <div className="flex items-center gap-3 text-base" data-tauri-drag-region>
         <span className="text-[var(--accent)] font-bold text-lg">LlamaTalk Build</span>
-        <span className="text-[var(--text-dim)] text-sm">v0.1.0</span>
+        {version && <span className="text-[var(--text-dim)] text-sm">v{version}</span>}
       </div>
 
       {/* Right: window controls */}
