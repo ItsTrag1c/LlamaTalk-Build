@@ -239,11 +239,10 @@ export async function runAgent(rl, config, encKey, opts = {}) {
   // Agent mode: build (default), plan (plan first)
   let agentMode = "build";
 
-  // Build prompt string
+  // Build prompt string — user line shows name + mode only, model shown on Llama's line
   const buildPromptStr = () => {
-    const modelName = config.modelNickname?.[config.selectedModel] || config.selectedModel || "no model";
     const mode = MODES[agentMode];
-    return `\n  ${theme.userName}${config.profileName || "You"}${theme.reset} ${theme.textMuted}${modelName}${theme.reset} ${mode.color}${mode.icon} ${mode.label}${theme.reset} ${theme.bold}${icons.chevronRight}${theme.reset} `;
+    return `\n  ${theme.userName}${config.profileName || "You"}${theme.reset} ${mode.color}${mode.icon} ${mode.label}${theme.reset} ${theme.bold}${icons.chevronRight}${theme.reset} `;
   };
 
   // Ask function using rl
@@ -281,14 +280,21 @@ export async function runAgent(rl, config, encKey, opts = {}) {
     let userInput;
     try {
       userInput = await ask(promptStr);
-      // Windows Terminal double-echoes input on a new line below the prompt —
-      // move up to that duplicate line and clear it
-      process.stdout.write("\x1b[A\x1b[2K\r");
     } catch {
       break; // readline closed
     }
 
-    if (!userInput?.trim()) continue;
+    if (!userInput?.trim()) {
+      // Clear the empty echo line Windows Terminal may have added
+      process.stdout.write("\x1b[2K\x1b[A\x1b[2K\r");
+      continue;
+    }
+
+    // Windows Terminal double-echoes input. Fix: clear both the current and
+    // previous lines (catching the echo), then rewrite a clean user header.
+    const mode = MODES[agentMode];
+    process.stdout.write("\x1b[2K\x1b[A\x1b[2K\r");
+    process.stdout.write(`  ${theme.userName}${config.profileName || "You"}${theme.reset} ${mode.color}${mode.icon} ${mode.label}${theme.reset} ${theme.bold}${icons.chevronRight}${theme.reset} ${userInput.trim()}\n`);
     lastActivityTime = Date.now();
     const trimmed = userInput.trim();
 
@@ -397,7 +403,8 @@ export async function runAgent(rl, config, encKey, opts = {}) {
             if (firstToken) {
               stopThinking();
               firstTokenTime = Date.now();
-              printAgentHeader();
+              const modelDisplay = config.modelNickname?.[config.selectedModel] || config.selectedModel || "";
+              printAgentHeader(modelDisplay);
               firstToken = false;
             }
             responseChunks.push(event.content);

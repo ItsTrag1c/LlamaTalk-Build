@@ -75,7 +75,16 @@ ${ORANGE}/quit${RESET} ${ORANGE}/exit${RESET}              Exit
 
     case "/clear": {
       messages.length = 0;
-      printBanner(version);
+      // Clear terminal like a fresh start, then reprint banner with full context
+      process.stdout.write("\x1b[2J\x1b[H");
+      const sm = await import("./sessions.js").then((m) => new m.SessionManager());
+      printBanner(version, {
+        model: config.selectedModel,
+        mode: agent?.getMode?.() || "build",
+        provider: config.backendType,
+        cwd: process.cwd(),
+        sessions: sm.list().slice(0, 3),
+      });
       console.log(GREEN + "  Conversation cleared." + RESET);
       return { handled: true };
     }

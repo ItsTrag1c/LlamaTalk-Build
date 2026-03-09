@@ -393,6 +393,7 @@ export function printSeparator(label = "") {
 // Agent response header
 // ──────────────────────────────────────────────────────
 
-export function printAgentHeader() {
-  process.stdout.write(`\n  ${T.agentName}Llama${T.reset} ${T.bold}${icons.chevronRight}${T.reset} `);
+export function printAgentHeader(modelName = "") {
+  const model = modelName ? ` ${T.textMuted}${modelName}${T.reset}` : "";
+  process.stdout.write(`\n  ${T.agentName}Llama${T.reset}${model} ${T.bold}${icons.chevronRight}${T.reset} `);
 }
