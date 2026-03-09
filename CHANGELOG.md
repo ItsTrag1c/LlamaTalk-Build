@@ -1,6 +1,13 @@
 # Changelog — LlamaTalk Build Desktop
 
-Last updated: 2026-03-08 (v2.1.2)
+Last updated: 2026-03-08 (v2.1.3)
+
+---
+
+## v2.1.3 — 2026-03-08
+
+### New Features
+- **Recall mode** — new Q&A mode with no tool access. The model answers from its knowledge plus your saved memory and project context. Toggle through modes with the mode button (build → plan → recall) — shown in cyan with ◉ icon.
 
 ---
 

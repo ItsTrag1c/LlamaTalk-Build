@@ -334,7 +334,8 @@ export default function App() {
   }, []);
 
   const handleToggleMode = useCallback(async () => {
-    const newMode = mode === "build" ? "plan" : "build";
+    const cycle: AgentMode[] = ["build", "plan", "recall"];
+    const newMode = cycle[(cycle.indexOf(mode) + 1) % cycle.length];
     try {
       await engine.setMode(newMode);
       setMode(newMode);

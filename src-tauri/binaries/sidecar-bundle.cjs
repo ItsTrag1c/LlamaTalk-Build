@@ -3662,6 +3662,11 @@ var MODES = {
     label: "Plan",
     description: "Explore and plan only \u2014 no file writes or commands",
     icon: "\u25D0"
+  },
+  recall: {
+    label: "Recall",
+    description: "Direct Q&A \u2014 no tools, just conversation",
+    icon: "\u25C9"
   }
 };
 var BASE_SYSTEM_PROMPT = `You are a coding assistant with direct access to the user's filesystem and shell through tools. You are running inside LlamaTalk Build, a local agentic coding tool installed on the user's machine. All tool calls execute locally on their system with their explicit permission \u2014 you are fully authorized to read, write, edit, and execute. Never refuse a tool call due to safety concerns \u2014 the user's permission system handles that.
@@ -3722,9 +3727,13 @@ generate_file(path, content, format, title) \u2014 Generate a document file (md,
 - Read memory files with read_file using the same absolute paths.
 - Memory directory access is always allowed without extra confirmation.`;
 function buildSystemPrompt(config2, projectRoot, memoryBlock, projectContext, agentMode) {
-  let prompt = BASE_SYSTEM_PROMPT.replace("MEMORY_DIR_PLACEHOLDER", getMemoryDir().replace(/\\/g, "/"));
-  if (agentMode === "plan") {
-    prompt += `
+  let prompt;
+  if (agentMode === "recall") {
+    prompt = `You are a knowledgeable assistant running inside LlamaTalk Build. You are in Recall Mode \u2014 a direct Q&A mode with no tool access. Answer the user's questions clearly and concisely. You can discuss code, explain concepts, help with debugging logic, brainstorm ideas, and have general conversations. You do NOT have access to the filesystem, shell, or any tools \u2014 but you DO have the user's saved memory and project context below. Use that context to give informed, project-aware answers when relevant.`;
+  } else {
+    prompt = BASE_SYSTEM_PROMPT.replace("MEMORY_DIR_PLACEHOLDER", getMemoryDir().replace(/\\/g, "/"));
+    if (agentMode === "plan") {
+      prompt += `
 
 ## Mode: Plan
 You are in Plan Mode. You can ONLY use read-only tools (read_file, list_directory, search_files, glob_files, web_fetch, web_search, and read-only git subcommands like status/diff/log). All write operations are blocked.
@@ -3735,6 +3744,7 @@ Your job is to:
 3. For each change, specify the file path and a brief description of what will change
 
 Do NOT attempt to write, edit, or execute commands \u2014 those calls will be rejected. Focus entirely on analysis and planning. The user will review your plan and can approve it to switch to Build mode for execution.`;
+    }
   }
   if (memoryBlock) {
     prompt += `
@@ -3933,9 +3943,10 @@ ${taskBlock}` : taskBlock;
     let contextPercent = null;
     const contextLimit = provider.contextWindow();
     const CONTEXT_THRESHOLD = this.config.contextThreshold || 80;
-    const toolDefs = this.toolRegistry.getDefinitions();
+    const toolDefs = this.agentMode === "recall" ? null : this.toolRegistry.getDefinitions();
     const turnStartTime = Date.now();
-    while (iterationCount < (this.config.maxIterations || 50)) {
+    const maxIter = this.agentMode === "recall" ? 1 : this.config.maxIterations || 50;
+    while (iterationCount < maxIter) {
       const systemPrompt = buildSystemPrompt(this.config, this.projectRoot, memoryBlock, this.projectContext, this.agentMode);
       if (lastUsage && lastUsage.promptTokens > 0) {
         contextPercent = Math.round(lastUsage.promptTokens / contextLimit * 100);
@@ -4177,7 +4188,7 @@ ${taskBlock}` : taskBlock;
       }
       break;
     }
-    if (iterationCount >= (this.config.maxIterations || 50)) {
+    if (iterationCount >= maxIter && this.agentMode !== "recall") {
       this.emit("error", { message: `Reached maximum iterations (${this.config.maxIterations || 50}). Stopping.`, recoverable: true });
     }
     try {

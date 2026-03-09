@@ -55,11 +55,13 @@ export function InputBar({ onSend, onCancel, onToggleMode, disabled, isStreaming
           className={`shrink-0 px-4 py-3 rounded-xl text-[15px] font-semibold border transition-colors ${
             mode === "build"
               ? "border-[var(--success)]/30 text-[var(--success)] hover:bg-[var(--success)]/10"
-              : "border-[var(--warning)]/30 text-[var(--warning)] hover:bg-[var(--warning)]/10"
+              : mode === "plan"
+                ? "border-[var(--warning)]/30 text-[var(--warning)] hover:bg-[var(--warning)]/10"
+                : "border-cyan-400/30 text-cyan-400 hover:bg-cyan-400/10"
           }`}
-          title={`Switch to ${mode === "build" ? "Plan" : "Build"} mode`}
+          title={`Switch to ${mode === "build" ? "Plan" : mode === "plan" ? "Recall" : "Build"} mode`}
         >
-          {mode === "build" ? "● Build" : "◐ Plan"}
+          {mode === "build" ? "● Build" : mode === "plan" ? "◐ Plan" : "◉ Recall"}
         </button>
 
         {/* Text input */}
@@ -74,7 +76,9 @@ export function InputBar({ onSend, onCancel, onToggleMode, disabled, isStreaming
                 ? "Press Escape to cancel..."
                 : mode === "plan"
                   ? "Describe what to plan..."
-                  : "Start your project, recall memory... BUILD!"
+                  : mode === "recall"
+                    ? "Ask anything..."
+                    : "Start your project, recall memory... BUILD!"
             }
             disabled={disabled && !isStreaming}
             rows={1}

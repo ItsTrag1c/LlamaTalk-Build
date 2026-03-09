@@ -84,7 +84,7 @@ export interface Session {
   projectRoot?: string;
 }
 
-export type AgentMode = "build" | "plan";
+export type AgentMode = "build" | "plan" | "recall";
 
 export interface MemoryLoadingEvent {
   status: "start" | "done";
