@@ -146,6 +146,97 @@ export class MemoryManager {
     this._write(join(this.globalDir, `${topicName}.md`), content);
   }
 
+  // --- Lessons (self-learning) ---
+
+  static LESSON_CATEGORIES = {
+    about_you: "About You",
+    patterns: "Patterns",
+    mistakes: "Mistakes",
+    solutions: "Solutions",
+  };
+
+  static LESSON_MAX = 50;
+
+  /** Append a dated lesson to lessons.md under the given category.
+   *  Categories: "about_you", "patterns", "mistakes", "solutions".
+   *  Trims to 50 per category (oldest first). */
+  appendLesson(category, lesson) {
+    const heading = MemoryManager.LESSON_CATEGORIES[category];
+    if (!heading) return;
+
+    const lessonsFile = join(this.globalDir, "lessons.md");
+    const dateStr = new Date().toISOString().split("T")[0];
+    const entry = `- [${dateStr}] ${lesson.trim()}`;
+
+    let content = this._read(lessonsFile);
+    if (!content) {
+      // Bootstrap the file with all four headings
+      const sections = Object.values(MemoryManager.LESSON_CATEGORIES)
+        .map((h) => `## ${h}\n`)
+        .join("\n");
+      content = `# Lessons Learned\n\n${sections}`;
+    }
+
+    // Find the target heading and the next heading (or EOF)
+    const headingLine = `## ${heading}`;
+    const headIdx = content.indexOf(headingLine);
+    if (headIdx === -1) {
+      // Heading missing — append it
+      content += `\n${headingLine}\n${entry}\n`;
+    } else {
+      // Find end of this section (next ## or EOF)
+      const afterHeading = headIdx + headingLine.length;
+      const nextHeading = content.indexOf("\n## ", afterHeading);
+      const sectionEnd = nextHeading === -1 ? content.length : nextHeading;
+      const sectionBody = content.slice(afterHeading, sectionEnd);
+
+      // Parse existing entries, check for duplicates
+      const existing = sectionBody.split("\n").filter((l) => l.startsWith("- "));
+      const lessonLower = lesson.trim().toLowerCase();
+      // Skip if a very similar lesson already exists (substring match on the content after date)
+      const isDuplicate = existing.some((e) => {
+        const afterDate = e.replace(/^- \[\d{4}-\d{2}-\d{2}\]\s*/, "").toLowerCase();
+        return afterDate === lessonLower || lessonLower.includes(afterDate) || afterDate.includes(lessonLower);
+      });
+      if (isDuplicate) return;
+
+      existing.push(entry);
+      // Trim to max per category (oldest first)
+      const trimmed = existing.slice(-MemoryManager.LESSON_MAX);
+      const newSection = `${headingLine}\n${trimmed.join("\n")}\n`;
+      content = content.slice(0, headIdx) + newSection + content.slice(sectionEnd);
+    }
+
+    this._write(lessonsFile, content);
+  }
+
+  /** Load the most recent lessons for system prompt injection.
+   *  "About You" always loaded in full; technical categories load last N. */
+  _loadLessons(count = 15) {
+    const lessonsFile = join(this.globalDir, "lessons.md");
+    const content = this._read(lessonsFile);
+    if (!content) return null;
+
+    const sections = [];
+    for (const [key, heading] of Object.entries(MemoryManager.LESSON_CATEGORIES)) {
+      const headingLine = `## ${heading}`;
+      const headIdx = content.indexOf(headingLine);
+      if (headIdx === -1) continue;
+
+      const afterHeading = headIdx + headingLine.length;
+      const nextHeading = content.indexOf("\n## ", afterHeading);
+      const sectionEnd = nextHeading === -1 ? content.length : nextHeading;
+      const entries = content.slice(afterHeading, sectionEnd).split("\n").filter((l) => l.startsWith("- "));
+      if (entries.length === 0) continue;
+
+      // "About You" is always loaded in full (high-value personal context)
+      const selected = key === "about_you" ? entries : entries.slice(-count);
+      sections.push(`### ${heading}\n${selected.join("\n")}`);
+    }
+
+    return sections.length > 0 ? sections.join("\n\n") : null;
+  }
+
   /** Append a one-line session summary to sessions.md in memory dir. */
   appendSessionSummary(sessionId, summary, date = new Date()) {
     const sessFile = join(this.globalDir, "sessions.md");
@@ -215,6 +306,12 @@ export class MemoryManager {
     if (relevant.length > 0) {
       const topicBlock = relevant.map((r) => `### ${r.topic}\n${r.content}`).join("\n\n");
       sections.push(`## Relevant Context\n${topicBlock}`);
+    }
+
+    // Lessons learned (self-learning) — "About You" first for personalization
+    const lessons = this._loadLessons();
+    if (lessons) {
+      sections.push(`## Lessons Learned\n${lessons}`);
     }
 
     // Recent session history

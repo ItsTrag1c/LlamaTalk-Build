@@ -91,7 +91,7 @@ function printMinimal(version, model, provider, mode, w) {
     rows.push(makeRow(`  ${fitWidth(status, inner - 2)}`, boxW));
   }
 
-  rows.push(makeRow(`  ${T.textMuted}/help for commands${T.reset}`, boxW));
+  rows.push(makeRow(`  ${T.textMuted}/help${T.reset} ${T.dim}commands${T.reset}  ${T.textMuted}/reflect${T.reset} ${T.dim}learn${T.reset}`, boxW));
   rows.push(bot);
 
   process.stdout.write("\n" + rows.map((r) => centerLine(r, w)).join("\n") + "\n\n");
@@ -119,7 +119,7 @@ function printCompact(version, greeting, model, provider, mode, cwd, hasSessions
   if (cwd) rows.push(makeRow(`  ${T.textMuted}${fitWidth(cwd, inner - 2)}${T.reset}`, boxW));
 
   rows.push(emptyRow);
-  rows.push(makeRow(`  ${T.accent}/help${T.reset} ${T.dim}commands${T.reset}  ${T.accent}/mode${T.reset} ${T.dim}switch${T.reset}  ${T.accent}/model${T.reset} ${T.dim}select${T.reset}  ${T.accent}/session${T.reset} ${T.dim}history${T.reset}`, boxW));
+  rows.push(makeRow(`  ${T.accent}/help${T.reset} ${T.dim}commands${T.reset}  ${T.accent}/mode${T.reset} ${T.dim}switch${T.reset}  ${T.accent}/models${T.reset} ${T.dim}list models${T.reset}  ${T.accent}/reflect${T.reset} ${T.dim}learn${T.reset}`, boxW));
 
   if (hasSessions) {
     rows.push(emptyRow);
@@ -180,7 +180,8 @@ function printFull(version, greeting, model, provider, mode, cwd, hasSessions, s
   rightLines.push(`${T.textMuted}Tips for getting started${T.reset}`);
   rightLines.push(`${T.accent}/help${T.reset}${T.dim}    full command list${T.reset}`);
   rightLines.push(`${T.accent}/mode${T.reset}${T.dim}    toggle build/plan${T.reset}`);
-  rightLines.push(`${T.accent}/model${T.reset}${T.dim}   select a model${T.reset}`);
+  rightLines.push(`${T.accent}/models${T.reset}${T.dim}  list models${T.reset}`);
+  rightLines.push(`${T.accent}/reflect${T.reset}${T.dim} save session lessons${T.reset}`);
   rightLines.push(`${T.accent}/session${T.reset}${T.dim} browse past sessions${T.reset}`);
   rightLines.push("");
 

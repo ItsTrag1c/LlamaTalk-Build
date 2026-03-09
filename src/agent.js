@@ -119,7 +119,17 @@ generate_file(path, content, format, title) — Generate a document file (md, tx
 - Memory directory: ${getMemoryDir().replace(/\\/g, "/")}
 - Use write_file or edit_file with absolute paths to save/update memory files (MEMORY.md for global, topic-name.md for topics).
 - Read memory files with read_file using the same absolute paths.
-- Memory directory access is always allowed without extra confirmation.`;
+- Memory directory access is always allowed without extra confirmation.
+
+## Learning
+You are a personal assistant that learns and improves over time. Save lessons to ${getMemoryDir().replace(/\\/g, "/")}/lessons.md using write_file.
+
+**About the user** — When the user shares preferences, habits, their name, how they like to work, communication style, or anything personal, save it under "## About You". This is the most important category — it makes you a better assistant for THIS specific person.
+
+**Technical learning** — When you make a mistake, discover a successful pattern, or solve a tricky problem, save it under the appropriate category (## Patterns, ## Mistakes, or ## Solutions).
+
+Format: \`- [YYYY-MM-DD] lesson text\` (one line each).
+Only save genuinely useful insights. Don't duplicate existing lessons — check the file first.`;
 
 function buildSystemPrompt(config, projectRoot, memoryBlock, projectContext, agentMode) {
   let prompt;
@@ -251,6 +261,8 @@ export async function runAgent(rl, config, encKey, opts = {}) {
 
   // Agent mode: build (default), plan (plan first)
   let agentMode = "build";
+  let lastWasCommand = false;
+  let restoreModeAfterTurn = null;
 
   // Build prompt string — user line shows name + mode only, model shown on Llama's line
   const buildPromptStr = () => {
@@ -298,15 +310,23 @@ export async function runAgent(rl, config, encKey, opts = {}) {
     }
 
     if (!userInput?.trim()) {
-      // Clear the empty echo line Windows Terminal may have added
-      process.stdout.write("\x1b[2K\x1b[A\x1b[2K\r");
+      // Clear the empty echo line Windows Terminal may have added (skip after commands — cursor geometry differs)
+      if (!lastWasCommand) {
+        process.stdout.write("\x1b[2K\x1b[A\x1b[2K\r");
+      }
+      lastWasCommand = false;
       continue;
     }
 
     // Windows Terminal double-echoes input. Fix: clear both the current and
     // previous lines (catching the echo), then rewrite a clean user header.
+    // After a slash command, the cursor position is different due to command output,
+    // so skip the clear sequence and just write the header fresh.
     const mode = MODES[agentMode];
-    process.stdout.write("\x1b[2K\x1b[A\x1b[2K\r");
+    if (!lastWasCommand) {
+      process.stdout.write("\x1b[2K\x1b[A\x1b[2K\r");
+    }
+    lastWasCommand = false;
     process.stdout.write(`  ${theme.userName}${config.profileName || "You"}${theme.reset} ${mode.color}${mode.icon} ${mode.label}${theme.reset} ${theme.bold}${icons.chevronRight}${theme.reset} ${userInput.trim()}\n`);
     lastActivityTime = Date.now();
     const trimmed = userInput.trim();
@@ -334,11 +354,20 @@ export async function runAgent(rl, config, encKey, opts = {}) {
         },
       });
       if (result?.exit) break;
-      if (result?.handled) continue;
+      if (result?.handled) { lastWasCommand = true; continue; }
+      // /reflect injects a synthetic prompt for the agent to process as a normal turn
+      if (result?.inject) {
+        lastWasCommand = true;
+        messages.push({ role: "user", content: result.inject });
+        restoreModeAfterTurn = result.restoreMode || null;
+        // Fall through to agent loop (skip the normal user message push below)
+      }
     }
 
-    // Add user message
-    messages.push({ role: "user", content: trimmed });
+    // Add user message (unless a command already injected one)
+    if (!trimmed.startsWith("/")) {
+      messages.push({ role: "user", content: trimmed });
+    }
 
     // Auto-title session from first message
     if (!firstMessageSent) {
@@ -467,14 +496,20 @@ export async function runAgent(rl, config, encKey, opts = {}) {
           (contextPercent != null && contextPercent >= CONTEXT_THRESHOLD);
         if (isContextError) {
           const prevLen = messages.length;
+          const prevSize = messages.reduce((s, m) => s + (typeof m.content === "string" ? m.content.length : JSON.stringify(m).length), 0);
           printContextClearing();
-          const compressed = compressMessages(messages);
+          let compressed = _compactMessages(messages);
+          // If gentle compaction didn't free enough, try aggressive (nuclear) mode
+          if (compressed.savedChars < 5000 && compressed.messages.length >= prevLen) {
+            compressed = _compactMessages(messages, { aggressive: true });
+          }
           messages.length = 0;
-          messages.push(...compressed);
+          messages.push(...compressed.messages);
           lastUsage = null;
           contextPercent = null;
-          // Only retry if compression actually reduced messages; otherwise break to avoid infinite loop
-          if (compressed.length < prevLen) continue;
+          const newSize = messages.reduce((s, m) => s + (typeof m.content === "string" ? m.content.length : JSON.stringify(m).length), 0);
+          // Retry if we actually freed space; otherwise break to avoid infinite loop
+          if (newSize < prevSize) continue;
           printError("Unable to reduce context further. Try /clear and start fresh.");
           break;
         }
@@ -701,6 +736,12 @@ export async function runAgent(rl, config, encKey, opts = {}) {
       printError(`Reached maximum iterations (${config.maxIterations || 50}). Stopping.`);
     }
 
+    // Restore mode if /reflect temporarily switched it
+    if (restoreModeAfterTurn) {
+      agentMode = restoreModeAfterTurn;
+      restoreModeAfterTurn = null;
+    }
+
     // Save conversation and update session
     try {
       saveConversation(conversationId, messages, encKey);
@@ -715,6 +756,18 @@ export async function runAgent(rl, config, encKey, opts = {}) {
     // Save session changes file (only writes if file modifications occurred)
     try {
       sessionTracker.save();
+    } catch { /* non-fatal */ }
+
+    // Heuristic lesson extraction: auto-capture error patterns from session
+    try {
+      const errorSteps = sessionLog.steps.filter((s) => s.description.includes("ERROR"));
+      for (const step of errorSteps.slice(-5)) { // Cap at 5 to avoid flooding
+        // Strip the tool name prefix and "ERROR — " to get the meaningful part
+        const desc = step.description.replace(/^[^:]+:\s*ERROR\s*[—–-]\s*/, "").trim();
+        if (desc.length > 10 && desc.length < 300) {
+          memory.appendLesson("mistakes", desc);
+        }
+      }
     } catch { /* non-fatal */ }
 
     // Build and save a one-line session summary for recursive memory

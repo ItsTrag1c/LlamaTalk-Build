@@ -1,6 +1,22 @@
 # Changelog — LlamaTalk Build
 
-Last updated: 2026-03-08 (v2.1.3)
+Last updated: 2026-03-09 (v2.2.0)
+
+---
+
+## v2.2.0 — 2026-03-09
+
+### New Features
+- **Self-learning agent** — the agent now learns over time. It saves personal preferences (name, habits, communication style) under "About You", successful patterns, mistakes, and problem-solution pairs to `lessons.md` in the memory directory. Lessons are injected into the system prompt each session, making the agent increasingly personalized.
+- **`/reflect` command** — manually trigger the agent to review the current session and extract lessons. Works in any mode (temporarily switches to build if in recall). Costs one LLM turn but produces deeper, more contextual insights.
+- **Heuristic error capture** — tool errors are automatically saved as "mistakes" lessons at session end (no LLM call, capped at 5 per session).
+
+### Improvements
+- **Aggressive context compaction** — when gentle compaction fails to free enough space, a nuclear fallback drops all but the most recent messages instead of giving up with "Unable to reduce context further". Memory and lessons are preserved in the system prompt.
+- **Banner updates** — `/model` changed to `/models` in header tips, `/reflect` added to all three banner layouts (minimal, compact, full).
+
+### Bug Fixes
+- **Fix prompt doubling after mode switch** — after `/mode` commands, the ANSI echo-fix was clearing wrong lines due to changed cursor geometry. Added a `lastWasCommand` flag that skips the clear sequence after slash commands.
 
 ---
 

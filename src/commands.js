@@ -61,6 +61,7 @@ ${ORANGE}/server${RESET}                  List all servers with status
 ${ORANGE}/server add <url>${RESET}        Add & test a new server
 ${ORANGE}/server remove <n>${RESET}       Remove server #n
 ${ORANGE}/server test${RESET}             Test all server connections
+${ORANGE}/reflect${RESET}                 Agent reviews session and saves lessons
 ${ORANGE}/trust${RESET}                   Toggle auto-approve for session
 ${ORANGE}/compact${RESET}                 Toggle compact output
 ${ORANGE}/update${RESET}                   Pull latest & rebuild from GitHub
@@ -627,6 +628,22 @@ ${BOLD}Settings${RESET}
 
       console.log(DIM + "  Usage: /server [add|remove|test]" + RESET);
       return { handled: true };
+    }
+
+    case "/reflect": {
+      // Temporarily switch to build mode if in recall (needs write_file tool access)
+      const wasRecall = agent?.getMode?.() === "recall";
+      if (wasRecall) {
+        agent.setMode("build");
+        console.log(`  ${DIM}Switching to Build mode for reflection...${RESET}`);
+      }
+      // Inject a synthetic user message that triggers the agent to review the session
+      // and save lessons. Return handled=false so agent.js processes it as a normal turn.
+      return {
+        handled: false,
+        inject: "Review this session. What did you learn — about me (preferences, habits, communication style), about patterns that worked well, mistakes made, or problems solved? Save any useful lessons to lessons.md under the appropriate headings (## About You, ## Patterns, ## Mistakes, ## Solutions). Check existing lessons first to avoid duplicates.",
+        restoreMode: wasRecall ? "recall" : null,
+      };
     }
 
     default: {

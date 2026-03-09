@@ -56,13 +56,30 @@ function summarizeToolResult(msg) {
  * @param {number} options.targetReduction - Desired character reduction
  * @returns {{ messages: Array, savedChars: number }}
  */
-export function compactMessages(messages, { targetReduction = 50000 } = {}) {
+export function compactMessages(messages, { targetReduction = 50000, aggressive = false } = {}) {
   if (messages.length <= PROTECTED_RECENT_TURNS) {
     return { messages: [...messages], savedChars: 0 };
   }
 
   const result = [...messages];
   let savedChars = 0;
+
+  // Aggressive mode: nuclear option — keep only first user message + last N turns
+  // Used when gentle compaction already failed to free enough space
+  if (aggressive) {
+    const keepRecent = Math.min(PROTECTED_RECENT_TURNS + 2, result.length);
+    if (result.length > keepRecent + 1) {
+      const removed = result.splice(1, result.length - keepRecent - 1);
+      const removedSize = removed.reduce((sum, m) => sum + messageSize(m), 0);
+      savedChars += removedSize;
+      result.splice(1, 0, {
+        role: "assistant",
+        content: `[Conversation heavily compacted — ${removed.length} messages dropped to fit context window. Memory and lessons are preserved in the system prompt.]`,
+        _compacted: true,
+      });
+    }
+    return { messages: result, savedChars };
+  }
 
   // Protected zone: last N messages
   const compactableEnd = result.length - PROTECTED_RECENT_TURNS;
