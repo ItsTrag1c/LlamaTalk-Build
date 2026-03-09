@@ -1,6 +1,13 @@
 # Changelog — LlamaTalk Build Desktop
 
-Last updated: 2026-03-08 (v2.1.1)
+Last updated: 2026-03-08 (v2.1.2)
+
+---
+
+## v2.1.2 — 2026-03-08
+
+### Improvements
+- **Show version on home screen** — the welcome screen now displays the app version (e.g. "v2.1.2") pulled dynamically from Tauri's app config, so it always stays in sync with the build.
 
 ---
 

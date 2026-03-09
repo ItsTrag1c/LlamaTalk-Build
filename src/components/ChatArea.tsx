@@ -1,4 +1,5 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import { getVersion } from "@tauri-apps/api/app";
 import type { Message, ToolCall } from "../lib/types";
 import { MessageBubble } from "./MessageBubble";
 import { ToolCallBlock } from "./ToolCallBlock";
@@ -15,6 +16,11 @@ interface ChatAreaProps {
 
 export function ChatArea({ messages, streamingContent, pendingToolCalls, isThinking, isLoadingMemory, profileName, modelName }: ChatAreaProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
+  const [appVersion, setAppVersion] = useState("");
+
+  useEffect(() => {
+    getVersion().then(setAppVersion).catch(() => {});
+  }, []);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -30,7 +36,7 @@ export function ChatArea({ messages, streamingContent, pendingToolCalls, isThink
       {!hasContent && (
         <div className="flex-1 flex flex-col items-center justify-center text-center px-6">
           <div className="text-7xl mb-6">🦙</div>
-          <h2 className="text-2xl font-bold text-[var(--text)]">LlamaTalk Build</h2>
+          <h2 className="text-2xl font-bold text-[var(--text)]">LlamaTalk Build{appVersion && <span className="text-[var(--text-dim)] font-normal text-lg ml-2">v{appVersion}</span>}</h2>
           <p className="text-lg text-[var(--text-muted)] mt-3 max-w-lg leading-relaxed">
             Agentic coding assistant. Ask me to read, write, edit files, run commands, or explore your project.
           </p>
