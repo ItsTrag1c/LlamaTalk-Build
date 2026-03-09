@@ -1,6 +1,26 @@
 # Changelog — LlamaTalk Build Desktop
 
-Last updated: 2026-03-08 (v0.2.0)
+Last updated: 2026-03-08 (v2.1.1)
+
+---
+
+## v2.1.1 — 2026-03-08
+
+### New Features
+- **Working update button** — the Settings update button now checks GitHub releases for the latest `desktop-v*` tag, downloads the NSIS installer with a live progress percentage, and launches it automatically. No more manual downloads.
+
+### Bug Fixes
+- **Fix session restore** — clicking a past session in the sidebar now correctly loads its messages into the chat. Previously the messages were fetched but discarded.
+- **Fix brain icon not visible** — the 🧠 memory-loading indicator was emitting start/done events synchronously, so React never rendered it. Added a brief pause between events.
+
+---
+
+## v2.1.0 — 2026-03-08
+
+### Changed
+- Versioned to match CLI at v2.1.0
+- **Safety level rename** — tool risk labels renamed from safe/moderate/dangerous to low/medium/high across tools tab, settings toggles, and engine. Config auto-migrates existing keys on load.
+- Updated application icon
 
 ---
 
