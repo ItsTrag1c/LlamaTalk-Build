@@ -14,6 +14,7 @@ LlamaTalk Build Desktop wraps the LlamaTalk Build engine in a desktop interface.
 |------|-------------|
 | `LlamaTalk Build Desktop_x.y.z_x64-setup.exe` | Windows NSIS installer |
 | `LlamaTalk Build Desktop_x.y.z_x64_en-US.msi` | Windows MSI installer |
+| `LlamaTalk Build Desktop_x.y.z_aarch64.dmg` | macOS Apple Silicon |
 | `SHA256SUMS.txt` | SHA-256 checksums for verification |
 
 ---
@@ -60,7 +61,7 @@ irm https://raw.githubusercontent.com/ItsTrag1c/LlamaTalk-Build/cli/install.ps1 
 
 All data is stored locally on your device at `%APPDATA%\LlamaTalkBuild\`. When a PIN is set, API keys are encrypted at rest using AES-256-GCM. Nothing is collected, tracked, or synced to any server.
 
-See [PRIVACY_POLICY.md](PRIVACY_POLICY.md) for full details.
+See our [Privacy Policy](https://llamatalksuite.dev/privacy) for full details.
 
 ---
 
