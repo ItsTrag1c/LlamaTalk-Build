@@ -281,8 +281,9 @@ export async function runAgent(rl, config, encKey, opts = {}) {
     let userInput;
     try {
       userInput = await ask(promptStr);
-      // Clear readline echo artifact (Windows terminals can double-echo input)
-      process.stdout.write("\x1b[2K\r");
+      // Windows Terminal double-echoes input on a new line below the prompt —
+      // move up to that duplicate line and clear it
+      process.stdout.write("\x1b[A\x1b[2K\r");
     } catch {
       break; // readline closed
     }
@@ -329,12 +330,16 @@ export async function runAgent(rl, config, encKey, opts = {}) {
     // Build system prompt with memory injection — always load, brain icon flash
     let memoryBlock = "";
     process.stdout.write("\r\u{1F9E0}");
+    // Flush the brain emoji so the terminal actually renders it before we clear
+    await new Promise((r) => process.stdout.write("", r));
     memoryBlock = memory.buildMemoryBlock(trimmed, projectRoot);
     // Append task block
     const taskBlock = taskManager.buildTaskBlock();
     if (taskBlock) {
       memoryBlock = memoryBlock ? `${memoryBlock}\n\n${taskBlock}` : taskBlock;
     }
+    // Brief pause so the brain emoji is visible, then clear
+    await new Promise((r) => setTimeout(r, 150));
     process.stdout.write("\r  \r");
     // If memory is disabled, don't inject into system prompt
     if (!config.memoryEnabled || opts.noMemory) {
