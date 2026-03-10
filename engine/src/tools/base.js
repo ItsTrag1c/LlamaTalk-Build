@@ -1,3 +1,6 @@
+import { resolve } from "path";
+import { getMemoryDir as _getMemoryDir } from "../config.js";
+
 export const SafetyLevel = {
   LOW: "low",
   MEDIUM: "medium",
@@ -40,6 +43,11 @@ export function isReadOnlyTool(toolName, args) {
     const sub = (args?.subcommand || "").split(/\s+/)[0].toLowerCase();
     const safeGit = new Set(["status", "diff", "log", "branch", "show", "remote", "tag", "rev-parse", "shortlog", "blame"]);
     return safeGit.has(sub);
+  }
+  // Memory writes are allowed in all modes (write_file/edit_file targeting memory dir)
+  if ((toolName === "write_file" || toolName === "edit_file") && args?.path) {
+    const memDir = _getMemoryDir();
+    if (memDir && resolve(args.path).replace(/\\/g, "/").startsWith(memDir.replace(/\\/g, "/"))) return true;
   }
   return false;
 }

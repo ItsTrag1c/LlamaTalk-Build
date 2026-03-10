@@ -1,6 +1,16 @@
 # Changelog — LlamaTalk Build
 
-Last updated: 2026-03-10 (v2.3.4)
+Last updated: 2026-03-10 (v2.3.5)
+
+---
+
+## v2.3.5 — 2026-03-10
+
+### Improvements
+- **Memory writes allowed in Plan mode** — the agent can now read and write to the memory directory in all modes (build, plan, recall). Previously, plan mode blocked all write operations including memory, which prevented the agent from saving useful context while planning.
+
+### Bug Fixes
+- **Crash after canceling during plan mode** — canceling (`/cancel`) while the agent was awaiting a plan action (Execute/Keep Planning/Edit) could leave the agent loop in a broken state. The plan-complete Promise now handles cancellation cleanly by checking the abort signal and exiting gracefully.
 
 ---
 

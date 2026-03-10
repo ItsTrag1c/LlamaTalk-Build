@@ -121,7 +121,7 @@ function buildSystemPrompt(config, projectRoot, memoryBlock, projectContext, age
 
     if (agentMode === "plan") {
       prompt += `\n\n## Mode: Plan
-You are in Plan Mode. You can ONLY use read-only tools (read_file, list_directory, search_files, glob_files, web_fetch, web_search, and read-only git subcommands like status/diff/log). All write operations are blocked.
+You are in Plan Mode. You can ONLY use read-only tools (read_file, list_directory, search_files, glob_files, web_fetch, web_search, and read-only git subcommands like status/diff/log). All write operations are blocked, EXCEPT memory — you may read and write to the memory directory at any time.
 
 Your job is to:
 1. Read and explore the relevant files to fully understand the codebase
@@ -660,9 +660,13 @@ export class AgentEngine extends EventEmitter {
 
       // Plan mode: offer to proceed
       if (this.agentMode === "plan") {
+        // If cancelled while awaiting plan action, exit cleanly
+        if (this.controller.signal.aborted) break;
         const action = await new Promise((res) => {
           this.emit("plan-complete", { resolve: res });
         });
+        // Cancel may have resolved the promise with false — exit cleanly
+        if (action === false || this.controller.signal.aborted) break;
         if (action === "y" || action === "yes") {
           this.agentMode = "build";
           this.messages.push({ role: "user", content: "Proceed with the plan. Execute each step." });
