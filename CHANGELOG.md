@@ -1,6 +1,15 @@
 # Changelog — LlamaTalk Build
 
-Last updated: 2026-03-09 (v2.3.1)
+Last updated: 2026-03-09 (v2.3.2)
+
+---
+
+## v2.3.2 — 2026-03-09
+
+### Bug Fixes
+- **Telegram bot crash on multiple confirmations** — fixed race condition where concurrent requests generated colliding promptIds (`p1`, `p2`, ...) in a shared Map, causing resolvers to overwrite each other and crash with TypeError. PromptIds are now globally unique.
+- **Concurrent message corruption** — added per-user busy lock so a second message while the agent is still processing (e.g., waiting on a confirmation button) gets a "please wait" reply instead of corrupting engine state.
+- **Orphaned pending confirms** — confirmation resolvers left in the Map after engine errors now get cleaned up, preventing memory leaks and stale callbacks resolving the wrong promise.
 
 ---
 

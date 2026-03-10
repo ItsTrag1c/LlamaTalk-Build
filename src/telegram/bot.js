@@ -52,10 +52,14 @@ export async function startTelegramBot(config, encKey) {
 
   // Per-user engine instances
   const engines = new Map();
-  // Per-user pending confirmations
+  // Pending confirmations — keyed by globally unique promptId
   const pendingConfirms = new Map();
   // Per-user throttled editors
   const editors = new Map();
+  // Per-user busy lock — prevents concurrent messages from colliding
+  const busyUsers = new Set();
+  // Global prompt counter — never resets, so IDs are unique across all requests
+  let globalPromptCounter = 0;
 
   function getEngine(userId) {
     if (engines.has(userId)) return engines.get(userId);
@@ -317,8 +321,16 @@ export async function startTelegramBot(config, encKey) {
     const chatId = ctx.chat.id;
     const text = ctx.message.text;
 
+    // Prevent concurrent messages from the same user — the engine is stateful
+    // and two simultaneous requests would collide on event handlers and promptIds
+    if (busyUsers.has(userId)) {
+      await ctx.reply("⏳ Still working on your previous request. Please wait.");
+      return;
+    }
+
     console.log(`   [${userId}] Message: ${text.slice(0, 80)}${text.length > 80 ? "..." : ""}`);
 
+    busyUsers.add(userId);
     const engine = getEngine(userId);
     const editor = getEditor(chatId);
     editor.reset();
@@ -327,8 +339,8 @@ export async function startTelegramBot(config, encKey) {
     const thinkingMsg = await ctx.reply("🤔 Thinking...");
     editor.setMessageId(thinkingMsg.message_id);
 
-    // Wire engine events for this request
-    const cleanup = wireEngineEvents(engine, bot, chatId, editor, pendingConfirms);
+    // Wire engine events for this request (uses global counter for unique promptIds)
+    const cleanup = wireEngineEvents(engine, bot, chatId, editor, pendingConfirms, () => `p${++globalPromptCounter}`);
 
     try {
       await engine.sendMessage(text);
@@ -356,6 +368,7 @@ export async function startTelegramBot(config, encKey) {
     }
 
     cleanup();
+    busyUsers.delete(userId);
   });
 
   // --- Global error handler (prevents unhandled errors from crashing the process) ---
@@ -383,8 +396,9 @@ export async function startTelegramBot(config, encKey) {
  * Wire engine events to Telegram message updates for a single request.
  * Returns a cleanup function to remove listeners.
  */
-function wireEngineEvents(engine, bot, chatId, editor, pendingConfirms) {
-  let promptCounter = 0;
+function wireEngineEvents(engine, bot, chatId, editor, pendingConfirms, getPromptId) {
+  // Track promptIds created during this request so cleanup can remove orphans
+  const ownedPromptIds = [];
 
   const handlers = {
     "thinking-start": () => {
@@ -418,7 +432,8 @@ function wireEngineEvents(engine, bot, chatId, editor, pendingConfirms) {
     },
 
     "confirm-needed": async ({ actions, resolve }) => {
-      const promptId = `p${++promptCounter}`;
+      const promptId = getPromptId();
+      ownedPromptIds.push(promptId);
       pendingConfirms.set(promptId, resolve);
 
       const actionText = actions.map((a) => `• ${a}`).join("\n");
@@ -437,7 +452,8 @@ function wireEngineEvents(engine, bot, chatId, editor, pendingConfirms) {
     },
 
     "plan-complete": async ({ resolve }) => {
-      const promptId = `p${++promptCounter}`;
+      const promptId = getPromptId();
+      ownedPromptIds.push(promptId);
       pendingConfirms.set(promptId, resolve);
 
       const keyboard = new InlineKeyboard()
@@ -479,6 +495,11 @@ function wireEngineEvents(engine, bot, chatId, editor, pendingConfirms) {
   return () => {
     for (const [event, handler] of Object.entries(handlers)) {
       engine.removeListener(event, handler);
+    }
+    // Remove any orphaned pending confirms from this request
+    // (e.g. engine errored while waiting for user to click a button)
+    for (const id of ownedPromptIds) {
+      pendingConfirms.delete(id);
     }
   };
 }
