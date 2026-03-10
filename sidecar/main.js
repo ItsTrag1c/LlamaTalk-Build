@@ -54,7 +54,7 @@ function sendPrompt(event, data) {
 let engine = null;
 let config = null;
 
-const SIDECAR_VERSION = "2.3.0";
+const SIDECAR_VERSION = "2.4.0";
 
 function ensureEngine(projectRoot) {
   if (!engine) {
@@ -375,6 +375,65 @@ const methods = {
     const sm = new SessionManager();
     sm.touch(id, title);
     return { ok: true };
+  },
+
+  // --- Agent management ---
+
+  listAgents() {
+    const e = ensureEngine();
+    return e.getSubAgents();
+  },
+
+  createAgent({ name, role, model, tools }) {
+    if (!name || typeof name !== "string" || name.length > 50) {
+      return { error: "Agent name must be 1-50 characters" };
+    }
+    if (!role || typeof role !== "string" || role.length > 500) {
+      return { error: "Agent role must be 1-500 characters" };
+    }
+    const e = ensureEngine();
+    // Check for duplicate names
+    const existing = e.getSubAgents().find(
+      (a) => a.name.toLowerCase() === name.toLowerCase()
+    );
+    if (existing) return { error: `Agent "${name}" already exists` };
+
+    const agent = e.addSubAgent({
+      name,
+      role,
+      model: model || null,
+      tools: tools || null,
+    });
+    // Persist to config
+    saveConfig(e.config);
+    return agent;
+  },
+
+  removeAgent({ name }) {
+    if (!name) return { error: "Agent name required" };
+    const e = ensureEngine();
+    const removed = e.removeSubAgent(name);
+    if (!removed) return { error: `No agent named "${name}"` };
+    saveConfig(e.config);
+    return { ok: true, removed };
+  },
+
+  enableAgent({ name }) {
+    if (!name) return { error: "Agent name required" };
+    const e = ensureEngine();
+    const agent = e.enableSubAgent(name);
+    if (!agent) return { error: `No agent named "${name}"` };
+    saveConfig(e.config);
+    return { ok: true, agent };
+  },
+
+  disableAgent({ name }) {
+    if (!name) return { error: "Agent name required" };
+    const e = ensureEngine();
+    const agent = e.disableSubAgent(name);
+    if (!agent) return { error: `No agent named "${name}"` };
+    saveConfig(e.config);
+    return { ok: true, agent };
   },
 
   saveOnboarding({ lessons }) {

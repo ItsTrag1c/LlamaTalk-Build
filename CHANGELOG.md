@@ -1,6 +1,25 @@
 # Changelog — LlamaTalk Build Desktop
 
-Last updated: 2026-03-09 (v2.3.0)
+Last updated: 2026-03-10 (v2.4.0)
+
+---
+
+## v2.4.0 — 2026-03-10
+
+### New Features
+- **Agents tab** — new sidebar tab for managing sub-agents. Create agents with name, role, model, and tool restrictions via an interactive form. Toggle enable/disable, delete with confirmation, and see tool badges at a glance.
+- **Agents dashboard panel** — the home page now shows an Agents panel alongside Tasks. Displays all sub-agents with their status, role, and model. Quick enable/disable toggles right from the dashboard.
+- **Agent management RPC** — new sidecar methods: `listAgents`, `createAgent`, `removeAgent`, `enableAgent`, `disableAgent`. All changes persist to config.
+- **4-mode system** — Build, Plan, Q&A, and Manage modes. Mode toggle button shows all 4 with distinct colors (green, orange, cyan, purple).
+- **Enhanced manager prompts** — deeply emphasizes the manager's role with detailed delegation protocol, quality control, accountability, and structured reporting.
+
+### Security
+- **SSRF redirect protection** — inherited from engine: manual redirect following with private IP re-validation per hop
+- **Expanded private IP blocklist** — all RFC1918, IPv6 loopback, link-local, IPv4-mapped IPv6
+- **Encrypted Telegram secrets** — bot token and access code encrypted at rest
+
+### Engine Updates
+All engine improvements from CLI v2.5.0 are included: sub-agent auto-approve, task tracking for delegations, silent background agents, and expanded destructive command blocklist.
 
 ---
 

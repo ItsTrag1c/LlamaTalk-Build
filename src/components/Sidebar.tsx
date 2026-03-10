@@ -1,9 +1,9 @@
 import { useState, useRef, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import type { Session } from "../lib/types";
+import type { Session, SubAgent } from "../lib/types";
 
-type SidebarTab = "sessions" | "tools" | "tasks" | "activity" | "settings";
+type SidebarTab = "sessions" | "tools" | "agents" | "tasks" | "activity" | "settings";
 
 interface SidebarProps {
   sessions: Session[];
@@ -35,6 +35,7 @@ function timeAgo(dateStr: string): string {
 const TAB_ICONS: Record<SidebarTab, string> = {
   sessions: "💬",
   tools: "🔧",
+  agents: "🤖",
   tasks: "✅",
   activity: "📋",
   settings: "⚙️",
@@ -43,6 +44,7 @@ const TAB_ICONS: Record<SidebarTab, string> = {
 const TAB_LABELS: Record<SidebarTab, string> = {
   sessions: "Sessions",
   tools: "Tools",
+  agents: "Agents",
   tasks: "Tasks",
   activity: "Activity",
   settings: "Settings",
@@ -76,7 +78,7 @@ export function Sidebar({
 
       {/* Tab bar */}
       <div className="flex px-3 gap-1 py-2.5">
-        {(["sessions", "tools", "tasks", "activity", "settings"] as SidebarTab[]).map((t) => (
+        {(["sessions", "tools", "agents", "tasks", "activity", "settings"] as SidebarTab[]).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -105,6 +107,7 @@ export function Sidebar({
           />
         )}
         {tab === "tools" && <ToolsTab />}
+        {tab === "agents" && <AgentsTab />}
         {tab === "tasks" && <TasksTab />}
         {tab === "activity" && <ActivityTab onAction={onAction} />}
         {tab === "settings" && <SettingsTab config={config} onAction={onAction} />}
@@ -433,10 +436,252 @@ function ActivityButton({ icon, title, desc, cmd, onClick }: { icon: string; tit
   );
 }
 
-// --- Tasks Section ---
+// --- Agents Tab ---
 
 import { engine, engineCall } from "../lib/engine";
 import type { Task, TaskList } from "../lib/types";
+
+const AVAILABLE_TOOLS = [
+  "read_file", "write_file", "edit_file", "list_directory",
+  "search_files", "glob_files", "bash", "git", "web_fetch",
+  "web_search", "npm_install", "pip_install", "install_tool", "generate_file",
+];
+
+function AgentsTab() {
+  const [agents, setAgents] = useState<SubAgent[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [form, setForm] = useState({ name: "", role: "", model: "", tools: [] as string[] });
+  const [error, setError] = useState("");
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+
+  const refresh = async () => {
+    try {
+      const data = await engine.listAgents() as unknown as SubAgent[];
+      setAgents(data || []);
+    } catch { /* */ }
+  };
+
+  useEffect(() => {
+    if (!loaded) { refresh(); setLoaded(true); }
+  }, [loaded]);
+
+  const handleCreate = async () => {
+    setError("");
+    if (!form.name.trim()) { setError("Name is required"); return; }
+    if (!form.role.trim()) { setError("Role is required"); return; }
+    try {
+      const result = await engine.createAgent(
+        form.name.trim(),
+        form.role.trim(),
+        form.model.trim() || undefined,
+        form.tools.length > 0 ? form.tools : undefined,
+      ) as any;
+      if (result.error) { setError(result.error); return; }
+      setForm({ name: "", role: "", model: "", tools: [] });
+      setCreating(false);
+      await refresh();
+    } catch (err: any) {
+      setError(err.message || "Failed to create agent");
+    }
+  };
+
+  const handleToggle = async (agent: SubAgent) => {
+    try {
+      if (agent.enabled) {
+        await engine.disableAgent(agent.name);
+      } else {
+        await engine.enableAgent(agent.name);
+      }
+      await refresh();
+    } catch { /* */ }
+  };
+
+  const handleRemove = async (name: string) => {
+    try {
+      await engine.removeAgent(name);
+      setConfirmDelete(null);
+      await refresh();
+    } catch { /* */ }
+  };
+
+  const toggleTool = (tool: string) => {
+    setForm((f) => ({
+      ...f,
+      tools: f.tools.includes(tool)
+        ? f.tools.filter((t) => t !== tool)
+        : [...f.tools, tool],
+    }));
+  };
+
+  return (
+    <div className="pb-4">
+      {/* Agent list */}
+      {agents.length === 0 && !creating && (
+        <div className="text-sm text-[var(--text-dim)] px-3 py-3">
+          No sub-agents. Create one to delegate tasks.
+        </div>
+      )}
+
+      {agents.map((a) => (
+        <div
+          key={a.id}
+          className={`px-4 py-3 mb-2 rounded-lg border transition-colors ${
+            a.enabled
+              ? "border-[var(--border)] bg-[var(--bg)]/30"
+              : "border-[var(--border)]/50 opacity-50"
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            <div
+              className={`w-2 h-2 rounded-full shrink-0 ${
+                a.enabled ? "bg-[var(--success)]" : "bg-[var(--text-dim)]"
+              }`}
+            />
+            <span className="text-sm font-semibold text-[var(--text)] flex-1 truncate">
+              {a.name}
+            </span>
+            <button
+              onClick={() => handleToggle(a)}
+              className={`text-xs px-2 py-0.5 rounded transition-colors ${
+                a.enabled
+                  ? "text-[var(--warning)] hover:bg-[var(--warning)]/10"
+                  : "text-[var(--success)] hover:bg-[var(--success)]/10"
+              }`}
+            >
+              {a.enabled ? "Disable" : "Enable"}
+            </button>
+            {confirmDelete === a.name ? (
+              <div className="flex gap-1">
+                <button
+                  onClick={() => handleRemove(a.name)}
+                  className="text-xs px-2 py-0.5 rounded text-[var(--error)] hover:bg-[var(--error)]/10"
+                >
+                  Confirm
+                </button>
+                <button
+                  onClick={() => setConfirmDelete(null)}
+                  className="text-xs px-2 py-0.5 rounded text-[var(--text-dim)] hover:bg-[var(--bg-hover)]"
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setConfirmDelete(a.name)}
+                className="text-xs text-[var(--text-dim)] hover:text-[var(--error)] transition-colors"
+                title="Remove agent"
+              >
+                x
+              </button>
+            )}
+          </div>
+          <div className="text-xs text-[var(--text-dim)] mt-1 truncate">{a.role}</div>
+          <div className="flex gap-2 mt-1 text-xs text-[var(--text-dim)]">
+            {a.model && (
+              <span className="text-[var(--accent)]">{a.model}</span>
+            )}
+            {!a.model && <span>inherit model</span>}
+            <span>|</span>
+            <span>{a.tools ? `${a.tools.length} tools` : "all tools"}</span>
+          </div>
+          {a.tools && (
+            <div className="flex flex-wrap gap-1 mt-1.5">
+              {a.tools.map((t) => (
+                <span key={t} className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--bg-hover)] text-[var(--text-dim)]">
+                  {t}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      ))}
+
+      {/* Create form */}
+      {creating ? (
+        <div className="px-4 py-3 rounded-lg border border-[var(--accent)]/50 bg-[var(--bg)]/30 space-y-2">
+          <div className="text-sm font-semibold text-[var(--text)]">New Agent</div>
+
+          {error && (
+            <div className="text-xs text-[var(--error)] bg-[var(--error)]/10 rounded px-2 py-1">{error}</div>
+          )}
+
+          <input
+            type="text"
+            value={form.name}
+            onChange={(e) => setForm({ ...form, name: e.target.value })}
+            placeholder="Name (e.g. Scout)"
+            maxLength={50}
+            className="w-full px-2.5 py-1.5 text-sm rounded-lg bg-[var(--bg)] border border-[var(--border)] text-[var(--text)] placeholder-[var(--text-dim)] focus:outline-none focus:border-[var(--accent)]"
+          />
+
+          <textarea
+            value={form.role}
+            onChange={(e) => setForm({ ...form, role: e.target.value })}
+            placeholder="Role description (e.g. Search and explore codebases)"
+            maxLength={500}
+            rows={2}
+            className="w-full px-2.5 py-1.5 text-sm rounded-lg bg-[var(--bg)] border border-[var(--border)] text-[var(--text)] placeholder-[var(--text-dim)] focus:outline-none focus:border-[var(--accent)] resize-none"
+          />
+
+          <input
+            type="text"
+            value={form.model}
+            onChange={(e) => setForm({ ...form, model: e.target.value })}
+            placeholder="Model (leave empty to inherit)"
+            className="w-full px-2.5 py-1.5 text-sm rounded-lg bg-[var(--bg)] border border-[var(--border)] text-[var(--text)] placeholder-[var(--text-dim)] focus:outline-none focus:border-[var(--accent)]"
+          />
+
+          {/* Tool selector */}
+          <div>
+            <div className="text-xs text-[var(--text-dim)] mb-1">
+              Tools ({form.tools.length === 0 ? "all" : form.tools.length} selected)
+            </div>
+            <div className="flex flex-wrap gap-1">
+              {AVAILABLE_TOOLS.map((tool) => (
+                <button
+                  key={tool}
+                  onClick={() => toggleTool(tool)}
+                  className={`text-[10px] px-1.5 py-0.5 rounded transition-colors ${
+                    form.tools.includes(tool)
+                      ? "bg-[var(--accent)] text-white"
+                      : "bg-[var(--bg-hover)] text-[var(--text-dim)] hover:text-[var(--text)]"
+                  }`}
+                >
+                  {tool}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex gap-2 pt-1">
+            <button
+              onClick={handleCreate}
+              className="flex-1 px-3 py-1.5 text-xs font-medium rounded-lg bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white transition-colors"
+            >
+              Create
+            </button>
+            <button
+              onClick={() => { setCreating(false); setError(""); }}
+              className="px-3 py-1.5 text-xs rounded-lg border border-[var(--border)] text-[var(--text-dim)] hover:text-[var(--text)] hover:bg-[var(--bg-hover)] transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button
+          onClick={() => setCreating(true)}
+          className="w-full mt-2 px-4 py-2.5 text-sm font-medium rounded-xl bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white transition-colors"
+        >
+          + New Agent
+        </button>
+      )}
+    </div>
+  );
+}
+
+// --- Tasks Section ---
 
 function TasksTab() {
   const [tasks, setTasks] = useState<TaskList>({ active: [], completed: [] });

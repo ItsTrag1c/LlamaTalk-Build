@@ -57,11 +57,13 @@ export function InputBar({ onSend, onCancel, onToggleMode, disabled, isStreaming
               ? "border-[var(--success)]/30 text-[var(--success)] hover:bg-[var(--success)]/10"
               : mode === "plan"
                 ? "border-[var(--warning)]/30 text-[var(--warning)] hover:bg-[var(--warning)]/10"
-                : "border-cyan-400/30 text-cyan-400 hover:bg-cyan-400/10"
+                : mode === "manage"
+                  ? "border-purple-400/30 text-purple-400 hover:bg-purple-400/10"
+                  : "border-cyan-400/30 text-cyan-400 hover:bg-cyan-400/10"
           }`}
-          title={`Switch to ${mode === "build" ? "Plan" : mode === "plan" ? "Recall" : "Build"} mode`}
+          title={`Switch to ${mode === "build" ? "Plan" : mode === "plan" ? "Q&A" : mode === "qa" ? "Manage" : "Build"} mode`}
         >
-          {mode === "build" ? "● Build" : mode === "plan" ? "◐ Plan" : "◉ Recall"}
+          {mode === "build" ? "● Build" : mode === "plan" ? "◐ Plan" : mode === "qa" ? "◉ Q&A" : "◈ Manage"}
         </button>
 
         {/* Text input */}
@@ -76,9 +78,11 @@ export function InputBar({ onSend, onCancel, onToggleMode, disabled, isStreaming
                 ? "Press Escape to cancel..."
                 : mode === "plan"
                   ? "Describe what to plan..."
-                  : mode === "recall"
+                  : mode === "qa"
                     ? "Ask anything..."
-                    : "Start your project, recall memory... BUILD!"
+                    : mode === "manage"
+                      ? "Tell your agents what to do..."
+                      : "Start your project, recall memory... BUILD!"
             }
             disabled={disabled && !isStreaming}
             rows={1}
