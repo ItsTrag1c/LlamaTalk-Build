@@ -9,7 +9,7 @@ import { Bot, InlineKeyboard } from "grammy";
 import { ThrottledEditor, toTelegramHtml, splitMessage, formatToolStart, formatToolResult } from "./renderer.js";
 
 // Import from the engine package (linked via file: dependency)
-import { AgentEngine, SessionManager } from "llamatalkbuild-engine";
+import { AgentEngine, SessionManager, getAllLocalModels, CLOUD_MODELS } from "llamatalkbuild-engine";
 import { loadConfig, saveConfig as _saveConfig } from "../config.js";
 
 // Escape HTML entities to prevent injection in Telegram HTML messages
@@ -165,9 +165,11 @@ export async function startTelegramBot(config, encKey) {
       `👋 Hey ${name}! I'm your LlamaTalk Build agent.\n\n` +
       `<b>Commands:</b>\n` +
       `/new — Start a new session\n` +
+      `/clear — Clear conversation history\n` +
       `/sessions — List recent sessions\n` +
       `/mode — Switch mode (Build/Plan/Recall)\n` +
-      `/model — Show current model\n` +
+      `/model — Show or set model\n` +
+      `/models — List all available models\n` +
       `/status — Show agent status\n` +
       `/cancel — Cancel current operation\n\n` +
       `Just send me a message and I'll start working!`,
@@ -221,7 +223,55 @@ export async function startTelegramBot(config, encKey) {
   bot.command("model", async (ctx) => {
     const userId = ctx.from.id;
     const engine = getEngine(userId);
-    await ctx.reply(`Current model: <code>${esc(engine.getModel() || "none")}</code>`, { parse_mode: "HTML" });
+    const args = (ctx.match || "").trim();
+
+    if (!args) {
+      // /model — show current
+      await ctx.reply(`Current model: <code>${esc(engine.getModel() || "none")}</code>`, { parse_mode: "HTML" });
+    } else {
+      // /model <name> — switch model
+      const cfg = engine.getConfig();
+      cfg.selectedModel = args;
+      engine.setModel(args);
+      await ctx.reply(`Model set to: <code>${esc(args)}</code>`, { parse_mode: "HTML" });
+    }
+  });
+
+  bot.command("models", async (ctx) => {
+    const userId = ctx.from.id;
+    const engine = getEngine(userId);
+    const cfg = engine.getConfig();
+    const current = engine.getModel();
+
+    let text = "<b>Available models:</b>\n\n";
+
+    // Local models
+    try {
+      const result = await getAllLocalModels(cfg);
+      cfg.modelServerMap = result.modelServerMap;
+      cfg.serverBackendMap = result.serverBackendMap;
+      const visible = result.allModels.filter((m) => !(cfg.hiddenModels || []).includes(m));
+      for (const m of visible) {
+        const running = result.runningModels.has(m);
+        const isCurrent = m === current;
+        text += `<code>${esc(m)}</code>${running ? " 🟢" : ""}${isCurrent ? " ◀" : ""}\n`;
+      }
+    } catch {
+      text += "<i>Could not fetch local models.</i>\n";
+    }
+
+    // Cloud models
+    for (const [provider, models] of Object.entries(CLOUD_MODELS)) {
+      if (cfg.enabledProviders?.[provider]) {
+        for (const m of models) {
+          const isCurrent = m === current;
+          text += `<code>${esc(m)}</code> <i>(${esc(provider)})</i>${isCurrent ? " ◀" : ""}\n`;
+        }
+      }
+    }
+
+    text += "\nUse <code>/model name</code> to switch.";
+    await ctx.reply(text, { parse_mode: "HTML" });
   });
 
   bot.command("status", async (ctx) => {
@@ -242,12 +292,22 @@ export async function startTelegramBot(config, encKey) {
 
   bot.command("cancel", async (ctx) => {
     const userId = ctx.from.id;
+    // Resolve all pending confirms with `false` (deny) so the engine's
+    // await-on-Promise unblocks. Without this, cancel() only aborts the
+    // HTTP stream but the agent loop stays stuck on the confirmation Promise.
+    for (const [id, resolver] of pendingConfirms) {
+      resolver(false);
+      pendingConfirms.delete(id);
+    }
     if (engines.has(userId)) {
       engines.get(userId).cancel();
-      await ctx.reply("⛔ Operation cancelled.");
-    } else {
-      await ctx.reply("Nothing to cancel.");
+      // Destroy the engine entirely — a new one will be created on the next
+      // message, with a fresh AbortController and clean state. This ensures
+      // no lingering tool execution or agent loop iteration can continue.
+      engines.delete(userId);
     }
+    busyUsers.delete(userId);
+    await ctx.reply("⛔ Operation cancelled.");
   });
 
   // --- Callback queries (inline keyboard) ---
@@ -316,10 +376,46 @@ export async function startTelegramBot(config, encKey) {
 
   // --- Message handling ---
 
+  // Commands that have a meaningful Telegram equivalent we can handle directly
+  const TELEGRAM_COMMANDS = {
+    "/clear": async (ctx) => {
+      const engine = getEngine(ctx.from.id);
+      engine.clearMessages();
+      await ctx.reply("✨ Conversation cleared.");
+    },
+    "/new": async (ctx) => {
+      const engine = getEngine(ctx.from.id);
+      engine.createSession(process.cwd());
+      await ctx.reply("✨ New session started.");
+    },
+    "/trust": async (ctx) => {
+      const engine = getEngine(ctx.from.id);
+      const cfg = engine.getConfig();
+      if (!cfg.autoApprove) cfg.autoApprove = {};
+      cfg.autoApprove.medium = !cfg.autoApprove.medium;
+      cfg.autoApprove.high = cfg.autoApprove.medium;
+      await ctx.reply(cfg.autoApprove.medium ? "✅ Auto-approve enabled for this session." : "🔒 Auto-approve disabled.");
+    },
+  };
+
   bot.on("message:text", async (ctx) => {
     const userId = ctx.from.id;
     const chatId = ctx.chat.id;
     const text = ctx.message.text;
+
+    // Intercept CLI slash commands so they don't get sent to the LLM.
+    // grammy handles /start, /sessions, /mode, /model, /status, /cancel above.
+    // Everything else starting with "/" is either handled here or rejected.
+    const cmd = text.trim().split(/\s+/)[0].toLowerCase();
+    if (cmd.startsWith("/")) {
+      const handler = TELEGRAM_COMMANDS[cmd];
+      if (handler) {
+        await handler(ctx);
+      } else {
+        await ctx.reply(`The <code>${esc(cmd)}</code> command isn't available on Telegram.\n\nUse /start to see available commands.`, { parse_mode: "HTML" });
+      }
+      return;
+    }
 
     // Prevent concurrent messages from the same user — the engine is stateful
     // and two simultaneous requests would collide on event handlers and promptIds
@@ -387,6 +483,10 @@ export async function startTelegramBot(config, encKey) {
   console.log("");
   console.log("   Press Ctrl+C to stop.");
 
+  // Drop stale updates from before this boot so old messages (like a /clear
+  // that crashed the previous run) don't replay and crash again in a loop.
+  await bot.api.deleteWebhook({ drop_pending_updates: true });
+
   await bot.start({
     onStart: () => console.log("   ✅ Bot connected to Telegram."),
   });
@@ -407,6 +507,14 @@ function wireEngineEvents(engine, bot, chatId, editor, pendingConfirms, getPromp
 
     "thinking-stop": () => {
       // Will be replaced by actual content
+    },
+
+    "memory-loading": async ({ status }) => {
+      if (status === "start") {
+        editor.setContent("🧠");
+      } else {
+        editor.setContent("🤔 Thinking...");
+      }
     },
 
     "response-start": () => {

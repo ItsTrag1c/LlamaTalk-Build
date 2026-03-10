@@ -526,6 +526,18 @@ export class AgentEngine extends EventEmitter {
         // Execute validated tool calls
         let sessionLocked = false;
         for (const { tc, tool } of validated) {
+          // Check cancellation before each tool — without this, cancel() only
+          // stops the HTTP stream but the loop keeps executing queued tools
+          if (this.controller.signal.aborted) {
+            cancelled = true;
+            for (const { tc: rtc } of validated) {
+              if (!this.messages.some((m) => m.tool_use_id === rtc.id)) {
+                this.messages.push(formatToolResult(rtc.id, "Cancelled.", rtc.name));
+              }
+            }
+            break;
+          }
+
           // Check inactivity lock before each tool
           const lockResult = await this._checkInactivityLock();
           if (lockResult === false) {
@@ -557,6 +569,14 @@ export class AgentEngine extends EventEmitter {
               sessionChanges: this.sessionChanges,
             });
 
+            // Check cancellation after tool finishes — the tool may have
+            // completed but cancel was called while it was running
+            if (this.controller.signal.aborted) {
+              this.messages.push(formatToolResult(tc.id, "Cancelled.", tc.name));
+              cancelled = true;
+              break;
+            }
+
             const clean = result.replace(ANSI_RE, "");
             const truncated = clean.length > 30000
               ? clean.slice(0, 30000) + `\n... [truncated, ${clean.length - 30000} more chars]`
@@ -586,6 +606,12 @@ export class AgentEngine extends EventEmitter {
               } catch { /* non-fatal */ }
             }
           } catch (err) {
+            // Abort errors from cancelled tools are not real errors
+            if (this.controller.signal.aborted) {
+              this.messages.push(formatToolResult(tc.id, "Cancelled.", tc.name));
+              cancelled = true;
+              break;
+            }
             this.emit("tool-result", { id: tc.id, name: tc.name, success: false, summary: err.message });
             this.messages.push(formatToolResult(tc.id, `Error: ${err.message}`, tc.name));
             this.sessionLog.addStep(`${tc.name}: ERROR — ${err.message}`);
@@ -594,6 +620,10 @@ export class AgentEngine extends EventEmitter {
           iterationCount++;
         }
 
+        if (cancelled) {
+          this.emit("cancelled", {});
+          break;
+        }
         if (sessionLocked) break;
         continue; // LLM will see tool results
       }

@@ -1,6 +1,22 @@
 # Changelog — LlamaTalk Build
 
-Last updated: 2026-03-09 (v2.3.2)
+Last updated: 2026-03-10 (v2.3.3)
+
+---
+
+## v2.3.3 — 2026-03-10
+
+### New Features
+- **`/model <name>`** — switch models directly from Telegram.
+- **`/models`** — list all available local + cloud models with running/current indicators.
+- **`/clear`** — clear conversation history from Telegram.
+- **`/trust`** — toggle auto-approve from Telegram.
+- **Memory loading indicator** — Telegram now shows 🧠 while loading memory, matching the CLI experience.
+
+### Bug Fixes
+- **Telegram `/clear` crash loop** — CLI-only slash commands (like `/clear`, `/help`, `/home`) were being sent to the LLM as user messages, causing unpredictable behavior and crashes. All `/` commands are now intercepted: recognized commands are handled locally, everything else gets a helpful "not available on Telegram" message.
+- **`/cancel` fully stops the agent** — previously `/cancel` only aborted the HTTP stream but left the agent loop running through queued tools and the confirmation Promise hanging forever. Now `/cancel` resolves pending confirmations, the engine checks the abort signal before/after every tool execution, and the engine instance is destroyed so no lingering state remains.
+- **Crash loop on reboot** — old unprocessed Telegram updates (like the `/clear` that caused the original crash) were replayed on every restart, causing an infinite crash loop. The bot now drops pending updates on startup.
 
 ---
 
