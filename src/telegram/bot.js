@@ -363,7 +363,7 @@ export async function startTelegramBot(config, encKey) {
     const resolver = pendingConfirms.get(promptId);
     if (resolver) {
       pendingConfirms.delete(promptId);
-      resolver(action === "execute" ? "execute" : action === "keep_planning" ? "keep_planning" : "edit");
+      resolver(action === "execute" ? "yes" : action === "keep_planning" ? "keep_planning" : "edit");
       const label = action === "execute" ? "▶️ Executing" : action === "keep_planning" ? "📋 Continue planning" : "✏️ Edit plan";
       try {
         await ctx.answerCallbackQuery(label);

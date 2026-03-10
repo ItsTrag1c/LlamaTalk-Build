@@ -1,6 +1,13 @@
 # Changelog — LlamaTalk Build
 
-Last updated: 2026-03-10 (v2.3.3)
+Last updated: 2026-03-10 (v2.3.4)
+
+---
+
+## v2.3.4 — 2026-03-10
+
+### Bug Fixes
+- **Telegram plan mode crash** — clicking "Execute" or "Keep Planning" buttons after the agent produced a plan caused the agent loop to exit or crash. The Telegram bot sent action values (`"execute"`, `"keep_planning"`) that the engine didn't recognize (expected `"yes"`, `"edit"`). Fixed the value mapping and added a proper `"keep_planning"` handler in the engine so the agent continues refining the plan instead of silently dying.
 
 ---
 

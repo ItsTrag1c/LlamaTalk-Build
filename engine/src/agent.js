@@ -669,9 +669,8 @@ export class AgentEngine extends EventEmitter {
           this.emit("mode-change", { from: "plan", to: "build" });
           this.sessionLog.addStep("Plan approved — switched to Build mode");
           continue;
-        } else if (action === "e" || action === "edit") {
-          // Consumer should provide the edit text as the action value prefixed with "edit:"
-          const editText = action.startsWith("edit:") ? action.slice(5) : "";
+        } else if (action === "e" || action === "edit" || (typeof action === "string" && action.startsWith("edit:"))) {
+          const editText = (typeof action === "string" && action.startsWith("edit:")) ? action.slice(5) : "";
           if (editText) {
             this.agentMode = "build";
             this.messages.push({ role: "user", content: `Proceed with the plan with these adjustments: ${editText}` });
@@ -679,8 +678,14 @@ export class AgentEngine extends EventEmitter {
             this.sessionLog.addStep("Plan approved with edits — switched to Build mode");
             continue;
           }
+          // "edit" or "e" without text — stay in plan mode, consumer should re-prompt for edit text
+        } else if (action === "keep_planning" || action === "n") {
+          // Stay in plan mode and continue the loop for another iteration
+          this.messages.push({ role: "user", content: "Continue refining the plan. Add more detail or consider edge cases." });
+          this.sessionLog.addStep("User requested further planning");
+          continue;
         }
-        // n or empty — stay in plan mode, return to caller
+        // empty or unrecognized — stay in plan mode, return to caller
       }
 
       break;
