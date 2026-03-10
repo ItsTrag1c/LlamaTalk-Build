@@ -34,6 +34,21 @@ function timeAgo(dateStr) {
   return `${Math.floor(days / 30)}mo ago`;
 }
 
+function formatDueTag(due) {
+  if (!due) return "";
+  const now = new Date();
+  const dueDate = new Date(due);
+  // Compare dates only (ignore time)
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const dueStart = new Date(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate());
+  const diffDays = Math.floor((dueStart - todayStart) / 86400000);
+
+  if (diffDays < 0) return `${T.error}overdue${T.reset}`;
+  if (diffDays === 0) return `${T.warning}due today${T.reset}`;
+  if (diffDays === 1) return `${T.dim}tomorrow${T.reset}`;
+  return `${T.dim}in ${diffDays}d${T.reset}`;
+}
+
 function buildStatusLine(model, provider, mode) {
   const parts = [];
   if (model) parts.push(`${T.accent}${model}${T.reset}`);
@@ -55,25 +70,25 @@ function centerLine(str, w) {
   return " ".repeat(pad) + str;
 }
 
-export function printBanner(version = "", { model, mode, provider, cwd, sessions } = {}) {
+export function printBanner(version = "", { model, mode, provider, cwd, sessions, tasks, activity, memoryStats } = {}) {
   const w = termWidth();
   const hasSessions = sessions && sessions.length > 0;
   const greeting = hasSessions ? "Welcome back!" : "Welcome!";
 
   if (w < 40) {
-    printMinimal(version, model, provider, mode, w);
+    printMinimal(version, model, provider, mode, w, tasks);
     return;
   }
 
   if (w < 62) {
-    printCompact(version, greeting, model, provider, mode, cwd, hasSessions, sessions, w);
+    printCompact(version, greeting, model, provider, mode, cwd, hasSessions, sessions, w, tasks);
     return;
   }
 
-  printFull(version, greeting, model, provider, mode, cwd, hasSessions, sessions, w);
+  printFull(version, greeting, model, provider, mode, cwd, hasSessions, sessions, w, tasks, memoryStats);
 }
 
-function printMinimal(version, model, provider, mode, w) {
+function printMinimal(version, model, provider, mode, w, tasks) {
   const titleText = `LlamaTalk Build${version ? ` v${version}` : ""}`;
   // Box fills available width minus 2 for margin
   const boxW = Math.max(titleText.length + 5, Math.min(w - 2, 38));
@@ -91,13 +106,18 @@ function printMinimal(version, model, provider, mode, w) {
     rows.push(makeRow(`  ${fitWidth(status, inner - 2)}`, boxW));
   }
 
+  const activeCount = tasks?.active?.length || 0;
+  if (activeCount > 0) {
+    rows.push(makeRow(`  ${T.accent}${activeCount}${T.reset} ${T.dim}task(s) active${T.reset}`, boxW));
+  }
+
   rows.push(makeRow(`  ${T.textMuted}/help${T.reset} ${T.dim}commands${T.reset}  ${T.textMuted}/reflect${T.reset} ${T.dim}learn${T.reset}`, boxW));
   rows.push(bot);
 
   process.stdout.write("\n" + rows.map((r) => centerLine(r, w)).join("\n") + "\n\n");
 }
 
-function printCompact(version, greeting, model, provider, mode, cwd, hasSessions, sessions, w) {
+function printCompact(version, greeting, model, provider, mode, cwd, hasSessions, sessions, w, tasks) {
   // Scale between 40 and 61 — use most of the available width
   const boxW = Math.min(w - 2, 60);
   const inner = boxW - 4;
@@ -131,13 +151,24 @@ function printCompact(version, greeting, model, provider, mode, cwd, hasSessions
     }
   }
 
+  if (tasks?.active?.length > 0) {
+    rows.push(emptyRow);
+    rows.push(makeRow(`  ${T.textMuted}Active Tasks${T.reset}`, boxW));
+    for (const task of tasks.active.slice(0, 3)) {
+      const dueTag = formatDueTag(task.dueDate);
+      const maxLen = inner - stripAnsi(dueTag).length - 6;
+      const title = fitWidth(task.description || "Untitled", maxLen);
+      rows.push(makeRow(`  ${T.dim}${icons.arrow} ${title}${T.reset}${dueTag ? ` ${dueTag}` : ""}`, boxW));
+    }
+  }
+
   rows.push(emptyRow);
   rows.push(bot);
 
   process.stdout.write("\n" + rows.map((r) => centerLine(r, w)).join("\n") + "\n\n");
 }
 
-function printFull(version, greeting, model, provider, mode, cwd, hasSessions, sessions, w) {
+function printFull(version, greeting, model, provider, mode, cwd, hasSessions, sessions, w, tasks, memoryStats) {
   // Scale box: min 62, max 120, always fits terminal
   const boxW = Math.min(Math.max(62, w - 4), 120);
   const dividerCol = Math.floor(boxW * 0.50);
@@ -177,16 +208,10 @@ function printFull(version, greeting, model, provider, mode, cwd, hasSessions, s
   // Right panel
   const rightLines = [];
   rightLines.push("");
-  rightLines.push(`${T.textMuted}Tips for getting started${T.reset}`);
-  rightLines.push(`${T.accent}/help${T.reset}${T.dim}    full command list${T.reset}`);
-  rightLines.push(`${T.accent}/mode${T.reset}${T.dim}    toggle build/plan${T.reset}`);
-  rightLines.push(`${T.accent}/models${T.reset}${T.dim}  list models${T.reset}`);
-  rightLines.push(`${T.accent}/reflect${T.reset}${T.dim} save session lessons${T.reset}`);
-  rightLines.push(`${T.accent}/session${T.reset}${T.dim} browse past sessions${T.reset}`);
-  rightLines.push("");
 
+  // Recent Sessions section
   if (hasSessions) {
-    rightLines.push(`${T.textMuted}Recent activity${T.reset}`);
+    rightLines.push(`${T.textMuted}Recent Sessions${T.reset}`);
     for (const s of sessions.slice(0, 3)) {
       const ago = timeAgo(s.lastUsed);
       const maxTitleLen = rightInner - ago.length - 4;
@@ -194,10 +219,37 @@ function printFull(version, greeting, model, provider, mode, cwd, hasSessions, s
       rightLines.push(`${T.dim}${title} ${T.textMuted}(${ago})${T.reset}`);
     }
     rightLines.push("");
-  } else {
-    rightLines.push("");
+  }
+
+  // Active Tasks section
+  if (tasks?.active?.length > 0) {
+    rightLines.push(`${T.textMuted}Active Tasks${T.reset}`);
+    for (const task of tasks.active.slice(0, 5)) {
+      const dueTag = formatDueTag(task.dueDate);
+      const maxLen = rightInner - stripAnsi(dueTag).length - 4;
+      const title = fitWidth(task.description || "Untitled", maxLen);
+      rightLines.push(`${icons.arrow} ${title}${dueTag ? ` ${dueTag}` : ""}`);
+    }
     rightLines.push("");
   }
+
+  // Agent Status section
+  rightLines.push(`${T.textMuted}Agent Status${T.reset}`);
+  const memEnabled = memoryStats?.enabled !== false;
+  const topicCount = memoryStats?.topicCount || 0;
+  const lessonsCount = memoryStats?.lessonsCount || 0;
+  rightLines.push(`${memEnabled ? `${T.success}${icons.success}${T.reset}` : `${T.error}${icons.error}${T.reset}`} ${T.dim}Memory ${memEnabled ? "enabled" : "disabled"}${T.reset}${memEnabled ? ` ${T.textMuted}(${topicCount} topic${topicCount !== 1 ? "s" : ""})${T.reset}` : ""}`);
+  if (lessonsCount > 0) {
+    rightLines.push(`${T.dim}${icons.dot} ${lessonsCount} lesson${lessonsCount !== 1 ? "s" : ""} learned${T.reset}`);
+  }
+  rightLines.push("");
+
+  // Command tips
+  rightLines.push(`${T.textMuted}Commands${T.reset}`);
+  rightLines.push(`${T.accent}/help${T.reset} ${T.dim}commands${T.reset}  ${T.accent}/mode${T.reset} ${T.dim}switch${T.reset}`);
+  rightLines.push(`${T.accent}/models${T.reset} ${T.dim}list${T.reset}  ${T.accent}/reflect${T.reset} ${T.dim}learn${T.reset}`);
+  rightLines.push(`${T.accent}/home${T.reset} ${T.dim}dashboard${T.reset}  ${T.accent}/telegram${T.reset} ${T.dim}bot${T.reset}`);
+  rightLines.push("");
 
   // Pad to same length
   const maxRows = Math.max(leftLines.length, rightLines.length);

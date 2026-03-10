@@ -1,0 +1,473 @@
+/**
+ * LlamaTalk Build — Telegram Bot
+ *
+ * Connects the AgentEngine to Telegram as an I/O layer.
+ * Each allowed user gets their own AgentEngine instance.
+ * Agent runs locally; Telegram is just the transport.
+ */
+import { Bot, InlineKeyboard } from "grammy";
+import { ThrottledEditor, toTelegramHtml, splitMessage, formatToolStart, formatToolResult } from "./renderer.js";
+
+// Import from the engine package (linked via file: dependency)
+import { AgentEngine, SessionManager } from "llamatalkbuild-engine";
+import { loadConfig, saveConfig as _saveConfig } from "../config.js";
+
+// Escape HTML entities to prevent injection in Telegram HTML messages
+function esc(str) {
+  if (!str) return str || "";
+  return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+// Safe save: reload config from disk first, then merge only the telegram fields.
+// This prevents writing decrypted API keys (which live in the in-memory config) back to disk.
+function saveTelegramConfig(allowedUsers, accessCode) {
+  const diskConfig = loadConfig();
+  diskConfig.telegramAllowedUsers = [...allowedUsers];
+  if (accessCode !== undefined) diskConfig.telegramAccessCode = accessCode;
+  _saveConfig(diskConfig);
+}
+
+const MODE_LABELS = {
+  build: "🔨 Build",
+  plan: "📋 Plan",
+  recall: "💭 Recall",
+};
+
+/**
+ * Start the Telegram bot.
+ * @param {object} config — decrypted config
+ * @param {Buffer|null} encKey — encryption key for conversations
+ */
+export async function startTelegramBot(config, encKey) {
+  const token = config.telegramBotToken;
+  if (!token) {
+    console.error("Error: No Telegram bot token configured.");
+    console.error("Set one with: llamabuild /telegram token <token>");
+    process.exit(1);
+  }
+
+  const allowedUsers = new Set((config.telegramAllowedUsers || []).map(Number));
+
+  const bot = new Bot(token);
+
+  // Per-user engine instances
+  const engines = new Map();
+  // Per-user pending confirmations
+  const pendingConfirms = new Map();
+  // Per-user throttled editors
+  const editors = new Map();
+
+  function getEngine(userId) {
+    if (engines.has(userId)) return engines.get(userId);
+
+    const engine = new AgentEngine(config, {
+      encKey,
+      projectRoot: process.cwd(),
+    });
+
+    // Create initial session
+    engine.createSession(process.cwd());
+    engines.set(userId, engine);
+    return engine;
+  }
+
+  function getEditor(chatId) {
+    if (editors.has(chatId)) return editors.get(chatId);
+    const editor = new ThrottledEditor(bot, chatId);
+    editors.set(chatId, editor);
+    return editor;
+  }
+
+  // Access code for authenticating new users
+  const accessCode = config.telegramAccessCode || "";
+
+  // Brute-force protection: track failed access code attempts per user
+  const authAttempts = new Map(); // userId -> { count, lastAttempt }
+  const MAX_AUTH_ATTEMPTS = 5;
+  const AUTH_LOCKOUT_MS = 5 * 60 * 1000; // 5 minute lockout
+
+  // --- Auth middleware ---
+  bot.use(async (ctx, next) => {
+    const userId = ctx.from?.id;
+    if (!userId) return;
+
+    // Already authorized
+    if (allowedUsers.has(userId)) {
+      return next();
+    }
+
+    // No allowed users yet and no access code — first user auto-registers
+    if (allowedUsers.size === 0 && !accessCode) {
+      allowedUsers.add(userId);
+      try { saveTelegramConfig(allowedUsers); } catch (e) { console.error("   Failed to save config:", e.message); }
+      console.log(`   Auto-registered first user: ${userId}`);
+      return next();
+    }
+
+    // Check brute-force lockout
+    const attempts = authAttempts.get(userId);
+    if (attempts && attempts.count >= MAX_AUTH_ATTEMPTS) {
+      const elapsed = Date.now() - attempts.lastAttempt;
+      if (elapsed < AUTH_LOCKOUT_MS) {
+        // Silently ignore — don't reveal lockout timing to attacker
+        return;
+      }
+      // Lockout expired, reset
+      authAttempts.delete(userId);
+    }
+
+    // Check if the message is an access code attempt
+    const text = ctx.message?.text?.trim();
+    if (text && accessCode && text === accessCode) {
+      authAttempts.delete(userId);
+      allowedUsers.add(userId);
+      try { saveTelegramConfig(allowedUsers); } catch (e) { console.error("   Failed to save config:", e.message); }
+      console.log(`   User ${userId} authenticated via access code.`);
+      await ctx.reply(
+        "Access code accepted! You're now authorized.\n\n" +
+        "Send me a message to get started, or type /start for help.",
+      );
+      return;
+    }
+
+    // Track failed attempt
+    if (text && accessCode) {
+      const prev = authAttempts.get(userId) || { count: 0, lastAttempt: 0 };
+      prev.count++;
+      prev.lastAttempt = Date.now();
+      authAttempts.set(userId, prev);
+      console.log(`   Failed auth attempt from ${userId} (${prev.count}/${MAX_AUTH_ATTEMPTS})`);
+    }
+
+    // Unauthorized — prompt for access code
+    if (accessCode) {
+      await ctx.reply(
+        "This bot requires an access code.\n\n" +
+        "Send the access code to authenticate.",
+      );
+    } else {
+      await ctx.reply(
+        "Sorry, this bot is not accepting new users.\n" +
+        "Ask the bot owner to generate an access code.",
+      );
+    }
+  });
+
+  // --- Commands ---
+
+  bot.command("start", async (ctx) => {
+    const name = esc(config.profileName || "there");
+    await ctx.reply(
+      `👋 Hey ${name}! I'm your LlamaTalk Build agent.\n\n` +
+      `<b>Commands:</b>\n` +
+      `/new — Start a new session\n` +
+      `/sessions — List recent sessions\n` +
+      `/mode — Switch mode (Build/Plan/Recall)\n` +
+      `/model — Show current model\n` +
+      `/status — Show agent status\n` +
+      `/cancel — Cancel current operation\n\n` +
+      `Just send me a message and I'll start working!`,
+      { parse_mode: "HTML" }
+    );
+  });
+
+  bot.command("new", async (ctx) => {
+    const userId = ctx.from.id;
+    const engine = getEngine(userId);
+    engine.createSession(process.cwd());
+    await ctx.reply("✨ New session started.");
+  });
+
+  bot.command("sessions", async (ctx) => {
+    const sm = new SessionManager();
+    const sessions = sm.list().slice(0, 8);
+    if (sessions.length === 0) {
+      await ctx.reply("No sessions yet. Send a message to start one!");
+      return;
+    }
+
+    let text = "<b>Recent Sessions:</b>\n\n";
+    sessions.forEach((s, i) => {
+      const date = new Date(s.lastUsed || s.created).toLocaleDateString();
+      text += `${i + 1}. ${esc(s.title || "Untitled")} <i>(${esc(date)})</i>\n`;
+    });
+
+    const keyboard = new InlineKeyboard();
+    sessions.forEach((s, i) => {
+      keyboard.text(`${i + 1}`, `load_session:${s.id}`);
+      if ((i + 1) % 4 === 0) keyboard.row();
+    });
+
+    await ctx.reply(text, { parse_mode: "HTML", reply_markup: keyboard });
+  });
+
+  bot.command("mode", async (ctx) => {
+    const userId = ctx.from.id;
+    const engine = getEngine(userId);
+    const current = engine.getMode();
+
+    const keyboard = new InlineKeyboard()
+      .text(current === "build" ? "🔨 Build ✓" : "🔨 Build", "set_mode:build")
+      .text(current === "plan" ? "📋 Plan ✓" : "📋 Plan", "set_mode:plan")
+      .text(current === "recall" ? "💭 Recall ✓" : "💭 Recall", "set_mode:recall");
+
+    await ctx.reply(`Current mode: ${MODE_LABELS[current]}`, { reply_markup: keyboard });
+  });
+
+  bot.command("model", async (ctx) => {
+    const userId = ctx.from.id;
+    const engine = getEngine(userId);
+    await ctx.reply(`Current model: <code>${esc(engine.getModel() || "none")}</code>`, { parse_mode: "HTML" });
+  });
+
+  bot.command("status", async (ctx) => {
+    const userId = ctx.from.id;
+    const engine = getEngine(userId);
+    const mode = engine.getMode();
+    const model = engine.getModel();
+    const session = engine.currentSession;
+
+    let text = `<b>Agent Status</b>\n\n`;
+    text += `Model: <code>${esc(model || "none")}</code>\n`;
+    text += `Mode: ${esc(MODE_LABELS[mode] || mode)}\n`;
+    text += `Session: ${esc(session?.title || "none")}\n`;
+    text += `CWD: <code>${esc(process.cwd())}</code>`;
+
+    await ctx.reply(text, { parse_mode: "HTML" });
+  });
+
+  bot.command("cancel", async (ctx) => {
+    const userId = ctx.from.id;
+    if (engines.has(userId)) {
+      engines.get(userId).cancel();
+      await ctx.reply("⛔ Operation cancelled.");
+    } else {
+      await ctx.reply("Nothing to cancel.");
+    }
+  });
+
+  // --- Callback queries (inline keyboard) ---
+
+  bot.callbackQuery(/^set_mode:(.+)$/, async (ctx) => {
+    const userId = ctx.from.id;
+    const newMode = ctx.match[1];
+    if (!["build", "plan", "recall"].includes(newMode)) return ctx.answerCallbackQuery("Invalid mode");
+    const engine = getEngine(userId);
+    engine.setMode(newMode);
+    await ctx.answerCallbackQuery(`Switched to ${MODE_LABELS[newMode]}`);
+    await ctx.editMessageText(`Mode: ${MODE_LABELS[newMode]}`, { reply_markup: undefined });
+  });
+
+  bot.callbackQuery(/^load_session:([a-zA-Z0-9_-]+)$/, async (ctx) => {
+    const userId = ctx.from.id;
+    const sessionId = ctx.match[1];
+    const engine = getEngine(userId);
+    const result = engine.loadSession(sessionId);
+    if (result) {
+      await ctx.answerCallbackQuery("Session loaded");
+      await ctx.editMessageText(`Loaded: ${esc(result.title || "Untitled")}`, { reply_markup: undefined });
+    } else {
+      await ctx.answerCallbackQuery("Session not found");
+    }
+  });
+
+  bot.callbackQuery(/^confirm:(.+):(.+)$/, async (ctx) => {
+    const promptId = ctx.match[1];
+    const action = ctx.match[2]; // approve, deny, always
+
+    const resolver = pendingConfirms.get(promptId);
+    if (resolver) {
+      pendingConfirms.delete(promptId);
+      const value = action === "approve" ? true : action === "always" ? "always" : false;
+      resolver(value);
+      const label = action === "approve" ? "✅ Approved" : action === "always" ? "✅ Always approve" : "❌ Denied";
+      await ctx.answerCallbackQuery(label);
+      await ctx.editMessageText(label, { reply_markup: undefined });
+    } else {
+      await ctx.answerCallbackQuery("Expired");
+    }
+  });
+
+  bot.callbackQuery(/^plan_action:(.+):(.+)$/, async (ctx) => {
+    const promptId = ctx.match[1];
+    const action = ctx.match[2]; // execute, keep_planning, edit
+
+    const resolver = pendingConfirms.get(promptId);
+    if (resolver) {
+      pendingConfirms.delete(promptId);
+      resolver(action === "execute" ? "execute" : action === "keep_planning" ? "keep_planning" : "edit");
+      const label = action === "execute" ? "▶️ Executing" : action === "keep_planning" ? "📋 Continue planning" : "✏️ Edit plan";
+      await ctx.answerCallbackQuery(label);
+      await ctx.editMessageText(label, { reply_markup: undefined });
+    } else {
+      await ctx.answerCallbackQuery("Expired");
+    }
+  });
+
+  // --- Message handling ---
+
+  bot.on("message:text", async (ctx) => {
+    const userId = ctx.from.id;
+    const chatId = ctx.chat.id;
+    const text = ctx.message.text;
+
+    console.log(`   [${userId}] Message: ${text.slice(0, 80)}${text.length > 80 ? "..." : ""}`);
+
+    const engine = getEngine(userId);
+    const editor = getEditor(chatId);
+    editor.reset();
+
+    // Send initial "thinking" message
+    const thinkingMsg = await ctx.reply("🤔 Thinking...");
+    editor.setMessageId(thinkingMsg.message_id);
+
+    // Wire engine events for this request
+    const cleanup = wireEngineEvents(engine, bot, chatId, editor, pendingConfirms);
+
+    try {
+      await engine.sendMessage(text);
+    } catch (err) {
+      console.error(`   [${userId}] Engine error:`, err.message || err);
+      try {
+        await bot.api.sendMessage(chatId, `❌ Error: ${err.message || err}`);
+      } catch { /* */ }
+    }
+
+    // Final flush
+    await editor.flush();
+
+    // If editor has content, do final split send
+    const finalContent = editor.getContent();
+    if (finalContent) {
+      const html = toTelegramHtml(finalContent);
+      const chunks = splitMessage(html);
+      if (chunks.length > 1) {
+        // The first chunk was already edited in, send the rest as new messages
+        for (let i = 1; i < chunks.length; i++) {
+          await bot.api.sendMessage(chatId, chunks[i], { parse_mode: "HTML" });
+        }
+      }
+    }
+
+    cleanup();
+  });
+
+  // --- Start bot ---
+
+  console.log("🤖 LlamaTalk Build Telegram bot starting...");
+  console.log(`   Allowed users: ${allowedUsers.size > 0 ? [...allowedUsers].join(", ") : "none yet"}`);
+  console.log(`   Access code: ${accessCode || "none (first user auto-registers)"}`);
+  console.log(`   Model: ${config.selectedModel || "none"}`);
+  console.log(`   Mode: build`);
+  console.log(`   CWD: ${process.cwd()}`);
+  console.log("");
+  console.log("   Press Ctrl+C to stop.");
+
+  await bot.start({
+    onStart: () => console.log("   ✅ Bot connected to Telegram."),
+  });
+}
+
+/**
+ * Wire engine events to Telegram message updates for a single request.
+ * Returns a cleanup function to remove listeners.
+ */
+function wireEngineEvents(engine, bot, chatId, editor, pendingConfirms) {
+  let promptCounter = 0;
+
+  const handlers = {
+    "thinking-start": () => {
+      // Already showing "Thinking..." message
+    },
+
+    "thinking-stop": () => {
+      // Will be replaced by actual content
+    },
+
+    "response-start": () => {
+      editor.setContent("");
+    },
+
+    "token": (data) => {
+      editor.append(data.content);
+    },
+
+    "tool-start": async (data) => {
+      const text = formatToolStart(data.name, data.arguments);
+      try {
+        await bot.api.sendMessage(chatId, text, { parse_mode: "HTML" });
+      } catch { /* rate limit */ }
+    },
+
+    "tool-result": async (data) => {
+      const text = formatToolResult(data.name, data.success, data.summary);
+      try {
+        await bot.api.sendMessage(chatId, text, { parse_mode: "HTML" });
+      } catch { /* rate limit */ }
+    },
+
+    "confirm-needed": async ({ actions, resolve }) => {
+      const promptId = `p${++promptCounter}`;
+      pendingConfirms.set(promptId, resolve);
+
+      const actionText = actions.map((a) => `• ${a}`).join("\n");
+      const keyboard = new InlineKeyboard()
+        .text("✅ Approve", `confirm:${promptId}:approve`)
+        .text("❌ Deny", `confirm:${promptId}:deny`)
+        .text("✅ Always", `confirm:${promptId}:always`);
+
+      try {
+        await bot.api.sendMessage(
+          chatId,
+          `⚠️ <b>Confirmation needed:</b>\n\n${toTelegramHtml(actionText)}`,
+          { parse_mode: "HTML", reply_markup: keyboard }
+        );
+      } catch { /* */ }
+    },
+
+    "plan-complete": async ({ resolve }) => {
+      const promptId = `p${++promptCounter}`;
+      pendingConfirms.set(promptId, resolve);
+
+      const keyboard = new InlineKeyboard()
+        .text("▶️ Execute", `plan_action:${promptId}:execute`)
+        .text("📋 Keep Planning", `plan_action:${promptId}:keep_planning`)
+        .text("✏️ Edit", `plan_action:${promptId}:edit`);
+
+      try {
+        await bot.api.sendMessage(
+          chatId,
+          "📋 <b>Plan complete!</b> What would you like to do?",
+          { parse_mode: "HTML", reply_markup: keyboard }
+        );
+      } catch { /* */ }
+    },
+
+    "error": async (data) => {
+      try {
+        await bot.api.sendMessage(chatId, `Error: something went wrong. Check the terminal for details.`);
+        console.error(`   Engine error:`, data.message || data);
+      } catch { /* */ }
+    },
+
+    "mode-change": async (data) => {
+      const label = MODE_LABELS[data.to];
+      if (!label) return; // ignore unknown modes
+      try {
+        await bot.api.sendMessage(chatId, `Mode: ${label}`);
+      } catch { /* */ }
+    },
+  };
+
+  // Register all handlers
+  for (const [event, handler] of Object.entries(handlers)) {
+    engine.on(event, handler);
+  }
+
+  // Return cleanup function
+  return () => {
+    for (const [event, handler] of Object.entries(handlers)) {
+      engine.removeListener(event, handler);
+    }
+  };
+}

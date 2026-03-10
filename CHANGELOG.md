@@ -1,6 +1,28 @@
 # Changelog — LlamaTalk Build
 
-Last updated: 2026-03-09 (v2.2.0)
+Last updated: 2026-03-09 (v2.3.0)
+
+---
+
+## v2.3.0 — 2026-03-09
+
+### New Features
+- **Telegram bot** — chat with the Build agent from Telegram. Start with `llamabuild --telegram`. All 14 tools work, streaming via message edits, tool confirmations via inline keyboards. Supports Build, Plan, and Recall modes. Bot commands: `/start`, `/new`, `/sessions`, `/mode`, `/model`, `/cancel`, `/status`.
+- **Access code authentication** — Telegram bot generates an 8-character access code. Send it to the bot on Telegram to authenticate. Brute-force protected (5 attempts, 5-minute lockout).
+- **`/telegram` command** — manage Telegram settings: view status, set bot token, generate access codes, list authenticated users.
+- **`/home` command** — redisplay the dashboard with tasks, sessions, agent status, and command tips.
+- **Enhanced dashboard** — launch banner now shows active tasks with due date indicators, agent status (memory, lessons), and command tips in a two-panel layout.
+- **Onboarding "Get to Know You"** — after initial setup, the agent asks about your preferred stack, explanation style, project types, and more. Answers saved to lessons for personalized responses from day one.
+- **Telegram opt-in during onboarding** — set up a Telegram bot token during first-run setup with auto-generated access code.
+
+### Security
+- **HTML injection prevention** — all user-controlled values escaped in Telegram HTML messages.
+- **Safe config saving** — Telegram bot reloads config from disk before saving to prevent writing decrypted API keys.
+- **Input validation** — session IDs restricted to alphanumeric, mode callbacks validated against whitelist, error messages sanitized.
+
+### Improvements
+- **Force re-onboarding** — upgrading from v2.2.0 triggers the full onboarding flow including new features.
+- **Clean install** — NSIS installer deletes previous installation directory before installing.
 
 ---
 

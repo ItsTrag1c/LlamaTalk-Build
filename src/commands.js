@@ -3,6 +3,7 @@ import { detectBackend, getAllLocalModels, getOllamaModels, getOpenAICompatModel
 import { writeFileSync, readFileSync, existsSync, unlinkSync, mkdtempSync, rmSync, copyFileSync, renameSync, readdirSync } from "fs";
 import { join, relative, dirname } from "path";
 import { execSync } from "child_process";
+import { randomBytes } from "crypto";
 import { tmpdir } from "os";
 import {
   ORANGE, RED, GREEN, YELLOW, DIM, BOLD, RESET,
@@ -64,6 +65,9 @@ ${ORANGE}/server test${RESET}             Test all server connections
 ${ORANGE}/reflect${RESET}                 Agent reviews session and saves lessons
 ${ORANGE}/trust${RESET}                   Toggle auto-approve for session
 ${ORANGE}/compact${RESET}                 Toggle compact output
+${ORANGE}/home${RESET}                    Show dashboard
+${ORANGE}/telegram${RESET}                Manage Telegram bot config
+${ORANGE}/telegram code${RESET}           Generate access code for bot auth
 ${ORANGE}/update${RESET}                   Pull latest & rebuild from GitHub
 ${ORANGE}/quit${RESET} ${ORANGE}/exit${RESET}              Exit
 `);
@@ -627,6 +631,132 @@ ${BOLD}Settings${RESET}
       }
 
       console.log(DIM + "  Usage: /server [add|remove|test]" + RESET);
+      return { handled: true };
+    }
+
+    case "/home": {
+      // Clear terminal, re-fetch data, reprint dashboard
+      process.stdout.write("\x1b[2J\x1b[H");
+      const smHome = await import("./sessions.js").then((m) => new m.SessionManager());
+      const { TaskManager: TM } = await import("./memory/tasks.js");
+
+      let dashTasks = null;
+      try { dashTasks = new TM().list(); } catch { /* */ }
+
+      let dashMemStats = null;
+      try {
+        const mDir = getMemoryDir();
+        if (existsSync(mDir)) {
+          const files = readdirSync(mDir).filter((f) => f.endsWith(".md"));
+          const hasLessons = files.includes("lessons.md");
+          let lessonsCount = 0;
+          if (hasLessons) {
+            try {
+              const content = readFileSync(join(mDir, "lessons.md"), "utf8");
+              lessonsCount = (content.match(/^- /gm) || []).length;
+            } catch { /* */ }
+          }
+          dashMemStats = {
+            enabled: config.memoryEnabled !== false,
+            topicCount: files.filter((f) => f !== "MEMORY.md" && f !== "sessions.md").length,
+            hasLessons,
+            lessonsCount,
+          };
+        }
+      } catch { /* */ }
+
+      printBanner(version, {
+        model: config.selectedModel,
+        mode: agent?.getMode?.() || "build",
+        provider: config.backendType,
+        cwd: process.cwd(),
+        sessions: smHome.list().slice(0, 3),
+        tasks: dashTasks,
+        memoryStats: dashMemStats,
+      });
+      return { handled: true };
+    }
+
+    case "/telegram": {
+      const subCmd = args[0];
+
+      if (!subCmd) {
+        // Show current Telegram config
+        const token = config.telegramBotToken;
+        const users = config.telegramAllowedUsers || [];
+        const code = config.telegramAccessCode || "";
+        const masked = token && typeof token === "string" && token.length > 10
+          ? token.slice(0, 6) + "****" + token.slice(-4)
+          : token ? "(encrypted)" : "Not set";
+        console.log(`\n${BOLD}  Telegram Bot${RESET}`);
+        console.log(`  Token:       ${masked}`);
+        console.log(`  Access code: ${code || DIM + "None (use /telegram code to generate)" + RESET}`);
+        console.log(`  Users:       ${users.length > 0 ? users.join(", ") : "None"}`);
+        console.log(`  Status:      ${token ? GREEN + "Configured" + RESET : DIM + "Not configured" + RESET}`);
+        console.log(DIM + `\n  Start with: llamabuild --telegram${config.pinHash ? " --pin <pin>" : ""}` + RESET);
+        console.log("");
+        return { handled: true };
+      }
+
+      if (subCmd === "token") {
+        const token = args[1];
+        if (!token) {
+          console.log(DIM + "  Usage: /telegram token <bot-token>" + RESET);
+          return { handled: true };
+        }
+        config.telegramBotToken = token;
+        if (encKey) {
+          const { saveConfigWithKey } = await import("./config.js");
+          saveConfigWithKey(config, encKey);
+        } else {
+          saveConfig(config);
+        }
+        console.log(GREEN + "  Telegram bot token saved." + RESET);
+        // Auto-generate access code if none exists
+        if (!config.telegramAccessCode) {
+          const code = randomBytes(4).toString("hex");
+          config.telegramAccessCode = code;
+          saveConfig(config);
+          console.log(`  Access code generated: ${ORANGE}${code}${RESET}`);
+          console.log(DIM + "  Send this code to the bot on Telegram to authenticate." + RESET);
+        }
+        return { handled: true };
+      }
+
+      if (subCmd === "code") {
+        // Generate a new access code
+        const code = randomBytes(4).toString("hex");
+        config.telegramAccessCode = code;
+        saveConfig(config);
+        console.log(`\n  ${BOLD}Access code:${RESET} ${ORANGE}${code}${RESET}`);
+        console.log(DIM + "  Send this to the Telegram bot to authenticate new users." + RESET);
+        console.log(DIM + "  Each user sends the code once, then they're permanently authorized." + RESET);
+        console.log("");
+        return { handled: true };
+      }
+
+      if (subCmd === "users") {
+        const users = config.telegramAllowedUsers || [];
+        if (users.length === 0) {
+          console.log(DIM + "  No authorized users." + RESET);
+        } else {
+          console.log(`\n  ${BOLD}Authorized Users${RESET}`);
+          users.forEach((u, i) => console.log(`  ${i + 1}. ${u}`));
+          console.log("");
+        }
+        return { handled: true };
+      }
+
+      if (subCmd === "clear") {
+        config.telegramBotToken = "";
+        config.telegramAllowedUsers = [];
+        config.telegramAccessCode = "";
+        saveConfig(config);
+        console.log(GREEN + "  Telegram config cleared." + RESET);
+        return { handled: true };
+      }
+
+      console.log(DIM + "  Usage: /telegram [token <t> | code | users | clear]" + RESET);
       return { handled: true };
     }
 

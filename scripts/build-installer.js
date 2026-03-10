@@ -92,6 +92,8 @@ SetCompressor lzma
 
 ; ── Install ────────────────────────────────────────────────────────────────────
 Section "Install"
+  ; Clean previous installation files (preserves %APPDATA% config/memory)
+  RMDir /r "$INSTDIR"
   SetOutPath "$INSTDIR"
   File "${exeSrcNsi}"
   Rename "$INSTDIR\\\\LlamaTalkBuild_${version}.exe" "$INSTDIR\\\\LlamaTalkBuild.exe"

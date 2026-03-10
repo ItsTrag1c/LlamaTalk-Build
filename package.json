@@ -1,6 +1,6 @@
 {
   "name": "llamatalkbuild",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "author": "ItsTrag1c",
   "type": "module",
   "bin": {
@@ -12,6 +12,10 @@
     "build:exe": "node scripts/build-exe.js",
     "build": "npm run build:bundle && npm run build:exe",
     "changelog-pdf": "node scripts/make-changelog-pdf.js"
+  },
+  "dependencies": {
+    "grammy": "^1.35.0",
+    "llamatalkbuild-engine": "file:../llamatalkbuild-engine"
   },
   "devDependencies": {
     "esbuild": "^0.25.0",

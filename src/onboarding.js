@@ -1,7 +1,9 @@
 import { existsSync, mkdirSync, writeFileSync } from "fs";
 import { join } from "path";
-import { hashPin, generateEncKeySalt, deriveEncKey, getMemoryDir } from "./config.js";
+import { randomBytes } from "crypto";
+import { hashPin, generateEncKeySalt, deriveEncKey, getMemoryDir, saveConfig } from "./config.js";
 import { detectBackend, getOllamaModels, getOpenAICompatModels, CLOUD_MODELS } from "./providers/router.js";
+import { MemoryManager } from "./memory/memory.js";
 import { printBanner } from "./ui/banner.js";
 import { ORANGE, GREEN, YELLOW, RED, RESET, BOLD, DIM } from "./ui/ui.js";
 import { askMasked } from "./ui/ui.js";
@@ -152,9 +154,72 @@ export async function runOnboarding(rl, config) {
   console.log(DIM + "  LlamaTalk Build remembers your preferences and patterns across sessions." + RESET);
   console.log(DIM + "  Use /memory to manage memories.\n" + RESET);
 
+  // Step 8: Get to Know You
+  console.log(BOLD + "\nOne last thing" + RESET + DIM + " — I'd like to get to know you a bit so I can be more helpful." + RESET);
+  console.log(DIM + "Press Enter to skip any question.\n" + RESET);
+
+  // Liability notice (condensed)
+  console.log(YELLOW + "  ⚠ LlamaTalk Build can read, write, delete files and execute commands." + RESET);
+  console.log(DIM + "  Review agent actions carefully. Use MEDIUM/HIGH safety levels.\n" + RESET);
+
+  const memory = new MemoryManager(config, encKey);
+
+  const q1 = await ask(rl, BOLD + "What's your go-to programming language or stack? " + RESET);
+  if (q1.trim()) {
+    memory.appendLesson("about_you", `Preferred language/stack: ${q1.trim()}`);
+  } else {
+    console.log(DIM + "  No worries, we can do this later with /reflect!\n" + RESET);
+    config.onboardingDone = true;
+    config.onboardingComplete = true;
+    config.appVersion = "2.3.0";
+    console.log(ORANGE + BOLD + "All set! Starting LlamaTalk Build...\n" + RESET);
+    return encKey;
+  }
+
+  const q2 = await ask(rl, BOLD + "How do you prefer explanations — brief or detailed? " + RESET);
+  if (q2.trim()) {
+    memory.appendLesson("about_you", `Explanation preference: ${q2.trim()}`);
+  }
+
+  const q3 = await ask(rl, BOLD + "What kind of projects do you usually work on? " + RESET);
+  if (q3.trim()) {
+    memory.appendLesson("about_you", `Typical projects: ${q3.trim()}`);
+  }
+
+  const q4 = await ask(rl, BOLD + "Anything else you'd like me to know? " + RESET + DIM + "(optional) " + RESET);
+  if (q4.trim()) {
+    memory.appendLesson("about_you", `Additional: ${q4.trim()}`);
+  }
+
+  console.log(GREEN + "\n  Got it! I'll keep these in mind. You can update anytime with /reflect." + RESET);
+
+  // Step 9: Telegram opt-in
+  console.log("");
+  const wantTelegram = await ask(rl, BOLD + "Connect LlamaTalk Build to Telegram? " + RESET + DIM + "(y/N) " + RESET);
+  if (wantTelegram.trim().toLowerCase() === "y") {
+    console.log(DIM + "  Messages will route through Telegram's servers.\n" + RESET);
+    const botToken = await ask(rl, "  Bot token from @BotFather: ");
+    if (botToken.trim()) {
+      config.telegramBotToken = botToken.trim();
+      // Generate access code for bot authentication
+      const code = randomBytes(4).toString("hex");
+      config.telegramAccessCode = code;
+      console.log(GREEN + "  Token saved." + RESET);
+      console.log(`  Access code: ${ORANGE}${code}${RESET}`);
+      console.log(DIM + "  Send this code to the bot on Telegram to authenticate." + RESET);
+      console.log(DIM + `\n  Start the bot with: llamabuild --telegram${config.pinHash ? " --pin <pin>" : ""}` + RESET);
+    } else {
+      console.log(DIM + "  Skipped — set up later with /telegram token <token>" + RESET);
+    }
+  } else {
+    console.log(DIM + "  Skipped — set up later with /telegram" + RESET);
+  }
+
   // Done
   config.onboardingDone = true;
-  console.log(ORANGE + BOLD + "All set! Starting LlamaTalk Build...\n" + RESET);
+  config.onboardingComplete = true;
+  config.appVersion = "2.3.0";
+  console.log(ORANGE + BOLD + "\nAll set! Starting LlamaTalk Build...\n" + RESET);
   return encKey;
 }
 
