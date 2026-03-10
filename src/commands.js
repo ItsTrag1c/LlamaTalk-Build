@@ -119,12 +119,23 @@ ${ORANGE}/quit${RESET} ${ORANGE}/exit${RESET}              Exit
         config.serverBackendMap = result.serverBackendMap;
 
         const visible = result.allModels.filter((m) => !(config.hiddenModels || []).includes(m));
+        // Group local models by server
+        const byServer = {};
         for (const m of visible) {
-          const running = result.runningModels.has(m);
-          const current = m === config.selectedModel;
-          const badge = running ? ` ${GREEN}●${RESET}` : "";
-          const marker = current ? ` ${ORANGE}◀${RESET}` : "";
-          console.log(`  ${m}${badge}${marker}`);
+          const url = result.modelServerMap[m] || config.ollamaUrl;
+          if (!byServer[url]) byServer[url] = [];
+          byServer[url].push(m);
+        }
+        for (const [url, models] of Object.entries(byServer)) {
+          const backend = result.serverBackendMap[url] || "unknown";
+          console.log(`\n  ${DIM}── ${backend} (${url}) ──${RESET}`);
+          for (const m of models) {
+            const running = result.runningModels.has(m);
+            const current = m === config.selectedModel;
+            const badge = running ? ` ${GREEN}●${RESET}` : "";
+            const marker = current ? ` ${ORANGE}◀${RESET}` : "";
+            console.log(`    ${m}${badge}${marker}`);
+          }
         }
       } catch {
         console.log(DIM + "  Could not fetch local models." + RESET);
@@ -133,10 +144,11 @@ ${ORANGE}/quit${RESET} ${ORANGE}/exit${RESET}              Exit
       // Show cloud models
       for (const [provider, models] of Object.entries(CLOUD_MODELS)) {
         if (config.enabledProviders?.[provider]) {
+          console.log(`\n  ${DIM}── ${provider} (cloud) ──${RESET}`);
           for (const m of models) {
             const current = m === config.selectedModel;
             const marker = current ? ` ${ORANGE}◀${RESET}` : "";
-            console.log(`  ${m} ${DIM}(${provider})${RESET}${marker}`);
+            console.log(`    ${m}${marker}`);
           }
         }
       }
@@ -913,6 +925,43 @@ ${BOLD}Settings${RESET}
         inject: "Review this session. What did you learn — about me (preferences, habits, communication style), about patterns that worked well, mistakes made, or problems solved? Save any useful lessons to lessons.md under the appropriate headings (## About You, ## Patterns, ## Mistakes, ## Solutions). Check existing lessons first to avoid duplicates.",
         restoreMode: wasQA ? "qa" : null,
       };
+    }
+
+    // Hidden command — not in /help
+    case "/claudeauth": {
+      const { isClaudeCodeAvailable, getClaudeCodeStatus, getClaudeCodeToken } = await import("llamatalkbuild-engine");
+
+      if (args[0] === "off") {
+        config.claudeCodeAuth = false;
+        saveConfigWithKey(config, encKey);
+        console.log(`  ${GREEN}Claude Code auth disabled.${RESET} Using API key.`);
+        return { handled: true };
+      }
+
+      // Check Claude Code credentials
+      const status = getClaudeCodeStatus();
+      if (!status.available) {
+        console.log(`  ${RED}${status.reason}${RESET}`);
+        console.log(`  ${DIM}Make sure Claude Code is installed and you're signed in.${RESET}`);
+        return { handled: true };
+      }
+
+      if (status.expired) {
+        console.log(`  ${YELLOW}Claude Code token is expired.${RESET} Open Claude Code to refresh it.`);
+        return { handled: true };
+      }
+
+      // Enable it
+      config.claudeCodeAuth = true;
+      config.enabledProviders = config.enabledProviders || {};
+      config.enabledProviders.anthropic = true;
+      saveConfigWithKey(config, encKey);
+
+      const expiresHrs = status.expiresIn ? Math.round(status.expiresIn / 3600000) : "?";
+      console.log(`  ${GREEN}Claude Code auth enabled.${RESET}`);
+      console.log(`  ${DIM}Subscription: ${status.subscriptionType} | Tier: ${status.rateLimitTier} | Expires in: ~${expiresHrs}h${RESET}`);
+      console.log(`  ${DIM}Anthropic models now available without an API key.${RESET}`);
+      return { handled: true };
     }
 
     default: {

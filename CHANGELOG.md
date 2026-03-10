@@ -1,6 +1,13 @@
 # Changelog — LlamaTalk Build
 
-Last updated: 2026-03-10 (v2.5.0)
+Last updated: 2026-03-10 (v2.5.1)
+
+---
+
+## v2.5.1 — 2026-03-10
+
+### Improvements
+- **Provider labels in `/models`** — models are now grouped by provider/server with clear headers showing the backend type and URL (for local servers) or provider name (for cloud). Makes it easy to distinguish identical models served by different providers.
 
 ---
 
