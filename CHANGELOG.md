@@ -8,6 +8,7 @@ Last updated: 2026-03-09 (v2.3.1)
 
 ### Bug Fixes
 - **Telegram bot crash on deny** — fixed unhandled Telegram API errors in callback query handlers (confirm, plan action, session load) that caused the bot to silently crash when denying actions. Added try-catch around all `answerCallbackQuery` / `editMessageText` calls and a global `bot.catch()` error handler.
+- **`/update` broken by engine dependency** — moved the `llamatalkbuild-engine` package into the CLI repo (`engine/`) so `/update` can build from a clean clone without the local `file:` dependency failing.
 
 ---
 

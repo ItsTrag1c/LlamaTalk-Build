@@ -15,7 +15,7 @@
   },
   "dependencies": {
     "grammy": "^1.35.0",
-    "llamatalkbuild-engine": "file:../llamatalkbuild-engine"
+    "llamatalkbuild-engine": "file:./engine"
   },
   "devDependencies": {
     "esbuild": "^0.25.0",

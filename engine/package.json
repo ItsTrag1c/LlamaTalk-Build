@@ -1,0 +1,12 @@
+{
+  "name": "llamatalkbuild-engine",
+  "version": "1.0.0",
+  "description": "Headless agent engine for LlamaTalk Build — shared by CLI and Desktop",
+  "author": "ItsTrag1c",
+  "type": "module",
+  "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "license": "MIT"
+}
