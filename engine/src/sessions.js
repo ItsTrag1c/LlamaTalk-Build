@@ -102,6 +102,17 @@ export class SessionManager {
     try { if (existsSync(convPath)) unlinkSync(convPath); } catch { /* non-fatal */ }
   }
 
+  /** Delete all sessions and their conversation files */
+  deleteAll() {
+    const convDir = getConversationDir();
+    for (const s of this.sessions) {
+      const convPath = join(convDir, `${s.id}.json`);
+      try { if (existsSync(convPath)) unlinkSync(convPath); } catch { /* non-fatal */ }
+    }
+    this.sessions = [];
+    saveIndex(this.sessions);
+  }
+
   /** Remove oldest sessions beyond MAX_SESSIONS */
   _prune() {
     if (this.sessions.length <= MAX_SESSIONS) return;

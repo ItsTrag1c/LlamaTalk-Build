@@ -1,6 +1,17 @@
 # Changelog — LlamaTalk Build
 
-Last updated: 2026-03-10 (v2.3.7)
+Last updated: 2026-03-10 (v2.3.8)
+
+---
+
+## v2.3.8 — 2026-03-10
+
+### New Features
+- **`/clearsessions`** — delete all sessions from Telegram with a confirmation prompt.
+- **Session delete buttons** — `/sessions` now shows a 🗑️ button next to each session for individual deletion, plus a "Delete All" button at the bottom.
+
+### Bug Fixes
+- **Telegram bot disconnect on confirmations** — patched grammy's `handleUpdates` to catch fatal errors that were silently stopping the polling loop. The bot no longer disconnects after tool confirmations or plan actions. Added auto-restart loop as a fallback safety net.
 
 ---
 

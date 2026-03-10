@@ -50,6 +50,18 @@ export async function startTelegramBot(config, encKey) {
 
   const bot = new Bot(token);
 
+  // Patch grammy's handleUpdates to prevent non-BotError crashes from stopping polling.
+  // grammy's default behavior: if handleUpdate throws a non-BotError, it rethrows and
+  // kills the polling loop. We override to catch ALL errors and route them through errorHandler.
+  const _origHandleUpdates = bot.handleUpdates.bind(bot);
+  bot.handleUpdates = async function(updates) {
+    try {
+      await _origHandleUpdates(updates);
+    } catch (err) {
+      console.error("   [Telegram] Caught fatal polling error (prevented disconnect):", err?.message || err);
+    }
+  };
+
   // Per-user engine instances
   const engines = new Map();
   // Pending confirmations — keyed by globally unique promptId
@@ -167,6 +179,7 @@ export async function startTelegramBot(config, encKey) {
       `/new — Start a new session\n` +
       `/clear — Clear conversation history\n` +
       `/sessions — List recent sessions\n` +
+      `/clearsessions — Delete all sessions\n` +
       `/mode — Switch mode (Build/Plan/Recall)\n` +
       `/model — Show or set model\n` +
       `/models — List all available models\n` +
@@ -200,11 +213,21 @@ export async function startTelegramBot(config, encKey) {
 
     const keyboard = new InlineKeyboard();
     sessions.forEach((s, i) => {
-      keyboard.text(`${i + 1}`, `load_session:${s.id}`);
-      if ((i + 1) % 4 === 0) keyboard.row();
+      keyboard
+        .text(`📂 ${i + 1}`, `load_session:${s.id}`)
+        .text(`🗑️`, `delete_session:${s.id}`)
+        .row();
     });
+    keyboard.text("🗑️ Delete All", "delete_all_sessions");
 
     await ctx.reply(text, { parse_mode: "HTML", reply_markup: keyboard });
+  });
+
+  bot.command("clearsessions", async (ctx) => {
+    const keyboard = new InlineKeyboard()
+      .text("✅ Yes, delete all", "confirm_clear_sessions")
+      .text("❌ Cancel", "cancel_clear_sessions");
+    await ctx.reply("⚠️ <b>Delete all sessions?</b> This cannot be undone.", { parse_mode: "HTML", reply_markup: keyboard });
   });
 
   bot.command("mode", async (ctx) => {
@@ -335,6 +358,59 @@ export async function startTelegramBot(config, encKey) {
         await ctx.answerCallbackQuery("Session not found");
       }
     } catch { /* Telegram API error — non-fatal */ }
+  });
+
+  bot.callbackQuery("delete_all_sessions", async (ctx) => {
+    const keyboard = new InlineKeyboard()
+      .text("✅ Yes, delete all", "confirm_clear_sessions")
+      .text("❌ Cancel", "cancel_clear_sessions");
+    try {
+      await ctx.answerCallbackQuery();
+      await ctx.editMessageText("⚠️ <b>Delete all sessions?</b> This cannot be undone.", { parse_mode: "HTML", reply_markup: keyboard });
+    } catch { /* non-fatal */ }
+  });
+
+  bot.callbackQuery("confirm_clear_sessions", async (ctx) => {
+    const userId = ctx.from.id;
+    const sm = new SessionManager();
+    const count = sm.list().length;
+    sm.deleteAll();
+    // Reset the engine so it starts a fresh session
+    if (engines.has(userId)) {
+      engines.get(userId).createSession(process.cwd());
+    }
+    try {
+      await ctx.answerCallbackQuery(`Deleted ${count} sessions`);
+      await ctx.editMessageText(`🗑️ Deleted ${count} session${count !== 1 ? "s" : ""}. A new session has been started.`, { reply_markup: undefined });
+    } catch { /* non-fatal */ }
+  });
+
+  bot.callbackQuery("cancel_clear_sessions", async (ctx) => {
+    try {
+      await ctx.answerCallbackQuery("Cancelled");
+      await ctx.editMessageText("Session deletion cancelled.", { reply_markup: undefined });
+    } catch { /* non-fatal */ }
+  });
+
+  bot.callbackQuery(/^delete_session:([a-zA-Z0-9_-]+)$/, async (ctx) => {
+    const userId = ctx.from.id;
+    const sessionId = ctx.match[1];
+    const sm = new SessionManager();
+    const session = sm.get(sessionId);
+    if (session) {
+      sm.delete(sessionId);
+      // If deleting the current session, start a new one
+      const engine = getEngine(userId);
+      if (engine.conversationId === sessionId) {
+        engine.createSession(process.cwd());
+      }
+      try {
+        await ctx.answerCallbackQuery("Session deleted");
+        await ctx.editMessageText(`🗑️ Deleted: ${esc(session.title || "Untitled")}`, { parse_mode: "HTML", reply_markup: undefined });
+      } catch { /* non-fatal */ }
+    } else {
+      try { await ctx.answerCallbackQuery("Session not found"); } catch { /* */ }
+    }
   });
 
   bot.callbackQuery(/^confirm:(.+):(.+)$/, async (ctx) => {
@@ -480,10 +556,15 @@ export async function startTelegramBot(config, encKey) {
   });
 
   // --- Global error handler (prevents unhandled errors from crashing the process) ---
+  // CRITICAL: this handler must NEVER throw, or grammy will stop polling.
   bot.catch((err) => {
-    const actual = err.error || err;
-    console.error("   [Telegram] Bot error:", actual.message || actual);
-    if (actual.stack) console.error(actual.stack);
+    try {
+      const actual = err?.error || err;
+      console.error("   [Telegram] Bot error:", actual?.message || String(actual));
+      if (actual?.stack) console.error(actual.stack);
+    } catch {
+      console.error("   [Telegram] Bot error (could not format)");
+    }
   });
 
   // --- Start bot ---
