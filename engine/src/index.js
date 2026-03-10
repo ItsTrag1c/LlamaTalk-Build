@@ -50,6 +50,7 @@ export {
 // Tools
 export { ToolRegistry } from "./tools/registry.js";
 export { isReadOnlyTool } from "./tools/base.js";
+export { delegateAgentTool } from "./tools/delegate-agent.js";
 
 // Safety
 export { validatePath, isDestructiveCommand, requireConfirmation, validatePackageName } from "./safety.js";

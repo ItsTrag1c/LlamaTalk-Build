@@ -393,7 +393,8 @@ export function printSeparator(label = "") {
 // Agent response header
 // ──────────────────────────────────────────────────────
 
-export function printAgentHeader(modelName = "") {
+export function printAgentHeader(modelName = "", agentName = "") {
+  const name = agentName || "Llama";
   const model = modelName ? ` ${T.textMuted}${modelName}${T.reset}` : "";
-  process.stdout.write(`\n  ${T.agentName}Llama${T.reset}${model} ${T.bold}${icons.chevronRight}${T.reset} `);
+  process.stdout.write(`\n  ${T.agentName}${name}${T.reset}${model} ${T.bold}${icons.chevronRight}${T.reset} `);
 }

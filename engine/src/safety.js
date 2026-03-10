@@ -67,6 +67,11 @@ const DESTRUCTIVE_PATTERNS = [
   /\bgit\s+push\s+.*--force/i,
   /\bgit\s+reset\s+--hard/i,
   /\bgit\s+clean\s+-[fd]/i,
+  /\b(curl|wget|invoke-webrequest).*\|\s*(bash|sh|powershell|cmd)/i, // pipe-to-shell
+  /\bchmod\s+777\b/i,                   // world-writable
+  /\breg\s+(delete|add).*\\\\HKLM/i,    // Windows registry modification
+  /\bnet\s+user\b/i,                    // Windows user management
+  /\bdiskpart/i,                         // disk management
 ];
 
 export function isDestructiveCommand(command) {

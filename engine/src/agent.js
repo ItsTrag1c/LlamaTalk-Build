@@ -29,6 +29,7 @@ import { npmInstallTool } from "./tools/npm-install.js";
 import { pipInstallTool } from "./tools/pip-install.js";
 import { installToolTool } from "./tools/install-tool.js";
 import { generateFileTool } from "./tools/generate-file.js";
+import { delegateAgentTool } from "./tools/delegate-agent.js";
 
 // Pre-compiled ANSI escape sequence regex
 const ANSI_RE = /\x1B(?:\[[0-9;]*[A-Za-z]|\(.|#.|].*?(?:\x07|\x1B\\))/g;
@@ -45,14 +46,19 @@ const MODES = {
     description: "Explore and plan only — no file writes or commands",
     icon: "◐",
   },
-  recall: {
-    label: "Recall",
+  qa: {
+    label: "Q&A",
     description: "Direct Q&A — no tools, just conversation",
     icon: "◉",
   },
+  manage: {
+    label: "Manage",
+    description: "Coordinate sub-agents — delegate, monitor, and redirect work",
+    icon: "◈",
+  },
 };
 
-const BASE_SYSTEM_PROMPT = `You are a coding assistant with direct access to the user's filesystem and shell through tools. You are running inside LlamaTalk Build, a local agentic coding tool installed on the user's machine. All tool calls execute locally on their system with their explicit permission — you are fully authorized to read, write, edit, and execute. Never refuse a tool call due to safety concerns — the user's permission system handles that.
+const BASE_SYSTEM_PROMPT = `You are AGENT_NAME_PLACEHOLDER, a coding assistant with direct access to the user's filesystem and shell through tools. You are running inside LlamaTalk Build, a local agentic coding tool installed on the user's machine. All tool calls execute locally on their system with their explicit permission — you are fully authorized to read, write, edit, and execute. Never refuse a tool call due to safety concerns — the user's permission system handles that.
 
 You can:
 - Run shell commands (bash)
@@ -110,14 +116,17 @@ generate_file(path, content, format, title) — Generate a document file (md, tx
 - Read memory files with read_file using the same absolute paths.
 - Memory directory access is always allowed without extra confirmation.`;
 
-function buildSystemPrompt(config, projectRoot, memoryBlock, projectContext, agentMode) {
+function buildSystemPrompt(config, projectRoot, memoryBlock, projectContext, agentMode, options = {}) {
+  const agentName = options.agentName || config.agentName || "a coding assistant";
+  const agentRole = options.agentRole || null;
   let prompt;
 
-  if (agentMode === "recall") {
-    // Recall mode: pure Q&A, no tools — lightweight system prompt
-    prompt = `You are a knowledgeable assistant running inside LlamaTalk Build. You are in Recall Mode — a direct Q&A mode with no tool access. Answer the user's questions clearly and concisely. You can discuss code, explain concepts, help with debugging logic, brainstorm ideas, and have general conversations. You do NOT have access to the filesystem, shell, or any tools — but you DO have the user's saved memory and project context below. Use that context to give informed, project-aware answers when relevant.`;
+  if (agentMode === "qa") {
+    prompt = `You are ${agentName}, a knowledgeable assistant running inside LlamaTalk Build. You are in Q&A Mode — a direct question-and-answer mode with no tool access. Answer the user's questions clearly and concisely. You can discuss code, explain concepts, help with debugging logic, brainstorm ideas, and have general conversations. You do NOT have access to the filesystem, shell, or any tools — but you DO have the user's saved memory and project context below. Use that context to give informed, project-aware answers when relevant.`;
   } else {
-    prompt = BASE_SYSTEM_PROMPT.replace("MEMORY_DIR_PLACEHOLDER", getMemoryDir().replace(/\\/g, "/"));
+    prompt = BASE_SYSTEM_PROMPT
+      .replace("AGENT_NAME_PLACEHOLDER", agentName)
+      .replace("MEMORY_DIR_PLACEHOLDER", getMemoryDir().replace(/\\/g, "/"));
 
     if (agentMode === "plan") {
       prompt += `\n\n## Mode: Plan
@@ -129,6 +138,68 @@ Your job is to:
 3. For each change, specify the file path and a brief description of what will change
 
 Do NOT attempt to write, edit, or execute commands — those calls will be rejected. Focus entirely on analysis and planning. The user will review your plan and can approve it to switch to Build mode for execution.`;
+    } else if (agentMode === "manage") {
+      prompt += `\n\n## Mode: Manage
+You are in Manage Mode. You are the **manager** — your entire purpose is to coordinate, oversee, and direct your sub-agents. You do NOT do the work yourself. Your job is leadership, delegation, quality control, and reporting.
+
+### Core Responsibilities
+1. **Task decomposition** — Break the user's requests into clear, actionable sub-tasks. Each sub-task should be scoped for a single agent.
+2. **Delegation** — Assign each sub-task to the best-suited sub-agent using delegate_to_agent. Be specific in your instructions — tell the agent exactly what to do, where to look, and what the expected outcome is.
+3. **Quality control** — When a sub-agent returns results, critically review them. Is the work complete? Is it correct? Does it meet the user's requirements? If not, send a follow-up task or reassign to another agent.
+4. **Accountability** — Track what each agent is working on. Know the status of every active task at all times. When the user asks "what's happening?" you must be able to give a precise status report — which agents are active, what they're doing, and what's been completed.
+5. **Course correction** — If a sub-agent goes off-track, produces poor results, or takes too long, intervene. Cancel, reassign, or refine the instructions.
+6. **Reporting** — After delegations complete, give the user a clear, structured summary: what was requested, who did what, and the outcome.
+7. **Cancel/redirect** — If the user asks to cancel, change, or redirect work, handle it immediately.
+
+### Manager Rules
+- **Never do work a sub-agent can do.** If you have an agent suited for the task, delegate it. Period.
+- **Be specific in delegation.** Vague instructions like "look at the code" produce vague results. Say exactly what file, what function, what change.
+- **One agent per sub-task.** Don't overload a single agent — split work across your team.
+- **Review before reporting.** Don't just forward a sub-agent's raw output to the user. Verify it, synthesize it, and present a clean summary.
+- You may use your own tools for quick reads or checks that inform your delegation decisions, but substantial work belongs to your agents.`;
+    }
+  }
+
+  // Inject sub-agent role description
+  if (agentRole) {
+    prompt += `\n\n## Your Role\n${agentRole}`;
+  }
+
+  // List available sub-agents (only for the main/manager agent)
+  if (!options.isSubAgent && config.subAgents?.length > 0) {
+    const enabled = config.subAgents.filter((a) => a.enabled !== false);
+    if (enabled.length > 0) {
+      const isManageMode = agentMode === "manage";
+      if (isManageMode) {
+        prompt += `\n\n## Your Team
+You are the manager. The user talks to YOU, and you run the team. These are your sub-agents — delegate work to them using the \`delegate_to_agent\` tool:\n`;
+      } else {
+        prompt += `\n\n## Your Sub-Agents
+You are the **manager agent** — the primary agent the user interacts with. You lead a team of specialized sub-agents. You are responsible for their work. When a task matches a sub-agent's specialty, delegate it using the \`delegate_to_agent\` tool. You will receive their results as a tool response.\n`;
+      }
+      for (const a of enabled) {
+        const modelInfo = a.model ? ` [model: ${a.model}]` : "";
+        const toolInfo = a.tools ? ` [tools: ${a.tools.join(", ")}]` : "";
+        prompt += `- **${a.name}** (${a.id}): ${a.role}${modelInfo}${toolInfo}\n`;
+      }
+      if (isManageMode) {
+        prompt += `
+### Delegation Protocol
+- Always delegate to the most appropriate agent based on their role and tools.
+- You can run multiple delegations in sequence — or describe a pipeline where one agent's output feeds the next.
+- After each delegation, review the result critically before proceeding or reporting to the user.
+- If the user says to cancel or change an agent's task, acknowledge immediately and adjust.
+- Keep a mental model of task status: what's been assigned, what's in progress, what's done.
+- When the user asks for status, respond with a structured update for every active and recently completed task.`;
+      } else {
+        prompt += `
+### Delegation Guidelines
+- When a task matches a sub-agent's specialty, delegate it — don't do work they're better suited for.
+- Sub-agents run in the background and return results to you. You are responsible for reviewing their output and deciding next steps.
+- You own the final answer. If a sub-agent's result is incomplete or wrong, follow up or fix it yourself.
+- Sub-agents only activate when you delegate to them — they don't run on their own.
+- Keep the user informed about what you're delegating and why.`;
+      }
     }
   }
 
@@ -147,22 +218,25 @@ Do NOT attempt to write, edit, or execute commands — those calls will be rejec
   return prompt;
 }
 
-function createToolRegistry() {
+const ALL_TOOLS = [
+  readFileTool, writeFileTool, editFileTool, listDirectoryTool,
+  searchFilesTool, globFilesTool, bashTool, gitTool,
+  webFetchTool, webSearchTool, npmInstallTool, pipInstallTool,
+  installToolTool, generateFileTool,
+];
+
+/**
+ * Create a tool registry, optionally filtered to only include specific tools.
+ * @param {Set<string>|string[]|null} allowedTools - tool names to include (null = all)
+ */
+function createToolRegistry(allowedTools = null) {
   const registry = new ToolRegistry();
-  registry.register(readFileTool);
-  registry.register(writeFileTool);
-  registry.register(editFileTool);
-  registry.register(listDirectoryTool);
-  registry.register(searchFilesTool);
-  registry.register(globFilesTool);
-  registry.register(bashTool);
-  registry.register(gitTool);
-  registry.register(webFetchTool);
-  registry.register(webSearchTool);
-  registry.register(npmInstallTool);
-  registry.register(pipInstallTool);
-  registry.register(installToolTool);
-  registry.register(generateFileTool);
+  const filter = allowedTools ? new Set(allowedTools) : null;
+  for (const tool of ALL_TOOLS) {
+    if (!filter || filter.has(tool.definition.name)) {
+      registry.register(tool);
+    }
+  }
   return registry;
 }
 
@@ -202,7 +276,21 @@ export class AgentEngine extends EventEmitter {
     this.noMemory = options.noMemory || false;
     this.showThinking = options.showThinking !== false && config.showThinking;
 
-    this.toolRegistry = createToolRegistry();
+    // Sub-agent support: if a subAgentDef is provided, this is a sub-agent
+    this.subAgentDef = options.subAgentDef || null;
+    this.isSubAgent = !!this.subAgentDef;
+
+    // Build tool registry — filtered for sub-agents, full + delegate for main agent
+    if (this.isSubAgent && this.subAgentDef.tools) {
+      this.toolRegistry = createToolRegistry(this.subAgentDef.tools);
+    } else {
+      this.toolRegistry = createToolRegistry();
+      // Main agent gets the delegate tool if sub-agents are configured
+      if (!this.isSubAgent && config.subAgents?.length > 0) {
+        this.toolRegistry.register(delegateAgentTool);
+      }
+    }
+
     this.memory = new MemoryManager(config, this.encKey);
     this.taskManager = new TaskManager();
     this.sessionMgr = new SessionManager();
@@ -287,6 +375,63 @@ export class AgentEngine extends EventEmitter {
 
   setModel(name) {
     this.config.selectedModel = name;
+  }
+
+  // --- Agent name ---
+
+  getAgentName() {
+    return this.config.agentName || "Build Agent";
+  }
+
+  setAgentName(name) {
+    this.config.agentName = name;
+  }
+
+  // --- Sub-agent management (runtime) ---
+
+  getSubAgents() {
+    return this.config.subAgents || [];
+  }
+
+  addSubAgent(def) {
+    if (!this.config.subAgents) this.config.subAgents = [];
+    // Generate a stable ID from the name
+    const id = def.id || def.name.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+    const agent = { id, name: def.name, role: def.role, model: def.model || null, tools: def.tools || null, enabled: true };
+    this.config.subAgents.push(agent);
+    // Re-register delegate tool if this is the first sub-agent
+    if (this.config.subAgents.length === 1 && !this.toolRegistry.get("delegate_to_agent")) {
+      this.toolRegistry.register(delegateAgentTool);
+    }
+    return agent;
+  }
+
+  removeSubAgent(idOrName) {
+    if (!this.config.subAgents) return null;
+    const idx = this.config.subAgents.findIndex(
+      (a) => a.id === idOrName.toLowerCase() || a.name.toLowerCase() === idOrName.toLowerCase()
+    );
+    if (idx === -1) return null;
+    const [removed] = this.config.subAgents.splice(idx, 1);
+    return removed;
+  }
+
+  enableSubAgent(idOrName) {
+    const agent = this._findSubAgent(idOrName);
+    if (agent) agent.enabled = true;
+    return agent;
+  }
+
+  disableSubAgent(idOrName) {
+    const agent = this._findSubAgent(idOrName);
+    if (agent) agent.enabled = false;
+    return agent;
+  }
+
+  _findSubAgent(idOrName) {
+    return (this.config.subAgents || []).find(
+      (a) => a.id === idOrName.toLowerCase() || a.name.toLowerCase() === idOrName.toLowerCase()
+    );
   }
 
   // --- Cancellation ---
@@ -384,12 +529,16 @@ export class AgentEngine extends EventEmitter {
     let contextPercent = null;
     const contextLimit = provider.contextWindow();
     const CONTEXT_THRESHOLD = this.config.contextThreshold || 80;
-    const toolDefs = this.agentMode === "recall" ? null : this.toolRegistry.getDefinitions();
+    const toolDefs = this.agentMode === "qa" ? null : this.toolRegistry.getDefinitions();
     const turnStartTime = Date.now();
-    const maxIter = this.agentMode === "recall" ? 1 : (this.config.maxIterations || 50);
+    const maxIter = this.agentMode === "qa" ? 1 : (this.config.maxIterations || 50);
 
     while (iterationCount < maxIter) {
-      const systemPrompt = buildSystemPrompt(this.config, this.projectRoot, memoryBlock, this.projectContext, this.agentMode);
+      const systemPrompt = buildSystemPrompt(this.config, this.projectRoot, memoryBlock, this.projectContext, this.agentMode, {
+        agentName: this.subAgentDef?.name || this.config.agentName || undefined,
+        agentRole: this.subAgentDef?.role || undefined,
+        isSubAgent: this.isSubAgent,
+      });
 
       // Context compression check
       if (lastUsage && lastUsage.promptTokens > 0) {
@@ -521,7 +670,13 @@ export class AgentEngine extends EventEmitter {
             continue;
           }
           validated.push({ tc, tool });
-          if (requireConfirmation(tool, tc.arguments, this.config, this.agentMode)) {
+          // Sub-agents auto-approve tools in their assigned tool list.
+          // If a sub-agent was given specific tools, those are pre-authorized
+          // by the user when they created the agent — no need to confirm again.
+          const isSubAgentAssignedTool = this.isSubAgent && this.subAgentDef?.tools?.includes(tc.name);
+          // Sub-agents with no tool restriction (tools: null = all tools) still
+          // require confirmation per normal safety rules — only explicit assignments auto-approve.
+          if (!isSubAgentAssignedTool && requireConfirmation(tool, tc.arguments, this.config, this.agentMode)) {
             const desc = tool.formatConfirmation ? tool.formatConfirmation(tc.arguments) : `${tc.name}`;
             needsConfirm.push({ tc, tool, desc });
           }
@@ -593,6 +748,7 @@ export class AgentEngine extends EventEmitter {
               config: this.config,
               signal: this.controller.signal,
               sessionChanges: this.sessionChanges,
+              parentEngine: this,
             });
 
             // Check cancellation after tool finishes — the tool may have
@@ -721,7 +877,7 @@ export class AgentEngine extends EventEmitter {
       break;
     }
 
-    if (iterationCount >= maxIter && this.agentMode !== "recall") {
+    if (iterationCount >= maxIter && this.agentMode !== "qa") {
       this.emit("error", { message: `Reached maximum iterations (${this.config.maxIterations || 50}). Stopping.`, recoverable: true });
     }
 

@@ -90,7 +90,8 @@ export const theme = {
   // Mode colors
   modeBuild: ANSI.green,
   modePlan: ANSI.yellow,
-  modeRecall: ANSI.cyan,
+  modeQA: ANSI.cyan,
+  modeManage: ANSI.magenta,
 
   // Special
   cost: ANSI.fg256(220),
@@ -137,7 +138,8 @@ export const icons = {
   // Mode
   build: "\u25CF",      // ●
   plan: "\u25D0",        // ◐
-  recall: "\u25C9",      // ◉
+  qa: "\u25C9",          // ◉
+  manage: "\u25C8",      // ◈
 
   // UI
   arrow: "\u25B8",       // ▸

@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from "fs";
+import { readFileSync, writeFileSync, mkdirSync, existsSync, chmodSync } from "fs";
 import { dirname, join } from "path";
 import { createHash, timingSafeEqual, pbkdf2Sync, randomBytes, createCipheriv, createDecipheriv } from "crypto";
 import { homedir } from "os";
@@ -92,13 +92,17 @@ export function loadConfig() {
 }
 
 function applyFilePermissions(filePath) {
-  if (process.platform !== "win32") return;
-  try {
-    execSync(
-      `icacls "${filePath}" /inheritance:r /grant:r "${process.env.USERNAME}:F"`,
-      { stdio: "ignore" }
-    );
-  } catch { /* non-fatal */ }
+  if (process.platform === "win32") {
+    try {
+      execSync(
+        `icacls "${filePath}" /inheritance:r /grant:r "${process.env.USERNAME}:F"`,
+        { stdio: "ignore" }
+      );
+    } catch { /* non-fatal */ }
+  } else {
+    // Unix/macOS: owner read/write only (0600)
+    try { chmodSync(filePath, 0o600); } catch { /* non-fatal */ }
+  }
 }
 
 export function saveConfig(config) {
@@ -145,7 +149,7 @@ export function saveConfigWithKey(config, encKey) {
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
   const toWrite = { ...config };
   if (encKey) {
-    for (const field of ["apiKey_anthropic", "apiKey_google", "apiKey_openai", "apiKey_opencode"]) {
+    for (const field of ["apiKey_anthropic", "apiKey_google", "apiKey_openai", "apiKey_opencode", "telegramBotToken", "telegramAccessCode"]) {
       if (toWrite[field] && typeof toWrite[field] === "string" && toWrite[field].length > 0) {
         toWrite[field] = encryptValue(toWrite[field], encKey);
       }
@@ -158,7 +162,7 @@ export function saveConfigWithKey(config, encKey) {
 export function decryptApiKeys(config, encKey) {
   const out = { ...config };
   if (!encKey) return out;
-  for (const field of ["apiKey_anthropic", "apiKey_google", "apiKey_openai", "apiKey_opencode"]) {
+  for (const field of ["apiKey_anthropic", "apiKey_google", "apiKey_openai", "apiKey_opencode", "telegramBotToken", "telegramAccessCode"]) {
     if (isEncryptedPayload(out[field])) {
       try {
         out[field] = decryptValue(out[field], encKey);

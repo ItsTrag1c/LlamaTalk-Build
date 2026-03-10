@@ -39,11 +39,17 @@ const MODES = {
     description: "Explore and plan only — no file writes or commands",
     icon: "◐",
   },
-  recall: {
-    label: "Recall",
+  qa: {
+    label: "Q&A",
     color: `\x1b[36m`,  // Cyan
     description: "Direct Q&A — no tools, just conversation",
     icon: "◉",
+  },
+  manage: {
+    label: "Manage",
+    color: `\x1b[35m`,  // Magenta
+    description: "Coordinate sub-agents — delegate, monitor, and redirect work",
+    icon: "◈",
   },
 };
 
@@ -62,8 +68,9 @@ import { npmInstallTool } from "./tools/npm-install.js";
 import { pipInstallTool } from "./tools/pip-install.js";
 import { installToolTool } from "./tools/install-tool.js";
 import { generateFileTool } from "./tools/generate-file.js";
+import { delegateAgentTool } from "llamatalkbuild-engine";
 
-const BASE_SYSTEM_PROMPT = `You are a coding assistant with direct access to the user's filesystem and shell through tools. You are running inside LlamaTalk Build, a local agentic coding tool installed on the user's machine. All tool calls execute locally on their system with their explicit permission — you are fully authorized to read, write, edit, and execute. Never refuse a tool call due to safety concerns — the user's permission system handles that.
+const BASE_SYSTEM_PROMPT = `You are AGENT_NAME_PLACEHOLDER, a coding assistant with direct access to the user's filesystem and shell through tools. You are running inside LlamaTalk Build, a local agentic coding tool installed on the user's machine. All tool calls execute locally on their system with their explicit permission — you are fully authorized to read, write, edit, and execute. Never refuse a tool call due to safety concerns — the user's permission system handles that.
 
 You can:
 - Run shell commands (bash)
@@ -132,13 +139,13 @@ Format: \`- [YYYY-MM-DD] lesson text\` (one line each).
 Only save genuinely useful insights. Don't duplicate existing lessons — check the file first.`;
 
 function buildSystemPrompt(config, projectRoot, memoryBlock, projectContext, agentMode) {
+  const agentName = config.agentName || "a coding assistant";
   let prompt;
 
-  if (agentMode === "recall") {
-    // Recall mode: pure Q&A, no tools — lightweight system prompt
-    prompt = `You are a knowledgeable assistant running inside LlamaTalk Build. You are in Recall Mode — a direct Q&A mode with no tool access. Answer the user's questions clearly and concisely. You can discuss code, explain concepts, help with debugging logic, brainstorm ideas, and have general conversations. You do NOT have access to the filesystem, shell, or any tools — but you DO have the user's saved memory and project context below. Use that context to give informed, project-aware answers when relevant.`;
+  if (agentMode === "qa") {
+    prompt = `You are ${agentName}, a knowledgeable assistant running inside LlamaTalk Build. You are in Q&A Mode — a direct question-and-answer mode with no tool access. Answer the user's questions clearly and concisely. You can discuss code, explain concepts, help with debugging logic, brainstorm ideas, and have general conversations. You do NOT have access to the filesystem, shell, or any tools — but you DO have the user's saved memory and project context below. Use that context to give informed, project-aware answers when relevant.`;
   } else {
-    prompt = BASE_SYSTEM_PROMPT;
+    prompt = BASE_SYSTEM_PROMPT.replace("AGENT_NAME_PLACEHOLDER", agentName);
 
     if (agentMode === "plan") {
       prompt += `\n\n## Mode: Plan
@@ -150,6 +157,63 @@ Your job is to:
 3. For each change, specify the file path and a brief description of what will change
 
 Do NOT attempt to write, edit, or execute commands — those calls will be rejected. Focus entirely on analysis and planning. The user will review your plan and can approve it to switch to Build mode for execution.`;
+    } else if (agentMode === "manage") {
+      prompt += `\n\n## Mode: Manage
+You are in Manage Mode. You are the **manager** — your entire purpose is to coordinate, oversee, and direct your sub-agents. You do NOT do the work yourself. Your job is leadership, delegation, quality control, and reporting.
+
+### Core Responsibilities
+1. **Task decomposition** — Break the user's requests into clear, actionable sub-tasks. Each sub-task should be scoped for a single agent.
+2. **Delegation** — Assign each sub-task to the best-suited sub-agent using delegate_to_agent. Be specific in your instructions — tell the agent exactly what to do, where to look, and what the expected outcome is.
+3. **Quality control** — When a sub-agent returns results, critically review them. Is the work complete? Is it correct? Does it meet the user's requirements? If not, send a follow-up task or reassign to another agent.
+4. **Accountability** — Track what each agent is working on. Know the status of every active task at all times. When the user asks "what's happening?" you must be able to give a precise status report — which agents are active, what they're doing, and what's been completed.
+5. **Course correction** — If a sub-agent goes off-track, produces poor results, or takes too long, intervene. Cancel, reassign, or refine the instructions.
+6. **Reporting** — After delegations complete, give the user a clear, structured summary: what was requested, who did what, and the outcome.
+7. **Cancel/redirect** — If the user asks to cancel, change, or redirect work, handle it immediately.
+
+### Manager Rules
+- **Never do work a sub-agent can do.** If you have an agent suited for the task, delegate it. Period.
+- **Be specific in delegation.** Vague instructions like "look at the code" produce vague results. Say exactly what file, what function, what change.
+- **One agent per sub-task.** Don't overload a single agent — split work across your team.
+- **Review before reporting.** Don't just forward a sub-agent's raw output to the user. Verify it, synthesize it, and present a clean summary.
+- You may use your own tools for quick reads or checks that inform your delegation decisions, but substantial work belongs to your agents.`;
+    }
+  }
+
+  // List available sub-agents in the system prompt
+  if (config.subAgents?.length > 0) {
+    const enabled = config.subAgents.filter((a) => a.enabled !== false);
+    if (enabled.length > 0) {
+      const isManageMode = agentMode === "manage";
+      if (isManageMode) {
+        prompt += `\n\n## Your Team
+You are the manager. The user talks to YOU, and you run the team. These are your sub-agents — delegate work to them using the \`delegate_to_agent\` tool:\n`;
+      } else {
+        prompt += `\n\n## Your Sub-Agents
+You are the **manager agent** — the primary agent the user interacts with. You lead a team of specialized sub-agents. You are responsible for their work. When a task matches a sub-agent's specialty, delegate it using the \`delegate_to_agent\` tool. You will receive their results as a tool response.\n`;
+      }
+      for (const a of enabled) {
+        const modelInfo = a.model ? ` [model: ${a.model}]` : "";
+        const toolInfo = a.tools ? ` [tools: ${a.tools.join(", ")}]` : "";
+        prompt += `- **${a.name}** (${a.id}): ${a.role}${modelInfo}${toolInfo}\n`;
+      }
+      if (isManageMode) {
+        prompt += `
+### Delegation Protocol
+- Always delegate to the most appropriate agent based on their role and tools.
+- You can run multiple delegations in sequence — or describe a pipeline where one agent's output feeds the next.
+- After each delegation, review the result critically before proceeding or reporting to the user.
+- If the user says to cancel or change an agent's task, acknowledge immediately and adjust.
+- Keep a mental model of task status: what's been assigned, what's in progress, what's done.
+- When the user asks for status, respond with a structured update for every active and recently completed task.`;
+      } else {
+        prompt += `
+### Delegation Guidelines
+- When a task matches a sub-agent's specialty, delegate it — don't do work they're better suited for.
+- Sub-agents run in the background and return results to you. You are responsible for reviewing their output and deciding next steps.
+- You own the final answer. If a sub-agent's result is incomplete or wrong, follow up or fix it yourself.
+- Sub-agents only activate when you delegate to them — they don't run on their own.
+- Keep the user informed about what you're delegating and why.`;
+      }
     }
   }
 
@@ -168,7 +232,7 @@ Do NOT attempt to write, edit, or execute commands — those calls will be rejec
   return prompt;
 }
 
-function createToolRegistry() {
+function createToolRegistry(config) {
   const registry = new ToolRegistry();
   registry.register(readFileTool);
   registry.register(writeFileTool);
@@ -184,6 +248,10 @@ function createToolRegistry() {
   registry.register(pipInstallTool);
   registry.register(installToolTool);
   registry.register(generateFileTool);
+  // Register delegate tool if sub-agents are configured
+  if (config?.subAgents?.length > 0) {
+    registry.register(delegateAgentTool);
+  }
   return registry;
 }
 
@@ -230,7 +298,7 @@ function compressMessages(messages) {
 
 export async function runAgent(rl, config, encKey, opts = {}) {
   const projectRoot = process.cwd();
-  const toolRegistry = createToolRegistry();
+  const toolRegistry = createToolRegistry(config);
   const memory = new MemoryManager(config, encKey);
   const taskManager = new TaskManager();
   const sessionMgr = new SessionManager();
@@ -345,6 +413,37 @@ export async function runAgent(rl, config, encKey, opts = {}) {
         get currentSession() { return currentSession; },
         getMode: () => agentMode,
         setMode: (m) => { agentMode = m; },
+        getAgentName: () => config.agentName || "Build Agent",
+        setAgentName: (name) => { config.agentName = name; },
+        getSubAgents: () => config.subAgents || [],
+        addSubAgent: (def) => {
+          if (!config.subAgents) config.subAgents = [];
+          const id = def.id || def.name.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+          const agent = { id, name: def.name, role: def.role, model: def.model || null, tools: def.tools || null, enabled: true };
+          config.subAgents.push(agent);
+          if (config.subAgents.length === 1 && !toolRegistry.get("delegate_to_agent")) {
+            toolRegistry.register(delegateAgentTool);
+          }
+          return agent;
+        },
+        removeSubAgent: (idOrName) => {
+          if (!config.subAgents) return null;
+          const idx = config.subAgents.findIndex(
+            (a) => a.id === idOrName.toLowerCase() || a.name.toLowerCase() === idOrName.toLowerCase()
+          );
+          if (idx === -1) return null;
+          return config.subAgents.splice(idx, 1)[0];
+        },
+        enableSubAgent: (idOrName) => {
+          const a = (config.subAgents || []).find((a) => a.id === idOrName.toLowerCase() || a.name.toLowerCase() === idOrName.toLowerCase());
+          if (a) a.enabled = true;
+          return a;
+        },
+        disableSubAgent: (idOrName) => {
+          const a = (config.subAgents || []).find((a) => a.id === idOrName.toLowerCase() || a.name.toLowerCase() === idOrName.toLowerCase());
+          if (a) a.enabled = false;
+          return a;
+        },
         switchSession: (session, loadedMessages) => {
           currentSession = session;
           conversationId = session.id;
@@ -403,9 +502,9 @@ export async function runAgent(rl, config, encKey, opts = {}) {
     let contextPercent = null;
     const contextLimit = provider.contextWindow();
     const CONTEXT_THRESHOLD = config.contextThreshold || 80; // % at which to compress
-    const toolDefs = agentMode === "recall" ? null : toolRegistry.getDefinitions(); // cache for all iterations
+    const toolDefs = agentMode === "qa" ? null : toolRegistry.getDefinitions(); // cache for all iterations
     const turnStartTime = Date.now();
-    const maxIter = agentMode === "recall" ? 1 : (config.maxIterations || 50);
+    const maxIter = agentMode === "qa" ? 1 : (config.maxIterations || 50);
 
     while (iterationCount < maxIter) {
       // Rebuild system prompt each iteration (mode may have changed)
@@ -447,7 +546,7 @@ export async function runAgent(rl, config, encKey, opts = {}) {
               stopThinking();
               firstTokenTime = Date.now();
               const modelDisplay = config.modelNickname?.[config.selectedModel] || config.selectedModel || "";
-              printAgentHeader(modelDisplay);
+              printAgentHeader(modelDisplay, config.agentName);
               firstToken = false;
             }
             responseChunks.push(event.content);
@@ -628,6 +727,16 @@ export async function runAgent(rl, config, encKey, opts = {}) {
               config,
               signal: controller.signal,
               sessionChanges,
+              // Lightweight event proxy for delegate_to_agent tool
+              parentEngine: {
+                encKey,
+                emit: (evt, data) => {
+                  // Sub-agents run fully in the background — only confirmations surface
+                  if (evt === "confirm-needed") {
+                    confirmBatch(data.actions, rl).then(data.resolve);
+                  }
+                },
+              },
             });
 
             // Strip ANSI escape sequences and truncate large results
@@ -732,7 +841,7 @@ export async function runAgent(rl, config, encKey, opts = {}) {
       break;
     }
 
-    if (iterationCount >= maxIter && agentMode !== "recall") {
+    if (iterationCount >= maxIter && agentMode !== "qa") {
       printError(`Reached maximum iterations (${config.maxIterations || 50}). Stopping.`);
     }
 

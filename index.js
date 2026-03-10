@@ -18,7 +18,7 @@ import { TaskManager } from "./src/memory/tasks.js";
 import { existsSync, readdirSync, unlinkSync, readFileSync } from "fs";
 import { dirname, join } from "path";
 
-const VERSION = "2.4.0";
+const VERSION = "2.5.0";
 
 // Clean up leftover files from previous /update (old EXEs that couldn't be deleted while running)
 function startupCleanup() {
@@ -104,10 +104,11 @@ ${BOLD}Options${RESET}
 ${BOLD}Slash commands${RESET}
   /help       Full command reference
   /home       Show dashboard
-  /mode       Show/switch agent mode (Build/Plan)
+  /mode       Show/switch agent mode (Build/Plan/Q&A/Manage)
   /instructions  Show loaded agent instructions
   /model      Show/switch model
   /models     List available models
+  /agent      Manage agents (list, create, enable, disable)
   /session    Manage sessions (list, new, load, delete)
   /telegram   Manage Telegram bot settings
   /more       Show full details of last tool call(s)

@@ -51,7 +51,7 @@ ${ORANGE}/set api-key <provider> <key>${RESET}  Set API key
 ${ORANGE}/set provider enable|disable <p>${RESET}  Toggle provider
 ${ORANGE}/set temp <0.0-1.0>${RESET}      Set temperature
 ${ORANGE}/set pin${RESET}                 Set or change PIN
-${ORANGE}/mode [build|plan|recall]${RESET}  Show or switch agent mode
+${ORANGE}/mode [build|plan|qa|manage]${RESET} Show or switch agent mode
 ${ORANGE}/activity${RESET}                Show session file changes
 ${ORANGE}/task${RESET}                    List active tasks
 ${ORANGE}/task add <desc>${RESET}         Add a task (--due YYYY-MM-DD)
@@ -62,6 +62,12 @@ ${ORANGE}/server${RESET}                  List all servers with status
 ${ORANGE}/server add <url>${RESET}        Add & test a new server
 ${ORANGE}/server remove <n>${RESET}       Remove server #n
 ${ORANGE}/server test${RESET}             Test all server connections
+${ORANGE}/agent${RESET}                   List all agents (manager + sub-agents)
+${ORANGE}/agent create <name>${RESET}     Create a new sub-agent (interactive)
+${ORANGE}/agent remove <name>${RESET}     Remove a sub-agent
+${ORANGE}/agent enable <name>${RESET}     Enable a sub-agent
+${ORANGE}/agent disable <name>${RESET}    Disable a sub-agent
+${ORANGE}/agent rename <name>${RESET}     Rename the manager agent
 ${ORANGE}/reflect${RESET}                 Agent reviews session and saves lessons
 ${ORANGE}/trust${RESET}                   Toggle auto-approve for session
 ${ORANGE}/compact${RESET}                 Toggle compact output
@@ -299,9 +305,10 @@ ${BOLD}Settings${RESET}
       const MODES = {
         build:  { label: "Build",  color: theme.modeBuild,  icon: icons.build,  description: "Full agent — reads, writes, and executes freely" },
         plan:   { label: "Plan",   color: theme.modePlan,   icon: icons.plan,   description: "Explore and plan only — no file writes or commands" },
-        recall: { label: "Recall", color: theme.modeRecall, icon: icons.recall, description: "Direct Q&A — no tools, just conversation" },
+        qa: { label: "Q&A", color: theme.modeQA, icon: icons.qa, description: "Direct Q&A — no tools, just conversation" },
+        manage: { label: "Manage", color: theme.modeManage, icon: icons.manage, description: "Coordinate sub-agents — delegate, monitor, and redirect work" },
       };
-      const MODE_CYCLE = ["build", "plan", "recall"];
+      const MODE_CYCLE = ["build", "plan", "qa", "manage"];
       const current = agent.getMode();
 
       // /mode <name> — set directly
@@ -322,7 +329,7 @@ ${BOLD}Settings${RESET}
         return { handled: true };
       }
 
-      // /mode — cycle to the next mode (build → plan → recall → build)
+      // /mode — cycle to the next mode (build → plan → qa → manage → build)
       const currentIdx = MODE_CYCLE.indexOf(current);
       const target = MODE_CYCLE[(currentIdx + 1) % MODE_CYCLE.length];
       agent.setMode(target);
@@ -760,10 +767,142 @@ ${BOLD}Settings${RESET}
       return { handled: true };
     }
 
+    case "/agent": case "/agents": {
+      if (!agent) {
+        console.log(DIM + "  Agent not available." + RESET);
+        return { handled: true };
+      }
+      const subCmd = args[0];
+      const subAgents = agent.getSubAgents();
+
+      // /agent or /agents — list all agents
+      if (!subCmd || cmd === "/agents") {
+        const name = agent.getAgentName();
+        console.log(`\n${BOLD}  Agents${RESET}`);
+        console.log(`  ${ORANGE}●${RESET} ${BOLD}${name}${RESET} ${DIM}(manager)${RESET} — model: ${config.selectedModel || "auto"}`);
+        if (subAgents.length === 0) {
+          console.log(DIM + "\n  No sub-agents configured. Use /agent create <name> to add one." + RESET);
+        } else {
+          for (const a of subAgents) {
+            const status = a.enabled !== false ? `${GREEN}enabled${RESET}` : `${RED}disabled${RESET}`;
+            const model = a.model ? a.model : DIM + "inherit" + RESET;
+            const tools = a.tools ? `${a.tools.length} tools` : "all tools";
+            console.log(`  ${a.enabled !== false ? GREEN + "●" + RESET : RED + "○" + RESET} ${BOLD}${a.name}${RESET} ${DIM}(${a.id})${RESET} — ${status}, model: ${model}, ${tools}`);
+            console.log(`    ${DIM}${a.role}${RESET}`);
+          }
+        }
+        console.log(DIM + "\n  Commands: /agent create|remove|enable|disable|rename" + RESET);
+        console.log("");
+        return { handled: true };
+      }
+
+      if (subCmd === "create") {
+        const name = args.slice(1).join(" ").trim();
+        if (!name) {
+          console.log(DIM + "  Usage: /agent create <name>" + RESET);
+          return { handled: true };
+        }
+        // Check for name collision
+        if (subAgents.find((a) => a.name.toLowerCase() === name.toLowerCase())) {
+          console.log(RED + `  An agent named "${name}" already exists.` + RESET);
+          return { handled: true };
+        }
+
+        // Interactive creation
+        const role = await ask(rl, `  ${BOLD}Role description:${RESET} `);
+        if (!role.trim()) {
+          console.log(DIM + "  Cancelled — role is required." + RESET);
+          return { handled: true };
+        }
+
+        const modelInput = await ask(rl, `  ${BOLD}Model${RESET} ${DIM}(Enter to inherit from manager):${RESET} `);
+
+        const toolInput = await ask(rl, `  ${BOLD}Allowed tools${RESET} ${DIM}(comma-separated, Enter for all):${RESET} `);
+        let tools = null;
+        if (toolInput.trim()) {
+          tools = toolInput.split(",").map((t) => t.trim()).filter(Boolean);
+        }
+
+        const newAgent = agent.addSubAgent({
+          name,
+          role: role.trim(),
+          model: modelInput.trim() || null,
+          tools,
+        });
+        saveConfig(config);
+        console.log(GREEN + `  Created sub-agent "${newAgent.name}" (${newAgent.id})` + RESET);
+        return { handled: true };
+      }
+
+      if (subCmd === "remove") {
+        const name = args.slice(1).join(" ").trim();
+        if (!name) {
+          console.log(DIM + "  Usage: /agent remove <name>" + RESET);
+          return { handled: true };
+        }
+        const removed = agent.removeSubAgent(name);
+        if (!removed) {
+          console.log(RED + `  No agent named "${name}" found.` + RESET);
+        } else {
+          saveConfig(config);
+          console.log(GREEN + `  Removed sub-agent "${removed.name}".` + RESET);
+        }
+        return { handled: true };
+      }
+
+      if (subCmd === "enable") {
+        const name = args.slice(1).join(" ").trim();
+        if (!name) {
+          console.log(DIM + "  Usage: /agent enable <name>" + RESET);
+          return { handled: true };
+        }
+        const found = agent.enableSubAgent(name);
+        if (!found) {
+          console.log(RED + `  No agent named "${name}" found.` + RESET);
+        } else {
+          saveConfig(config);
+          console.log(GREEN + `  "${found.name}" enabled.` + RESET);
+        }
+        return { handled: true };
+      }
+
+      if (subCmd === "disable") {
+        const name = args.slice(1).join(" ").trim();
+        if (!name) {
+          console.log(DIM + "  Usage: /agent disable <name>" + RESET);
+          return { handled: true };
+        }
+        const found = agent.disableSubAgent(name);
+        if (!found) {
+          console.log(RED + `  No agent named "${name}" found.` + RESET);
+        } else {
+          saveConfig(config);
+          console.log(YELLOW + `  "${found.name}" disabled.` + RESET);
+        }
+        return { handled: true };
+      }
+
+      if (subCmd === "rename") {
+        const newName = args.slice(1).join(" ").trim();
+        if (!newName) {
+          console.log(DIM + "  Usage: /agent rename <new name>" + RESET);
+          console.log(DIM + `  Current name: ${agent.getAgentName()}` + RESET);
+          return { handled: true };
+        }
+        agent.setAgentName(newName);
+        saveConfig(config);
+        console.log(GREEN + `  Agent renamed to "${newName}".` + RESET);
+        return { handled: true };
+      }
+
+      console.log(DIM + "  Usage: /agent [create|remove|enable|disable|rename]" + RESET);
+      return { handled: true };
+    }
+
     case "/reflect": {
-      // Temporarily switch to build mode if in recall (needs write_file tool access)
-      const wasRecall = agent?.getMode?.() === "recall";
-      if (wasRecall) {
+      // Temporarily switch to build mode if in Q&A (needs write_file tool access)
+      const wasQA = agent?.getMode?.() === "qa";
+      if (wasQA) {
         agent.setMode("build");
         console.log(`  ${DIM}Switching to Build mode for reflection...${RESET}`);
       }
@@ -772,7 +911,7 @@ ${BOLD}Settings${RESET}
       return {
         handled: false,
         inject: "Review this session. What did you learn — about me (preferences, habits, communication style), about patterns that worked well, mistakes made, or problems solved? Save any useful lessons to lessons.md under the appropriate headings (## About You, ## Patterns, ## Mistakes, ## Solutions). Check existing lessons first to avoid duplicates.",
-        restoreMode: wasRecall ? "recall" : null,
+        restoreMode: wasQA ? "qa" : null,
       };
     }
 

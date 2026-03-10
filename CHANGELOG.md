@@ -1,6 +1,31 @@
 # Changelog — LlamaTalk Build
 
-Last updated: 2026-03-10 (v2.4.0)
+Last updated: 2026-03-10 (v2.5.0)
+
+---
+
+## v2.5.0 — 2026-03-10
+
+### New Features
+- **Manager/sub-agent architecture** — the main agent now acts as a team manager. Create specialized sub-agents with their own models and tool access. The manager delegates tasks, monitors progress, reviews results, and reports back.
+- **Sub-agent management** — `/agent create`, `/agent remove <name>`, `/agent enable/disable <name>`, `/agent rename <name>`. Agents persist across sessions.
+- **Manage mode** — new 4th mode (`/mode manage`) dedicated to agent coordination. The manager prioritizes delegation over doing work itself, with detailed accountability and quality control instructions.
+- **Q&A mode** — renamed from "Recall" to "Q&A" for clarity. Same functionality: direct conversation with no tool access.
+- **Telegram agent commands** — full agent management on Telegram: `/agent` lists agents with inline enable/disable buttons, `/agent create` starts an interactive multi-step flow, `@AgentName <task>` routes directly to a sub-agent.
+- **Silent background agents** — sub-agents run fully in the background. No live streaming — only a single completion message appears when the sub-agent finishes. Confirmation prompts still bubble up.
+- **Sub-agent auto-approve** — tools explicitly assigned to a sub-agent are auto-approved (no confirmation needed). Unassigned tools follow normal safety rules.
+- **Telegram mode indicator** — the "Thinking..." message now shows the current mode (e.g., "Build — Thinking...").
+- **Task tracking for delegations** — delegated tasks automatically appear in the task system and are marked complete when the sub-agent finishes.
+
+### Security
+- **SSRF redirect protection** — manual redirect following with private IP re-validation on each hop (max 5 redirects)
+- **Expanded private IP blocklist** — covers all RFC1918 ranges, IPv6 loopback, IPv4-mapped IPv6, link-local addresses
+- **Unix file permissions** — config files set to `chmod 0600` on Linux/macOS
+- **Encrypted Telegram secrets** — bot token and access code encrypted at rest with PIN-derived key
+- **Expanded destructive command blocklist** — pipe-to-shell, chmod 777, reg delete HKLM, net user, diskpart
+
+### Improvements
+- **Enhanced manager system prompt** — deeply emphasizes the manager's role across all modes. Includes delegation protocol, quality control, accountability tracking, and structured reporting guidelines.
 
 ---
 

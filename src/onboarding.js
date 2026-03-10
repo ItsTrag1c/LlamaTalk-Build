@@ -23,7 +23,13 @@ export async function runOnboarding(rl, config) {
   config.profileName = name.trim() || "User";
   console.log(GREEN + `  Nice to meet you, ${config.profileName}!` + RESET + "\n");
 
-  // Step 2: PIN
+  // Step 2: Name the agent
+  const agentNameInput = await ask(rl, BOLD + "Name your agent " + RESET + DIM + "(e.g., Atlas, Nova, Sage — Enter for default): " + RESET);
+  const agentName = agentNameInput.trim() || "Build Agent";
+  config.agentName = agentName;
+  console.log(GREEN + `  Your agent is now "${agentName}".` + RESET + "\n");
+
+  // Step 3: PIN
   let encKey = null;
   const wantPin = await ask(rl, BOLD + "Set a PIN to protect your config? (y/n): " + RESET);
   if (wantPin.trim().toLowerCase() === "y") {
