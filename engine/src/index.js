@@ -62,6 +62,3 @@ export { discoverInstructions } from "./memory/instructions.js";
 
 // Context
 export { ContextManager, detectProjectContext } from "./context/context.js";
-
-// Claude Code auth (internal — not documented)
-export { isClaudeCodeAvailable, getClaudeCodeToken, getClaudeCodeStatus, clearClaudeCodeCache } from "./claude-auth.js";
