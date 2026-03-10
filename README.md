@@ -118,6 +118,22 @@ Chat with the Build agent from your phone via Telegram. The agent runs locally â
 4. Start the bot: `llamabuild --telegram`
 5. Send the access code to the bot on Telegram to authenticate
 
+### Telegram Commands
+
+| Command | Description |
+|---------|-------------|
+| `/start` | Welcome message and command list |
+| `/new` | Start a fresh session |
+| `/clear` | Clear conversation history |
+| `/sessions` | List recent sessions (tap to load or delete) |
+| `/clearsessions` | Delete all sessions |
+| `/mode` | Switch between Build / Plan / Recall |
+| `/model [name]` | Show or set model |
+| `/models` | List all available models |
+| `/status` | Show agent status |
+| `/trust` | Toggle auto-approve |
+| `/cancel` | Cancel current operation |
+
 See the [Telegram Setup Guide](https://github.com/ItsTrag1c/LlamaTalk-Build/wiki/Telegram-Setup) for detailed instructions.
 
 ---
