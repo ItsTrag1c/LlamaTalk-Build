@@ -30,10 +30,10 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
   mod
 ));
 
-// ../../llamatalkbuild-engine/src/providers/base.js
+// ../llamatalkbuild-engine/src/providers/base.js
 var BaseProvider;
 var init_base = __esm({
-  "../../llamatalkbuild-engine/src/providers/base.js"() {
+  "../llamatalkbuild-engine/src/providers/base.js"() {
     BaseProvider = class {
       constructor(config2, options = {}) {
         this.config = config2;
@@ -71,7 +71,7 @@ var init_base = __esm({
   }
 });
 
-// ../../llamatalkbuild-engine/src/providers/stream.js
+// ../llamatalkbuild-engine/src/providers/stream.js
 function validateServerUrl(urlStr) {
   let parsed;
   try {
@@ -176,7 +176,7 @@ async function* streamLines(nodeStream) {
 }
 var import_http, import_https, BLOCKED_HOSTS, ALLOWED_CLOUD_DOMAINS;
 var init_stream = __esm({
-  "../../llamatalkbuild-engine/src/providers/stream.js"() {
+  "../llamatalkbuild-engine/src/providers/stream.js"() {
     import_http = require("http");
     import_https = require("https");
     BLOCKED_HOSTS = /^(169\.254\.|0\.0\.0\.0$|\[::1?\]$|\[0*:0*:0*:0*:0*:0*:0*:[01]\]$|::1?$)/i;
@@ -189,10 +189,10 @@ var init_stream = __esm({
   }
 });
 
-// ../../llamatalkbuild-engine/src/providers/anthropic.js
+// ../llamatalkbuild-engine/src/providers/anthropic.js
 var CONTEXT_WINDOWS, AnthropicProvider;
 var init_anthropic = __esm({
-  "../../llamatalkbuild-engine/src/providers/anthropic.js"() {
+  "../llamatalkbuild-engine/src/providers/anthropic.js"() {
     init_base();
     init_stream();
     CONTEXT_WINDOWS = {
@@ -349,10 +349,10 @@ var init_anthropic = __esm({
   }
 });
 
-// ../../llamatalkbuild-engine/src/providers/openai.js
+// ../llamatalkbuild-engine/src/providers/openai.js
 var CONTEXT_WINDOWS2, OpenAIProvider;
 var init_openai = __esm({
-  "../../llamatalkbuild-engine/src/providers/openai.js"() {
+  "../llamatalkbuild-engine/src/providers/openai.js"() {
     init_base();
     init_stream();
     CONTEXT_WINDOWS2 = {
@@ -512,10 +512,10 @@ var init_openai = __esm({
   }
 });
 
-// ../../llamatalkbuild-engine/src/providers/ollama.js
+// ../llamatalkbuild-engine/src/providers/ollama.js
 var TOOL_CAPABLE_PATTERNS, OllamaProvider;
 var init_ollama = __esm({
-  "../../llamatalkbuild-engine/src/providers/ollama.js"() {
+  "../llamatalkbuild-engine/src/providers/ollama.js"() {
     init_base();
     init_stream();
     TOOL_CAPABLE_PATTERNS = [
@@ -645,7 +645,7 @@ var init_ollama = __esm({
   }
 });
 
-// ../../llamatalkbuild-engine/src/providers/google.js
+// ../llamatalkbuild-engine/src/providers/google.js
 function toGeminiType(jsonSchemaType) {
   const map = {
     string: "STRING",
@@ -668,7 +668,7 @@ function convertProperties(props) {
 }
 var CONTEXT_WINDOWS3, GoogleProvider;
 var init_google = __esm({
-  "../../llamatalkbuild-engine/src/providers/google.js"() {
+  "../llamatalkbuild-engine/src/providers/google.js"() {
     init_base();
     init_stream();
     CONTEXT_WINDOWS3 = {
@@ -791,10 +791,10 @@ var init_google = __esm({
   }
 });
 
-// ../../llamatalkbuild-engine/src/providers/prompt-fallback.js
+// ../llamatalkbuild-engine/src/providers/prompt-fallback.js
 var PromptFallbackProvider;
 var init_prompt_fallback = __esm({
-  "../../llamatalkbuild-engine/src/providers/prompt-fallback.js"() {
+  "../llamatalkbuild-engine/src/providers/prompt-fallback.js"() {
     PromptFallbackProvider = class {
       constructor(innerProvider) {
         this.inner = innerProvider;
@@ -930,7 +930,7 @@ ${typeof result === "string" ? result : JSON.stringify(result)}`
   }
 });
 
-// ../../llamatalkbuild-engine/src/providers/router.js
+// ../llamatalkbuild-engine/src/providers/router.js
 function getProviderName(model, config2) {
   for (const [provider, models] of Object.entries(CLOUD_MODELS)) {
     if (models.includes(model)) {
@@ -1105,7 +1105,7 @@ async function getAllLocalModels(config2) {
 }
 var CLOUD_MODELS;
 var init_router = __esm({
-  "../../llamatalkbuild-engine/src/providers/router.js"() {
+  "../llamatalkbuild-engine/src/providers/router.js"() {
     init_anthropic();
     init_openai();
     init_ollama();
@@ -1121,10 +1121,10 @@ var init_router = __esm({
   }
 });
 
-// ../../llamatalkbuild-engine/src/tools/registry.js
+// ../llamatalkbuild-engine/src/tools/registry.js
 var ToolRegistry;
 var init_registry = __esm({
-  "../../llamatalkbuild-engine/src/tools/registry.js"() {
+  "../llamatalkbuild-engine/src/tools/registry.js"() {
     ToolRegistry = class {
       constructor() {
         this.tools = /* @__PURE__ */ new Map();
@@ -1151,7 +1151,7 @@ var init_registry = __esm({
   }
 });
 
-// ../../llamatalkbuild-engine/src/config.js
+// ../llamatalkbuild-engine/src/config.js
 var config_exports = {};
 __export(config_exports, {
   decryptApiKeys: () => decryptApiKeys,
@@ -1378,7 +1378,7 @@ function deepMerge(target, source) {
 }
 var import_fs, import_path, import_crypto, import_os, import_child_process, DEFAULTS;
 var init_config = __esm({
-  "../../llamatalkbuild-engine/src/config.js"() {
+  "../llamatalkbuild-engine/src/config.js"() {
     import_fs = require("fs");
     import_path = require("path");
     import_crypto = require("crypto");
@@ -1431,7 +1431,7 @@ var init_config = __esm({
   }
 });
 
-// ../../llamatalkbuild-engine/src/tools/base.js
+// ../llamatalkbuild-engine/src/tools/base.js
 function isReadOnlyTool(toolName, args) {
   if (READ_ONLY_TOOLS.has(toolName)) return true;
   if (toolName === "git") {
@@ -1447,7 +1447,7 @@ function isReadOnlyTool(toolName, args) {
 }
 var import_path2, SafetyLevel, READ_ONLY_TOOLS;
 var init_base2 = __esm({
-  "../../llamatalkbuild-engine/src/tools/base.js"() {
+  "../llamatalkbuild-engine/src/tools/base.js"() {
     import_path2 = require("path");
     init_config();
     SafetyLevel = {
@@ -1466,7 +1466,7 @@ var init_base2 = __esm({
   }
 });
 
-// ../../llamatalkbuild-engine/src/safety.js
+// ../llamatalkbuild-engine/src/safety.js
 function validatePath(inputPath, projectRoot, { allowExternal = false } = {}) {
   try {
     const resolved = (0, import_path3.resolve)(projectRoot, inputPath);
@@ -1515,7 +1515,7 @@ function validatePackageName(name) {
 }
 var import_path3, import_fs2, DESTRUCTIVE_PATTERNS;
 var init_safety = __esm({
-  "../../llamatalkbuild-engine/src/safety.js"() {
+  "../llamatalkbuild-engine/src/safety.js"() {
     import_path3 = require("path");
     import_fs2 = require("fs");
     init_config();
@@ -1547,7 +1547,7 @@ var init_safety = __esm({
   }
 });
 
-// ../../llamatalkbuild-engine/src/memory/instructions.js
+// ../llamatalkbuild-engine/src/memory/instructions.js
 function parseFrontmatter(raw) {
   const match = raw.match(/^---\s*\n([\s\S]*?)\n---\s*\n([\s\S]*)$/);
   if (!match) return { meta: {}, content: raw.trim() };
@@ -1687,7 +1687,7 @@ ${sections.join("\n\n")}`;
 }
 var import_fs3, import_path4, import_os2, INSTRUCTION_FILENAMES;
 var init_instructions = __esm({
-  "../../llamatalkbuild-engine/src/memory/instructions.js"() {
+  "../llamatalkbuild-engine/src/memory/instructions.js"() {
     import_fs3 = require("fs");
     import_path4 = require("path");
     import_os2 = require("os");
@@ -1695,10 +1695,10 @@ var init_instructions = __esm({
   }
 });
 
-// ../../llamatalkbuild-engine/src/memory/memory.js
+// ../llamatalkbuild-engine/src/memory/memory.js
 var import_fs4, import_path5, STOPWORDS, MemoryManager;
 var init_memory = __esm({
-  "../../llamatalkbuild-engine/src/memory/memory.js"() {
+  "../llamatalkbuild-engine/src/memory/memory.js"() {
     import_fs4 = require("fs");
     import_path5 = require("path");
     init_config();
@@ -2062,10 +2062,10 @@ ${bullet}
   }
 });
 
-// ../../llamatalkbuild-engine/src/memory/tasks.js
+// ../llamatalkbuild-engine/src/memory/tasks.js
 var import_fs5, import_path6, TaskManager;
 var init_tasks = __esm({
-  "../../llamatalkbuild-engine/src/memory/tasks.js"() {
+  "../llamatalkbuild-engine/src/memory/tasks.js"() {
     import_fs5 = require("fs");
     import_path6 = require("path");
     init_config();
@@ -2201,7 +2201,7 @@ var init_tasks = __esm({
   }
 });
 
-// ../../llamatalkbuild-engine/src/sessions.js
+// ../llamatalkbuild-engine/src/sessions.js
 function getIndexPath() {
   const dir = getConversationDir();
   if (!(0, import_fs6.existsSync)(dir)) (0, import_fs6.mkdirSync)(dir, { recursive: true });
@@ -2229,7 +2229,7 @@ function generateTitle(message) {
 }
 var import_fs6, import_path7, import_crypto2, MAX_SESSIONS, SessionManager;
 var init_sessions = __esm({
-  "../../llamatalkbuild-engine/src/sessions.js"() {
+  "../llamatalkbuild-engine/src/sessions.js"() {
     import_fs6 = require("fs");
     import_path7 = require("path");
     import_crypto2 = require("crypto");
@@ -2320,7 +2320,7 @@ var init_sessions = __esm({
   }
 });
 
-// ../../llamatalkbuild-engine/src/memory/compaction.js
+// ../llamatalkbuild-engine/src/memory/compaction.js
 function messageSize(msg) {
   if (typeof msg.content === "string") return msg.content.length;
   if (Array.isArray(msg.content)) {
@@ -2392,17 +2392,17 @@ function compactMessages(messages, { targetReduction = 5e4 } = {}) {
 }
 var PROTECTED_RECENT_TURNS, MIN_SAVINGS_CHARS, TOOL_RESULT_ROLE;
 var init_compaction = __esm({
-  "../../llamatalkbuild-engine/src/memory/compaction.js"() {
+  "../llamatalkbuild-engine/src/memory/compaction.js"() {
     PROTECTED_RECENT_TURNS = 6;
     MIN_SAVINGS_CHARS = 5e3;
     TOOL_RESULT_ROLE = "tool";
   }
 });
 
-// ../../llamatalkbuild-engine/src/session-log.js
+// ../llamatalkbuild-engine/src/session-log.js
 var import_fs7, import_path8, SessionLog;
 var init_session_log = __esm({
-  "../../llamatalkbuild-engine/src/session-log.js"() {
+  "../llamatalkbuild-engine/src/session-log.js"() {
     import_fs7 = require("fs");
     import_path8 = require("path");
     SessionLog = class {
@@ -2452,10 +2452,10 @@ var init_session_log = __esm({
   }
 });
 
-// ../../llamatalkbuild-engine/src/session-tracker.js
+// ../llamatalkbuild-engine/src/session-tracker.js
 var import_fs8, import_path9, SessionTracker;
 var init_session_tracker = __esm({
-  "../../llamatalkbuild-engine/src/session-tracker.js"() {
+  "../llamatalkbuild-engine/src/session-tracker.js"() {
     import_fs8 = require("fs");
     import_path9 = require("path");
     SessionTracker = class {
@@ -2578,7 +2578,7 @@ Project: \`${this.projectRoot}\`
   }
 });
 
-// ../../llamatalkbuild-engine/src/context/context.js
+// ../llamatalkbuild-engine/src/context/context.js
 function detectProjectContext(projectRoot) {
   const context = [];
   if ((0, import_fs9.existsSync)((0, import_path10.join)(projectRoot, "package.json"))) {
@@ -2613,13 +2613,13 @@ function detectProjectContext(projectRoot) {
 }
 var import_fs9, import_path10;
 var init_context = __esm({
-  "../../llamatalkbuild-engine/src/context/context.js"() {
+  "../llamatalkbuild-engine/src/context/context.js"() {
     import_fs9 = require("fs");
     import_path10 = require("path");
   }
 });
 
-// ../../llamatalkbuild-engine/src/tools/read-file.js
+// ../llamatalkbuild-engine/src/tools/read-file.js
 function isBinaryFile(filePath) {
   const ext = (0, import_path11.extname)(filePath).toLowerCase();
   if (BINARY_EXTENSIONS.has(ext)) return true;
@@ -2653,7 +2653,7 @@ function extractPdfText(filePath) {
 }
 var import_fs10, import_path11, import_child_process2, BINARY_EXTENSIONS, readFileTool;
 var init_read_file = __esm({
-  "../../llamatalkbuild-engine/src/tools/read-file.js"() {
+  "../llamatalkbuild-engine/src/tools/read-file.js"() {
     import_fs10 = require("fs");
     import_path11 = require("path");
     import_child_process2 = require("child_process");
@@ -2783,10 +2783,10 @@ var init_read_file = __esm({
   }
 });
 
-// ../../llamatalkbuild-engine/src/tools/write-file.js
+// ../llamatalkbuild-engine/src/tools/write-file.js
 var import_fs11, import_path12, writeFileTool;
 var init_write_file = __esm({
-  "../../llamatalkbuild-engine/src/tools/write-file.js"() {
+  "../llamatalkbuild-engine/src/tools/write-file.js"() {
     import_fs11 = require("fs");
     import_path12 = require("path");
     init_base2();
@@ -2855,10 +2855,10 @@ var init_write_file = __esm({
   }
 });
 
-// ../../llamatalkbuild-engine/src/tools/edit-file.js
+// ../llamatalkbuild-engine/src/tools/edit-file.js
 var import_fs12, editFileTool;
 var init_edit_file = __esm({
-  "../../llamatalkbuild-engine/src/tools/edit-file.js"() {
+  "../llamatalkbuild-engine/src/tools/edit-file.js"() {
     import_fs12 = require("fs");
     init_base2();
     init_safety();
@@ -2925,10 +2925,10 @@ var init_edit_file = __esm({
   }
 });
 
-// ../../llamatalkbuild-engine/src/tools/list-directory.js
+// ../llamatalkbuild-engine/src/tools/list-directory.js
 var import_fs13, import_path13, IGNORED, listDirectoryTool;
 var init_list_directory = __esm({
-  "../../llamatalkbuild-engine/src/tools/list-directory.js"() {
+  "../llamatalkbuild-engine/src/tools/list-directory.js"() {
     import_fs13 = require("fs");
     import_path13 = require("path");
     init_base2();
@@ -3008,10 +3008,10 @@ var init_list_directory = __esm({
   }
 });
 
-// ../../llamatalkbuild-engine/src/tools/search-files.js
+// ../llamatalkbuild-engine/src/tools/search-files.js
 var import_fs14, import_path14, IGNORED_DIRS, BINARY_EXTENSIONS2, searchFilesTool;
 var init_search_files = __esm({
-  "../../llamatalkbuild-engine/src/tools/search-files.js"() {
+  "../llamatalkbuild-engine/src/tools/search-files.js"() {
     import_fs14 = require("fs");
     import_path14 = require("path");
     init_base2();
@@ -3112,14 +3112,14 @@ var init_search_files = __esm({
   }
 });
 
-// ../../llamatalkbuild-engine/src/tools/glob-files.js
+// ../llamatalkbuild-engine/src/tools/glob-files.js
 function globToRegex(pattern) {
   let regex = pattern.replace(/\\/g, "/").replace(/\./g, "\\.").replace(/\*\*/g, "<<<GLOBSTAR>>>").replace(/\*/g, "[^/]*").replace(/\?/g, "[^/]").replace(/<<<GLOBSTAR>>>/g, ".*");
   return new RegExp("^" + regex + "$");
 }
 var import_fs15, import_path15, IGNORED_DIRS2, globFilesTool;
 var init_glob_files = __esm({
-  "../../llamatalkbuild-engine/src/tools/glob-files.js"() {
+  "../llamatalkbuild-engine/src/tools/glob-files.js"() {
     import_fs15 = require("fs");
     import_path15 = require("path");
     init_base2();
@@ -3197,10 +3197,10 @@ var init_glob_files = __esm({
   }
 });
 
-// ../../llamatalkbuild-engine/src/tools/bash.js
+// ../llamatalkbuild-engine/src/tools/bash.js
 var import_child_process3, bashTool;
 var init_bash = __esm({
-  "../../llamatalkbuild-engine/src/tools/bash.js"() {
+  "../llamatalkbuild-engine/src/tools/bash.js"() {
     import_child_process3 = require("child_process");
     init_base2();
     init_safety();
@@ -3270,13 +3270,13 @@ ${output}`;
   }
 });
 
-// ../../llamatalkbuild-engine/src/tools/git.js
+// ../llamatalkbuild-engine/src/tools/git.js
 function getSubcommand(args) {
   return (args.subcommand || "").split(/\s+/)[0].toLowerCase();
 }
 var import_child_process4, SAFE_SUBCOMMANDS, gitTool;
 var init_git = __esm({
-  "../../llamatalkbuild-engine/src/tools/git.js"() {
+  "../llamatalkbuild-engine/src/tools/git.js"() {
     import_child_process4 = require("child_process");
     init_base2();
     SAFE_SUBCOMMANDS = /* @__PURE__ */ new Set(["status", "diff", "log", "branch", "show", "remote", "tag", "rev-parse", "shortlog", "blame"]);
@@ -3340,10 +3340,10 @@ var init_git = __esm({
   }
 });
 
-// ../../llamatalkbuild-engine/src/tools/web-fetch.js
+// ../llamatalkbuild-engine/src/tools/web-fetch.js
 var webFetchTool;
 var init_web_fetch = __esm({
-  "../../llamatalkbuild-engine/src/tools/web-fetch.js"() {
+  "../llamatalkbuild-engine/src/tools/web-fetch.js"() {
     init_base2();
     init_stream();
     webFetchTool = {
@@ -3443,10 +3443,10 @@ ${text}`;
   }
 });
 
-// ../../llamatalkbuild-engine/src/tools/web-search.js
+// ../llamatalkbuild-engine/src/tools/web-search.js
 var webSearchTool;
 var init_web_search = __esm({
-  "../../llamatalkbuild-engine/src/tools/web-search.js"() {
+  "../llamatalkbuild-engine/src/tools/web-search.js"() {
     init_base2();
     webSearchTool = {
       definition: {
@@ -3523,10 +3523,10 @@ var init_web_search = __esm({
   }
 });
 
-// ../../llamatalkbuild-engine/src/tools/npm-install.js
+// ../llamatalkbuild-engine/src/tools/npm-install.js
 var import_child_process5, npmInstallTool;
 var init_npm_install = __esm({
-  "../../llamatalkbuild-engine/src/tools/npm-install.js"() {
+  "../llamatalkbuild-engine/src/tools/npm-install.js"() {
     import_child_process5 = require("child_process");
     init_base2();
     init_safety();
@@ -3588,10 +3588,10 @@ ${output}`;
   }
 });
 
-// ../../llamatalkbuild-engine/src/tools/pip-install.js
+// ../llamatalkbuild-engine/src/tools/pip-install.js
 var import_child_process6, pipInstallTool;
 var init_pip_install = __esm({
-  "../../llamatalkbuild-engine/src/tools/pip-install.js"() {
+  "../llamatalkbuild-engine/src/tools/pip-install.js"() {
     import_child_process6 = require("child_process");
     init_base2();
     init_safety();
@@ -3646,7 +3646,7 @@ ${output}`;
   }
 });
 
-// ../../llamatalkbuild-engine/src/tools/install-tool.js
+// ../llamatalkbuild-engine/src/tools/install-tool.js
 function isBlockedPackage(name) {
   return BLOCKED_PACKAGES.some((p) => p.test(name));
 }
@@ -3655,7 +3655,7 @@ function sanitizeName(name) {
 }
 var import_child_process7, ALLOWED_MANAGERS, MANAGER_INSTALL_CMD, MANAGER_CHECK_CMD, BLOCKED_PACKAGES, installToolTool;
 var init_install_tool = __esm({
-  "../../llamatalkbuild-engine/src/tools/install-tool.js"() {
+  "../llamatalkbuild-engine/src/tools/install-tool.js"() {
     import_child_process7 = require("child_process");
     init_base2();
     ALLOWED_MANAGERS = ["npm", "pip", "winget", "choco"];
@@ -3763,7 +3763,7 @@ ${output.slice(0, 1e4)}`;
   }
 });
 
-// ../../llamatalkbuild-engine/src/tools/generate-file.js
+// ../llamatalkbuild-engine/src/tools/generate-file.js
 function wrapHtml(content, title) {
   const safeTitle = (title || "Document").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   return `<!DOCTYPE html>
@@ -3863,7 +3863,7 @@ async function generatePdf(outputPath, content, title) {
 }
 var import_fs16, import_path16, import_child_process8, SUPPORTED_TYPES, generateFileTool;
 var init_generate_file = __esm({
-  "../../llamatalkbuild-engine/src/tools/generate-file.js"() {
+  "../llamatalkbuild-engine/src/tools/generate-file.js"() {
     import_fs16 = require("fs");
     import_path16 = require("path");
     import_child_process8 = require("child_process");
@@ -3962,7 +3962,7 @@ var init_generate_file = __esm({
   }
 });
 
-// ../../llamatalkbuild-engine/src/tools/delegate-agent.js
+// ../llamatalkbuild-engine/src/tools/delegate-agent.js
 function getTaskManager() {
   if (!_taskManager) {
     try {
@@ -3974,7 +3974,7 @@ function getTaskManager() {
 }
 var _taskManager, delegateAgentTool;
 var init_delegate_agent = __esm({
-  "../../llamatalkbuild-engine/src/tools/delegate-agent.js"() {
+  "../llamatalkbuild-engine/src/tools/delegate-agent.js"() {
     init_tasks();
     _taskManager = null;
     delegateAgentTool = {
@@ -4080,7 +4080,7 @@ var init_delegate_agent = __esm({
   }
 });
 
-// ../../llamatalkbuild-engine/src/agent.js
+// ../llamatalkbuild-engine/src/agent.js
 var agent_exports = {};
 __export(agent_exports, {
   AgentEngine: () => AgentEngine
@@ -4214,7 +4214,7 @@ function compressMessages(messages) {
 }
 var import_events, import_path17, import_fs17, ANSI_RE, MODES, BASE_SYSTEM_PROMPT, ALL_TOOLS, AgentEngine;
 var init_agent = __esm({
-  "../../llamatalkbuild-engine/src/agent.js"() {
+  "../llamatalkbuild-engine/src/agent.js"() {
     import_events = require("events");
     import_path17 = require("path");
     import_fs17 = require("fs");
@@ -4912,10 +4912,10 @@ ${taskBlock}` : taskBlock;
   }
 });
 
-// main.js
+// sidecar/main.js
 var import_readline = require("readline");
 
-// ../../llamatalkbuild-engine/src/index.js
+// ../llamatalkbuild-engine/src/index.js
 init_agent();
 init_config();
 init_sessions();
@@ -4931,7 +4931,7 @@ init_tasks();
 init_instructions();
 init_context();
 
-// main.js
+// sidecar/main.js
 function send(obj) {
   process.stdout.write(JSON.stringify(obj) + "\n");
 }
