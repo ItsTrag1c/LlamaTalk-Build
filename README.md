@@ -4,6 +4,8 @@
 
 LlamaTalk Build Desktop wraps the LlamaTalk Build engine in a desktop interface. Same 14 tools, same ReAct agent loop, same memory and session system — with a visual experience. Built with React, Tailwind CSS, and Tauri (Rust backend).
 
+> **Warning:** LlamaTalk Build can read, write, and delete files, execute shell commands, and modify your system. Review agent actions carefully. We recommend using MEDIUM or HIGH safety levels.
+
 ---
 
 ## Download
@@ -30,7 +32,9 @@ LlamaTalk Build Desktop wraps the LlamaTalk Build engine in a desktop interface.
 - **3-tier safety system** — tools classified as Low, Medium, or High risk with confirmation prompts
 - **Task management** — add tasks with due dates, mark complete, see overdue warnings
 - **Session management** — browse, rename, resume, and delete past sessions
-- **Plan & Build modes** — explore and plan with read-only tools, then execute with full agent access
+- **Plan, Build & Recall modes** — explore and plan with read-only tools, then execute with full agent access, or query from memory only
+- **Home page dashboard** — landing page with recent sessions, active tasks, and quick actions
+- **Telegram bot support** — configure and manage Telegram bot settings from the Settings tab
 - **PIN protection** — optional, PBKDF2-hashed; API keys encrypted at rest (AES-256-GCM)
 - **Zero telemetry** — no analytics, no tracking, no cloud sync of any kind
 

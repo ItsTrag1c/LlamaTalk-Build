@@ -355,6 +355,20 @@ async fn download_and_install_update(
     use futures_util::StreamExt;
     use tokio::io::AsyncWriteExt;
 
+    // Security: Validate download URL is from our GitHub releases only
+    if !download_url.starts_with("https://github.com/ItsTrag1c/LlamaTalk-Build/releases/download/") {
+        return Err("Invalid download URL: must be from official GitHub releases".to_string());
+    }
+
+    // Security: Validate asset_name has no path traversal
+    if asset_name.contains("..") || asset_name.contains('/') || asset_name.contains('\\') {
+        return Err("Invalid asset name".to_string());
+    }
+    // Also ensure it's a plausible installer filename
+    if !asset_name.ends_with(".exe") && !asset_name.ends_with(".msi") {
+        return Err("Invalid asset type".to_string());
+    }
+
     let client = reqwest::Client::builder()
         .user_agent("LlamaTalk-Build-Desktop")
         .build()

@@ -1,6 +1,29 @@
 # Changelog — LlamaTalk Build Desktop
 
-Last updated: 2026-03-09 (v2.2.0)
+Last updated: 2026-03-09 (v2.3.0)
+
+---
+
+## v2.3.0 — 2026-03-09
+
+### New Features
+- **Home page dashboard** — new landing page when no session is active. Shows recent sessions, active tasks with due dates, and a welcome greeting. Two-column layout with quick actions.
+- **Onboarding page** — first-launch setup asks about your preferred stack, explanation style, and project types. Answers saved to lessons for personalized responses. Includes optional Telegram bot setup.
+- **Telegram settings** — new settings section for managing Telegram bot token, access codes, and authenticated users. Access codes generated in-app for easy bot authentication.
+- **Home button** — persistent home icon in the title bar to return to the dashboard from any view.
+
+### Security
+- **Update URL whitelist** — download URLs validated against official GitHub releases only.
+- **Path traversal prevention** — installer asset names validated against directory traversal attacks.
+- **File type restriction** — only `.exe` and `.msi` files accepted for updates.
+- **Google API key protection** — API key moved from URL query string to `x-goog-api-key` header.
+- **Config key whitelist** — `saveSetting` RPC only allows known config keys, preventing arbitrary config writes.
+- **Provider whitelist** — `saveApiKey` validates against known providers.
+- **Input length limits** — task descriptions, session titles, API keys, and onboarding lessons all length-validated.
+
+### Improvements
+- **Clean install** — NSIS installer hooks delete previous installation directory before installing.
+- **Force re-onboarding** — upgrading from v2.2.0 triggers the onboarding flow for new features.
 
 ---
 

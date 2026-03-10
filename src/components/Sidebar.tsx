@@ -669,6 +669,10 @@ function SettingsTab({
         />
       </SettingsSection>
 
+      <SettingsSection title="Telegram">
+        <TelegramSettings config={config} onAction={onAction} />
+      </SettingsSection>
+
       <SettingsSection title="Actions">
         <UpdateButton />
         <button
@@ -1075,6 +1079,130 @@ function ServerUrlSetting({
         >
           Connect
         </button>
+      </div>
+    </div>
+  );
+}
+
+// --- Telegram Settings ---
+
+function TelegramSettings({
+  config,
+  onAction,
+}: {
+  config: Record<string, any>;
+  onAction: (action: string, payload?: any) => void;
+}) {
+  const [tokenDraft, setTokenDraft] = useState("");
+  const [showToken, setShowToken] = useState(false);
+  const isConfigured = config.telegramBotToken && config.telegramBotToken.length > 0;
+  const accessCode = config.telegramAccessCode || "";
+  const userCount = (config.telegramAllowedUsers || []).length;
+
+  const handleSaveToken = async () => {
+    if (!tokenDraft.trim()) return;
+    await engineCall("saveSetting", { key: "telegramBotToken", value: tokenDraft.trim() });
+    onAction("setSetting", { key: "telegramBotToken", value: tokenDraft.trim() });
+    setTokenDraft("");
+    // Auto-generate access code if none exists
+    if (!accessCode) {
+      const code = Array.from(crypto.getRandomValues(new Uint8Array(4)))
+        .map((b) => b.toString(16).padStart(2, "0")).join("");
+      await engineCall("saveSetting", { key: "telegramAccessCode", value: code });
+      onAction("setSetting", { key: "telegramAccessCode", value: code });
+    }
+  };
+
+  const handleGenerateCode = async () => {
+    const code = Array.from(crypto.getRandomValues(new Uint8Array(4)))
+      .map((b) => b.toString(16).padStart(2, "0")).join("");
+    await engineCall("saveSetting", { key: "telegramAccessCode", value: code });
+    onAction("setSetting", { key: "telegramAccessCode", value: code });
+  };
+
+  return (
+    <div className="px-4 py-2.5 space-y-3">
+      {/* Status */}
+      <div className="flex items-center gap-2">
+        <span className={`w-2 h-2 rounded-full ${isConfigured ? "bg-[var(--success)]" : "bg-[var(--text-dim)]"}`} />
+        <span className="text-sm text-[var(--text-muted)]">
+          {isConfigured ? `Configured (${userCount} user${userCount !== 1 ? "s" : ""})` : "Not configured"}
+        </span>
+      </div>
+
+      {/* Bot token */}
+      <div>
+        <div className="flex items-center gap-2 mb-1">
+          <span className="text-sm text-[var(--text-muted)]">Bot Token</span>
+          {isConfigured && (
+            <button
+              onClick={() => setShowToken(!showToken)}
+              className="text-xs text-[var(--text-dim)] hover:text-[var(--text)]"
+            >
+              {showToken ? "Hide" : "Show"}
+            </button>
+          )}
+        </div>
+        {isConfigured && !showToken && (
+          <div className="text-sm text-[var(--text-dim)] font-mono">••••••••</div>
+        )}
+        {isConfigured && showToken && (
+          <div className="text-sm text-[var(--text-dim)] font-mono break-all">{config.telegramBotToken}</div>
+        )}
+        <div className="flex gap-1.5 mt-1">
+          <input
+            type="text"
+            value={tokenDraft}
+            onChange={(e) => setTokenDraft(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") handleSaveToken(); }}
+            placeholder="Paste bot token..."
+            className="flex-1 px-2.5 py-1.5 text-sm rounded-lg bg-[var(--bg)] border border-[var(--border)] text-[var(--text)] placeholder-[var(--text-dim)] focus:outline-none focus:border-[var(--accent)]"
+          />
+          <button
+            onClick={handleSaveToken}
+            disabled={!tokenDraft.trim()}
+            className="px-3 py-1.5 text-xs font-medium rounded-lg bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white transition-colors disabled:opacity-40"
+          >
+            Save
+          </button>
+        </div>
+      </div>
+
+      {/* Access code */}
+      {isConfigured && (
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-sm text-[var(--text-muted)]">Access Code</span>
+          </div>
+          {accessCode ? (
+            <div className="flex items-center gap-2">
+              <code className="text-sm text-[var(--accent)] font-mono bg-[var(--bg)] px-2.5 py-1 rounded-lg border border-[var(--border)]">
+                {accessCode}
+              </code>
+              <button
+                onClick={handleGenerateCode}
+                className="text-xs text-[var(--text-dim)] hover:text-[var(--text)]"
+              >
+                Regenerate
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={handleGenerateCode}
+              className="px-3 py-1.5 text-xs font-medium rounded-lg bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white transition-colors"
+            >
+              Generate Code
+            </button>
+          )}
+          <p className="text-xs text-[var(--text-dim)] mt-1.5">
+            Send this code to the bot on Telegram to authenticate.
+          </p>
+        </div>
+      )}
+
+      {/* Help */}
+      <div className="text-xs text-[var(--text-dim)] leading-relaxed">
+        Get a token from <b>@BotFather</b> on Telegram, then run <code className="text-[var(--accent)]">llamabuild --telegram</code> to start.
       </div>
     </div>
   );

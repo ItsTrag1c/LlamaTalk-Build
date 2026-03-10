@@ -4,6 +4,8 @@ import { Sidebar } from "./components/Sidebar";
 import { ChatArea } from "./components/ChatArea";
 import { InputBar } from "./components/InputBar";
 import { ConfirmDialog } from "./components/ConfirmDialog";
+import { HomePage } from "./components/HomePage";
+import { OnboardingPage } from "./components/OnboardingPage";
 import { engine, engineCall, onEngineEvent, onPrompt, resolvePrompt } from "./lib/engine";
 import type { Message, ToolCall, Session, AgentMode, MessageUsage } from "./lib/types";
 
@@ -24,6 +26,7 @@ export default function App() {
   } | null>(null);
   const [availableModels, setAvailableModels] = useState<string[]>([]);
   const [isLoadingMemory, setIsLoadingMemory] = useState(false);
+  const [currentView, setCurrentView] = useState<"onboarding" | "home" | "chat">("home");
 
   const streamRef = useRef("");
   const turnToolsRef = useRef<ToolCall[]>([]);
@@ -43,6 +46,10 @@ export default function App() {
         const cfg = await engine.getConfig();
         setModel(cfg.selectedModel || "");
         setConfig(cfg);
+        // Show onboarding if not completed and initial setup is done
+        if (cfg.onboardingComplete === false && cfg.onboardingDone !== false) {
+          setCurrentView("onboarding");
+        }
       } catch { /* */ }
 
       try {
@@ -286,6 +293,7 @@ export default function App() {
       setCurrentSessionId(result.id);
       setMessages([]);
       setPendingToolCalls([]);
+      setCurrentView("chat");
       const sessionList = await engine.listSessions();
       setSessions(sessionList || []);
     } catch { /* */ }
@@ -305,6 +313,7 @@ export default function App() {
             timestamp: m.timestamp || Date.now(),
           }));
         setMessages(mapped);
+        setCurrentView("chat");
       }
     } catch { /* */ }
   }, []);
@@ -319,6 +328,7 @@ export default function App() {
         turnToolsRef.current = [];
         streamRef.current = "";
         setStreamingContent("");
+        setCurrentView("home");
       }
       const sessionList = await engine.listSessions();
       setSessions(sessionList || []);
@@ -400,9 +410,29 @@ export default function App() {
     }
   }, [handleSend]);
 
+  const handleNavigateHome = useCallback(() => {
+    setCurrentView("home");
+  }, []);
+
+  // Onboarding is a full-screen page — no sidebar, no titlebar controls
+  if (currentView === "onboarding") {
+    return (
+      <div className="h-screen flex flex-col">
+        <TitleBar />
+        <OnboardingPage
+          config={config}
+          onComplete={() => {
+            setConfig((prev) => ({ ...prev, onboardingComplete: true }));
+            setCurrentView("home");
+          }}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="h-screen flex flex-col">
-      <TitleBar />
+      <TitleBar onNavigateHome={handleNavigateHome} showHomeButton={currentView === "chat"} />
 
       <div className="flex flex-1 min-h-0">
         <Sidebar
@@ -421,23 +451,34 @@ export default function App() {
         />
 
         <div className="flex-1 flex flex-col min-w-0">
-          <ChatArea
-            messages={messages}
-            streamingContent={streamingContent}
-            pendingToolCalls={pendingToolCalls}
-            isThinking={isThinking}
-            isLoadingMemory={isLoadingMemory}
-            profileName={config.profileName}
-            modelName={model}
-          />
-          <InputBar
-            onSend={handleSend}
-            onCancel={handleCancel}
-            onToggleMode={handleToggleMode}
-            disabled={isStreaming}
-            isStreaming={isStreaming}
-            mode={mode}
-          />
+          {currentView === "home" ? (
+            <HomePage
+              sessions={sessions}
+              config={config}
+              onNewSession={handleNewSession}
+              onSelectSession={handleSelectSession}
+            />
+          ) : (
+            <>
+              <ChatArea
+                messages={messages}
+                streamingContent={streamingContent}
+                pendingToolCalls={pendingToolCalls}
+                isThinking={isThinking}
+                isLoadingMemory={isLoadingMemory}
+                profileName={config.profileName}
+                modelName={model}
+              />
+              <InputBar
+                onSend={handleSend}
+                onCancel={handleCancel}
+                onToggleMode={handleToggleMode}
+                disabled={isStreaming}
+                isStreaming={isStreaming}
+                mode={mode}
+              />
+            </>
+          )}
         </div>
       </div>
 

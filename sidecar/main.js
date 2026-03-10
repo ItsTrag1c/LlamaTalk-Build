@@ -15,7 +15,7 @@
 import { createInterface } from "readline";
 import {
   AgentEngine, loadConfig, saveConfig, SessionManager, getAllLocalModels,
-  CLOUD_MODELS, detectBackend, TaskManager,
+  CLOUD_MODELS, detectBackend, TaskManager, MemoryManager,
 } from "llamatalkbuild-engine";
 
 // --- Protocol helpers ---
@@ -54,9 +54,17 @@ function sendPrompt(event, data) {
 let engine = null;
 let config = null;
 
+const SIDECAR_VERSION = "2.3.0";
+
 function ensureEngine(projectRoot) {
   if (!engine) {
     config = loadConfig();
+    // Version check for re-onboarding
+    if (config.onboardingDone && (!config.appVersion || config.appVersion !== SIDECAR_VERSION)) {
+      config.onboardingComplete = false;
+      config.appVersion = SIDECAR_VERSION;
+      saveConfig(config);
+    }
     engine = new AgentEngine(config, {
       projectRoot: projectRoot || process.cwd(),
     });
@@ -117,6 +125,10 @@ const methods = {
       autoApprove: cfg.autoApprove || {},
       pinHash: cfg.pinHash || null,
       onboardingDone: cfg.onboardingDone || false,
+      onboardingComplete: cfg.onboardingComplete || false,
+      telegramBotToken: cfg.telegramBotToken ? "••••••••" : "",
+      telegramAllowedUsers: cfg.telegramAllowedUsers || [],
+      appVersion: cfg.appVersion || "",
       // Don't send raw API keys — just whether they're set
       hasApiKey: {
         anthropic: !!(cfg.apiKey_anthropic && (typeof cfg.apiKey_anthropic === "string" ? cfg.apiKey_anthropic.length > 0 : cfg.apiKey_anthropic.v)),
@@ -128,6 +140,20 @@ const methods = {
   },
 
   saveSetting({ key, value }) {
+    // Security: Whitelist allowed config keys to prevent arbitrary config manipulation
+    const ALLOWED_KEYS = [
+      "selectedModel", "ollamaUrl", "safetyLevel", "profileName", "backendType",
+      "telegramBotToken", "telegramAccessCode", "onboardingComplete", "appVersion",
+      "enabledProviders.anthropic", "enabledProviders.google", "enabledProviders.openai", "enabledProviders.opencode",
+      "autoApprove.medium", "autoApprove.high",
+    ];
+    if (!ALLOWED_KEYS.includes(key)) {
+      return { ok: false, error: `Setting "${key}" is not allowed` };
+    }
+    // Validate string values aren't excessively long
+    if (typeof value === "string" && value.length > 1024) {
+      return { ok: false, error: "Value too long" };
+    }
     const cfg = loadConfig();
     // Handle nested keys like "enabledProviders.anthropic" or "autoApprove.medium"
     const parts = key.split(".");
@@ -147,6 +173,14 @@ const methods = {
   },
 
   saveApiKey({ provider, key }) {
+    // Security: Validate provider against allowed list
+    const ALLOWED_PROVIDERS = ["anthropic", "google", "openai", "opencode"];
+    if (!ALLOWED_PROVIDERS.includes(provider)) {
+      return { ok: false, error: `Unknown provider: ${provider}` };
+    }
+    if (typeof key !== "string" || key.length > 512) {
+      return { ok: false, error: "Invalid API key" };
+    }
     const cfg = loadConfig();
     const field = `apiKey_${provider}`;
     cfg[field] = key;
@@ -178,7 +212,9 @@ const methods = {
         });
         return { ok: res.status !== 401 && res.status !== 403, status: res.status };
       } else if (provider === "google") {
-        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models`, {
+          headers: { "x-goog-api-key": apiKey },
+        });
         return { ok: res.ok, status: res.status };
       } else if (provider === "openai") {
         const res = await fetch("https://api.openai.com/v1/models", {
@@ -313,6 +349,10 @@ const methods = {
   },
 
   addTask({ description, dueDate }) {
+    // Security: Validate task input length
+    if (typeof description !== "string" || description.length === 0 || description.length > 500) {
+      return { error: "Task description must be 1-500 characters" };
+    }
     const tm = engine ? engine.getTaskManager() : new TaskManager();
     return tm.add(description, dueDate || null);
   },
@@ -328,8 +368,28 @@ const methods = {
   },
 
   renameSession({ id, title }) {
+    // Security: Validate session title length
+    if (typeof title === "string" && title.length > 200) {
+      return { ok: false, error: "Session title too long" };
+    }
     const sm = new SessionManager();
     sm.touch(id, title);
+    return { ok: true };
+  },
+
+  saveOnboarding({ lessons }) {
+    const cfg = loadConfig();
+    const memory = new MemoryManager(cfg);
+    if (Array.isArray(lessons)) {
+      // Security: Limit lesson count and length
+      for (const entry of lessons.slice(0, 10)) {
+        if (typeof entry === "string" && entry.trim() && entry.length <= 500) {
+          memory.appendLesson("about_you", entry.trim());
+        }
+      }
+    }
+    cfg.onboardingComplete = true;
+    saveConfig(cfg);
     return { ok: true };
   },
 };
