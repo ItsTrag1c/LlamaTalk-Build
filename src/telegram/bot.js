@@ -345,7 +345,11 @@ export async function startTelegramBot(config, encKey) {
     if (resolver) {
       pendingConfirms.delete(promptId);
       const value = action === "approve" ? true : action === "always" ? "always" : false;
-      resolver(value);
+      try {
+        resolver(value);
+      } catch (err) {
+        console.error("   [Telegram] Error resolving confirmation:", err.message || err);
+      }
       const label = action === "approve" ? "✅ Approved" : action === "always" ? "✅ Always approve" : "❌ Denied";
       try {
         await ctx.answerCallbackQuery(label);
@@ -363,7 +367,11 @@ export async function startTelegramBot(config, encKey) {
     const resolver = pendingConfirms.get(promptId);
     if (resolver) {
       pendingConfirms.delete(promptId);
-      resolver(action === "execute" ? "yes" : action === "keep_planning" ? "keep_planning" : "edit");
+      try {
+        resolver(action === "execute" ? "yes" : action === "keep_planning" ? "keep_planning" : "edit");
+      } catch (err) {
+        console.error("   [Telegram] Error resolving plan action:", err.message || err);
+      }
       const label = action === "execute" ? "▶️ Executing" : action === "keep_planning" ? "📋 Continue planning" : "✏️ Edit plan";
       try {
         await ctx.answerCallbackQuery(label);
@@ -453,13 +461,17 @@ export async function startTelegramBot(config, encKey) {
     // If editor has content, do final split send
     const finalContent = editor.getContent();
     if (finalContent) {
-      const html = toTelegramHtml(finalContent);
-      const chunks = splitMessage(html);
-      if (chunks.length > 1) {
-        // The first chunk was already edited in, send the rest as new messages
-        for (let i = 1; i < chunks.length; i++) {
-          await bot.api.sendMessage(chatId, chunks[i], { parse_mode: "HTML" });
+      try {
+        const html = toTelegramHtml(finalContent);
+        const chunks = splitMessage(html);
+        if (chunks.length > 1) {
+          // The first chunk was already edited in, send the rest as new messages
+          for (let i = 1; i < chunks.length; i++) {
+            await bot.api.sendMessage(chatId, chunks[i], { parse_mode: "HTML" });
+          }
         }
+      } catch (err) {
+        console.error(`   [${userId}] Final send error:`, err.message || err);
       }
     }
 
@@ -469,7 +481,9 @@ export async function startTelegramBot(config, encKey) {
 
   // --- Global error handler (prevents unhandled errors from crashing the process) ---
   bot.catch((err) => {
-    console.error("   [Telegram] Bot error:", err.message || err);
+    const actual = err.error || err;
+    console.error("   [Telegram] Bot error:", actual.message || actual);
+    if (actual.stack) console.error(actual.stack);
   });
 
   // --- Start bot ---

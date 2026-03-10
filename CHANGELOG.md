@@ -1,6 +1,13 @@
 # Changelog — LlamaTalk Build
 
-Last updated: 2026-03-10 (v2.3.5)
+Last updated: 2026-03-10 (v2.3.6)
+
+---
+
+## v2.3.6 — 2026-03-10
+
+### Bug Fixes
+- **Telegram bot crash after tool confirmation** — added global `unhandledRejection` handler to prevent the process from dying on async errors. Added error logging around confirmation resolvers, final message sends, and the grammy error handler now logs the actual error with stack trace. If the crash recurs, the terminal will now show the root cause instead of silently exiting.
 
 ---
 

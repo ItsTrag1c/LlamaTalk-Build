@@ -1,6 +1,11 @@
 #!/usr/bin/env node
 process.removeAllListeners("warning");
 
+// Prevent unhandled rejections from crashing the process (especially in Telegram bot mode)
+process.on("unhandledRejection", (err) => {
+  console.error("   [Unhandled rejection]", err?.message || err);
+});
+
 import { createInterface } from "readline";
 import { loadConfig, saveConfig, isFirstRun, pinRequired, verifyPin, needsPinMigration, hashPin, generateEncKeySalt, deriveEncKey, decryptApiKeys, saveConfigWithKey, getMemoryDir } from "./src/config.js";
 import { runOnboarding } from "./src/onboarding.js";
@@ -13,7 +18,7 @@ import { TaskManager } from "./src/memory/tasks.js";
 import { existsSync, readdirSync, unlinkSync, readFileSync } from "fs";
 import { dirname, join } from "path";
 
-const VERSION = "2.3.5";
+const VERSION = "2.3.6";
 
 // Clean up leftover files from previous /update (old EXEs that couldn't be deleted while running)
 function startupCleanup() {
