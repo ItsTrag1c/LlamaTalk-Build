@@ -662,11 +662,16 @@ export class AgentEngine extends EventEmitter {
       if (this.agentMode === "plan") {
         // If cancelled while awaiting plan action, exit cleanly
         if (this.controller.signal.aborted) break;
+        console.log("   [Engine] Plan complete — awaiting user action...");
         const action = await new Promise((res) => {
           this.emit("plan-complete", { resolve: res });
         });
+        console.log(`   [Engine] Plan action received: ${JSON.stringify(action)}`);
         // Cancel may have resolved the promise with false — exit cleanly
-        if (action === false || this.controller.signal.aborted) break;
+        if (action === false || this.controller.signal.aborted) {
+          console.log("   [Engine] Plan cancelled — breaking loop");
+          break;
+        }
         if (action === "y" || action === "yes") {
           this.agentMode = "build";
           this.messages.push({ role: "user", content: "Proceed with the plan. Execute each step." });
@@ -685,13 +690,16 @@ export class AgentEngine extends EventEmitter {
           // "edit" or "e" without text — stay in plan mode, consumer should re-prompt for edit text
         } else if (action === "keep_planning" || action === "n") {
           // Stay in plan mode and continue the loop for another iteration
+          console.log("   [Engine] Keep planning — continuing loop");
           this.messages.push({ role: "user", content: "Continue refining the plan. Add more detail or consider edge cases." });
           this.sessionLog.addStep("User requested further planning");
           continue;
         }
         // empty or unrecognized — stay in plan mode, return to caller
+        console.log(`   [Engine] Unhandled plan action: ${JSON.stringify(action)} — falling through to break`);
       }
 
+      console.log("   [Engine] Agent loop exiting (break)");
       break;
     }
 

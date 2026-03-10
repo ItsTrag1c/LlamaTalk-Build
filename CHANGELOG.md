@@ -1,6 +1,13 @@
 # Changelog — LlamaTalk Build
 
-Last updated: 2026-03-10 (v2.3.6)
+Last updated: 2026-03-10 (v2.3.7)
+
+---
+
+## v2.3.7 — 2026-03-10
+
+### Bug Fixes
+- **Telegram bot exits after plan actions** — grammy's `bot.start()` polling was silently resolving after certain internal errors, causing the process to exit cleanly with no error output. The bot now runs in a restart loop — if polling stops for any reason, it automatically restarts within 3 seconds. Also added debug logging to the plan-complete flow to trace action handling.
 
 ---
 

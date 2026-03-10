@@ -501,9 +501,19 @@ export async function startTelegramBot(config, encKey) {
   // that crashed the previous run) don't replay and crash again in a loop.
   await bot.api.deleteWebhook({ drop_pending_updates: true });
 
-  await bot.start({
-    onStart: () => console.log("   ✅ Bot connected to Telegram."),
-  });
+  // Keep the bot alive — if bot.start() resolves unexpectedly, restart it
+  while (true) {
+    try {
+      await bot.start({
+        onStart: () => console.log("   ✅ Bot connected to Telegram."),
+      });
+      console.error("   ⚠️ bot.start() resolved unexpectedly — restarting polling...");
+    } catch (err) {
+      console.error("   ⚠️ bot.start() threw:", err.message || err);
+      console.error("   Restarting polling in 3s...");
+      await new Promise((r) => setTimeout(r, 3000));
+    }
+  }
 }
 
 /**
