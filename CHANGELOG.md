@@ -1,6 +1,15 @@
 # Changelog — LlamaTalk Build
 
-Last updated: 2026-03-09 (v2.3.2)
+Last updated: 2026-03-10 (v2.3.3)
+
+---
+
+## v2.3.3 — 2026-03-10
+
+### Bug Fixes
+- **Telegram `/clear` crash loop** — CLI-only slash commands (like `/clear`, `/help`, `/home`) were being sent to the LLM as user messages, causing unpredictable behavior and crashes. All `/` commands are now intercepted: `/clear`, `/new`, and `/trust` are handled locally, everything else gets a helpful "not available on Telegram" message.
+- **`/cancel` not unblocking stuck confirmations** — when the agent was waiting for a confirmation button press, `/cancel` only aborted the HTTP stream but left the confirmation Promise hanging forever, permanently locking the user out. Now `/cancel` also resolves all pending confirmations and clears the busy lock.
+- **Crash loop on reboot** — old unprocessed Telegram updates (like the `/clear` that caused the original crash) were replayed on every restart, causing an infinite crash loop. The bot now drops pending updates on startup.
 
 ---
 
