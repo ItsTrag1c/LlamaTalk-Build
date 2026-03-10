@@ -1,6 +1,17 @@
 # Changelog — LlamaTalk Build
 
-Last updated: 2026-03-10 (v2.3.8)
+Last updated: 2026-03-10 (v2.4.0)
+
+---
+
+## v2.4.0 — 2026-03-10
+
+### New Features
+- **`/cancel` with file revert** — `/cancel` now performs a hard stop that aborts any in-progress generation, cancels pending confirmations, and reverts all file changes made during the current turn. Reverted files are listed in the cancellation message.
+- **Clean plan summary** — in Plan mode, the final plan is now sent as a standalone formatted message instead of showing all intermediate tool calls (reads, searches, etc.). The plan steps appear as the most recent message for easy reference.
+
+### Bug Fixes
+- **Keep Planning deadlock (Telegram)** — clicking "Keep Planning" after the agent produced a plan caused the CLI to exit. Root cause: grammy's sequential polling was blocked by `await engine.sendMessage()` in the message handler, preventing it from polling for callback query updates (button clicks). Fixed by running `sendMessage` in a detached async context so grammy's polling loop stays unblocked.
 
 ---
 

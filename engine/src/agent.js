@@ -1,6 +1,6 @@
 import { EventEmitter } from "events";
 import { resolve } from "path";
-import { readFileSync } from "fs";
+import { readFileSync, writeFileSync, existsSync, unlinkSync } from "fs";
 import { getProviderForModel } from "./providers/router.js";
 import { ToolRegistry } from "./tools/registry.js";
 import { isReadOnlyTool } from "./tools/base.js";
@@ -211,6 +211,7 @@ export class AgentEngine extends EventEmitter {
 
     this.messages = [];
     this.sessionChanges = [];
+    this._changesStartIndex = 0;
     this.currentSession = null;
     this.conversationId = null;
     this.firstMessageSent = false;
@@ -296,6 +297,30 @@ export class AgentEngine extends EventEmitter {
     }
   }
 
+  /** Revert all file changes made during the current sendMessage turn. */
+  revertCurrentTurn() {
+    const startIdx = this._changesStartIndex || 0;
+    if (!this.sessionChanges || this.sessionChanges.length <= startIdx) return [];
+
+    const reverted = [];
+    for (let i = this.sessionChanges.length - 1; i >= startIdx; i--) {
+      const change = this.sessionChanges[i];
+      try {
+        if (change.type === "create") {
+          if (existsSync(change.path)) {
+            unlinkSync(change.path);
+            reverted.push(change.path);
+          }
+        } else if (change.oldContent !== undefined) {
+          writeFileSync(change.path, change.oldContent, "utf8");
+          reverted.push(change.path);
+        }
+      } catch { /* file may be locked or already deleted */ }
+    }
+    this.sessionChanges.length = startIdx;
+    return [...new Set(reverted)];
+  }
+
   // --- Accessors ---
 
   getMessages() { return this.messages; }
@@ -318,6 +343,7 @@ export class AgentEngine extends EventEmitter {
 
   async sendMessage(text) {
     this.lastActivityTime = Date.now();
+    this._changesStartIndex = this.sessionChanges.length;
 
     // Check inactivity lock
     const locked = await this._checkInactivityLock();
@@ -662,16 +688,11 @@ export class AgentEngine extends EventEmitter {
       if (this.agentMode === "plan") {
         // If cancelled while awaiting plan action, exit cleanly
         if (this.controller.signal.aborted) break;
-        console.log("   [Engine] Plan complete — awaiting user action...");
         const action = await new Promise((res) => {
           this.emit("plan-complete", { resolve: res });
         });
-        console.log(`   [Engine] Plan action received: ${JSON.stringify(action)}`);
         // Cancel may have resolved the promise with false — exit cleanly
-        if (action === false || this.controller.signal.aborted) {
-          console.log("   [Engine] Plan cancelled — breaking loop");
-          break;
-        }
+        if (action === false || this.controller.signal.aborted) break;
         if (action === "y" || action === "yes") {
           this.agentMode = "build";
           this.messages.push({ role: "user", content: "Proceed with the plan. Execute each step." });
@@ -690,16 +711,13 @@ export class AgentEngine extends EventEmitter {
           // "edit" or "e" without text — stay in plan mode, consumer should re-prompt for edit text
         } else if (action === "keep_planning" || action === "n") {
           // Stay in plan mode and continue the loop for another iteration
-          console.log("   [Engine] Keep planning — continuing loop");
           this.messages.push({ role: "user", content: "Continue refining the plan. Add more detail or consider edge cases." });
           this.sessionLog.addStep("User requested further planning");
           continue;
         }
         // empty or unrecognized — stay in plan mode, return to caller
-        console.log(`   [Engine] Unhandled plan action: ${JSON.stringify(action)} — falling through to break`);
       }
 
-      console.log("   [Engine] Agent loop exiting (break)");
       break;
     }
 

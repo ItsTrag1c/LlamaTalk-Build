@@ -315,22 +315,25 @@ export async function startTelegramBot(config, encKey) {
 
   bot.command("cancel", async (ctx) => {
     const userId = ctx.from.id;
-    // Resolve all pending confirms with `false` (deny) so the engine's
-    // await-on-Promise unblocks. Without this, cancel() only aborts the
-    // HTTP stream but the agent loop stays stuck on the confirmation Promise.
+    // Resolve all pending confirms/plan actions with false so the engine unblocks
     for (const [id, resolver] of pendingConfirms) {
       resolver(false);
       pendingConfirms.delete(id);
     }
+    let revertedFiles = [];
     if (engines.has(userId)) {
-      engines.get(userId).cancel();
-      // Destroy the engine entirely — a new one will be created on the next
-      // message, with a fresh AbortController and clean state. This ensures
-      // no lingering tool execution or agent loop iteration can continue.
+      const engine = engines.get(userId);
+      engine.cancel();
+      revertedFiles = engine.revertCurrentTurn();
       engines.delete(userId);
     }
     busyUsers.delete(userId);
-    await ctx.reply("⛔ Operation cancelled.");
+    let msg = "⛔ Operation cancelled.";
+    if (revertedFiles.length > 0) {
+      msg += `\n\n🔄 Reverted ${revertedFiles.length} file(s):\n` +
+        revertedFiles.map(f => `• <code>${esc(f.replace(/\\/g, "/").split("/").pop())}</code>`).join("\n");
+    }
+    await ctx.reply(msg, { parse_mode: "HTML" });
   });
 
   // --- Callback queries (inline keyboard) ---
@@ -488,8 +491,6 @@ export async function startTelegramBot(config, encKey) {
     const text = ctx.message.text;
 
     // Intercept CLI slash commands so they don't get sent to the LLM.
-    // grammy handles /start, /sessions, /mode, /model, /status, /cancel above.
-    // Everything else starting with "/" is either handled here or rejected.
     const cmd = text.trim().split(/\s+/)[0].toLowerCase();
     if (cmd.startsWith("/")) {
       const handler = TELEGRAM_COMMANDS[cmd];
@@ -501,8 +502,7 @@ export async function startTelegramBot(config, encKey) {
       return;
     }
 
-    // Prevent concurrent messages from the same user — the engine is stateful
-    // and two simultaneous requests would collide on event handlers and promptIds
+    // Prevent concurrent messages from the same user
     if (busyUsers.has(userId)) {
       await ctx.reply("⏳ Still working on your previous request. Please wait.");
       return;
@@ -515,44 +515,16 @@ export async function startTelegramBot(config, encKey) {
     const editor = getEditor(chatId);
     editor.reset();
 
-    // Send initial "thinking" message
     const thinkingMsg = await ctx.reply("🤔 Thinking...");
     editor.setMessageId(thinkingMsg.message_id);
 
-    // Wire engine events for this request (uses global counter for unique promptIds)
     const cleanup = wireEngineEvents(engine, bot, chatId, editor, pendingConfirms, () => `p${++globalPromptCounter}`);
 
-    try {
-      await engine.sendMessage(text);
-    } catch (err) {
-      console.error(`   [${userId}] Engine error:`, err.message || err);
-      try {
-        await bot.api.sendMessage(chatId, `❌ Error: ${err.message || err}`);
-      } catch { /* */ }
-    }
-
-    // Final flush
-    await editor.flush();
-
-    // If editor has content, do final split send
-    const finalContent = editor.getContent();
-    if (finalContent) {
-      try {
-        const html = toTelegramHtml(finalContent);
-        const chunks = splitMessage(html);
-        if (chunks.length > 1) {
-          // The first chunk was already edited in, send the rest as new messages
-          for (let i = 1; i < chunks.length; i++) {
-            await bot.api.sendMessage(chatId, chunks[i], { parse_mode: "HTML" });
-          }
-        }
-      } catch (err) {
-        console.error(`   [${userId}] Final send error:`, err.message || err);
-      }
-    }
-
-    cleanup();
-    busyUsers.delete(userId);
+    // Run the engine in a detached async context so grammy's polling loop
+    // stays free to process callback queries (confirmations, plan actions).
+    // Without this, plan mode deadlocks: sendMessage awaits the button click,
+    // but grammy can't poll for it because it's waiting for sendMessage.
+    runEngineDetached(engine, text, userId, chatId, editor, cleanup, bot, busyUsers);
   });
 
   // --- Global error handler (prevents unhandled errors from crashing the process) ---
@@ -595,6 +567,42 @@ export async function startTelegramBot(config, encKey) {
       await new Promise((r) => setTimeout(r, 3000));
     }
   }
+}
+
+/**
+ * Run the engine in a detached async context.
+ * This allows grammy's polling loop to continue processing callback queries
+ * (confirmations, plan actions) while the engine is running.
+ */
+async function runEngineDetached(engine, text, userId, chatId, editor, cleanup, bot, busyUsers) {
+  try {
+    await engine.sendMessage(text);
+  } catch (err) {
+    console.error(`   [${userId}] Engine error:`, err.message || err);
+    try {
+      await bot.api.sendMessage(chatId, `❌ Error: ${err.message || err}`);
+    } catch { /* */ }
+  }
+
+  await editor.flush();
+
+  const finalContent = editor.getContent();
+  if (finalContent) {
+    try {
+      const html = toTelegramHtml(finalContent);
+      const chunks = splitMessage(html);
+      if (chunks.length > 1) {
+        for (let i = 1; i < chunks.length; i++) {
+          await bot.api.sendMessage(chatId, chunks[i], { parse_mode: "HTML" });
+        }
+      }
+    } catch (err) {
+      console.error(`   [${userId}] Final send error:`, err.message || err);
+    }
+  }
+
+  cleanup();
+  busyUsers.delete(userId);
 }
 
 /**
@@ -662,6 +670,22 @@ function wireEngineEvents(engine, bot, chatId, editor, pendingConfirms, getPromp
           { parse_mode: "HTML", reply_markup: keyboard }
         );
       } catch { /* */ }
+    },
+
+    "response-end": async ({ text }) => {
+      // In plan mode, send the final plan as a clean standalone message
+      if (engine.getMode() === "plan" && text) {
+        await editor.flush();
+        try {
+          const html = toTelegramHtml(text);
+          const chunks = splitMessage(html);
+          for (const chunk of chunks) {
+            await bot.api.sendMessage(chatId, chunk, { parse_mode: "HTML" });
+          }
+        } catch { /* rate limit or send error */ }
+        // Clear the editor so the final flush doesn't re-send
+        editor.setContent("");
+      }
     },
 
     "plan-complete": async ({ resolve }) => {
