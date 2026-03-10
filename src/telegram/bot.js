@@ -263,12 +263,14 @@ export async function startTelegramBot(config, encKey) {
     const sessionId = ctx.match[1];
     const engine = getEngine(userId);
     const result = engine.loadSession(sessionId);
-    if (result) {
-      await ctx.answerCallbackQuery("Session loaded");
-      await ctx.editMessageText(`Loaded: ${esc(result.title || "Untitled")}`, { reply_markup: undefined });
-    } else {
-      await ctx.answerCallbackQuery("Session not found");
-    }
+    try {
+      if (result) {
+        await ctx.answerCallbackQuery("Session loaded");
+        await ctx.editMessageText(`Loaded: ${esc(result.title || "Untitled")}`, { reply_markup: undefined });
+      } else {
+        await ctx.answerCallbackQuery("Session not found");
+      }
+    } catch { /* Telegram API error — non-fatal */ }
   });
 
   bot.callbackQuery(/^confirm:(.+):(.+)$/, async (ctx) => {
@@ -281,10 +283,12 @@ export async function startTelegramBot(config, encKey) {
       const value = action === "approve" ? true : action === "always" ? "always" : false;
       resolver(value);
       const label = action === "approve" ? "✅ Approved" : action === "always" ? "✅ Always approve" : "❌ Denied";
-      await ctx.answerCallbackQuery(label);
-      await ctx.editMessageText(label, { reply_markup: undefined });
+      try {
+        await ctx.answerCallbackQuery(label);
+        await ctx.editMessageText(label, { reply_markup: undefined });
+      } catch { /* Telegram API error — non-fatal */ }
     } else {
-      await ctx.answerCallbackQuery("Expired");
+      try { await ctx.answerCallbackQuery("Expired"); } catch { /* */ }
     }
   });
 
@@ -297,10 +301,12 @@ export async function startTelegramBot(config, encKey) {
       pendingConfirms.delete(promptId);
       resolver(action === "execute" ? "execute" : action === "keep_planning" ? "keep_planning" : "edit");
       const label = action === "execute" ? "▶️ Executing" : action === "keep_planning" ? "📋 Continue planning" : "✏️ Edit plan";
-      await ctx.answerCallbackQuery(label);
-      await ctx.editMessageText(label, { reply_markup: undefined });
+      try {
+        await ctx.answerCallbackQuery(label);
+        await ctx.editMessageText(label, { reply_markup: undefined });
+      } catch { /* Telegram API error — non-fatal */ }
     } else {
-      await ctx.answerCallbackQuery("Expired");
+      try { await ctx.answerCallbackQuery("Expired"); } catch { /* */ }
     }
   });
 
@@ -350,6 +356,11 @@ export async function startTelegramBot(config, encKey) {
     }
 
     cleanup();
+  });
+
+  // --- Global error handler (prevents unhandled errors from crashing the process) ---
+  bot.catch((err) => {
+    console.error("   [Telegram] Bot error:", err.message || err);
   });
 
   // --- Start bot ---

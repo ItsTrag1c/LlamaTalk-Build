@@ -1,6 +1,13 @@
 # Changelog — LlamaTalk Build
 
-Last updated: 2026-03-09 (v2.3.0)
+Last updated: 2026-03-09 (v2.3.1)
+
+---
+
+## v2.3.1 — 2026-03-09
+
+### Bug Fixes
+- **Telegram bot crash on deny** — fixed unhandled Telegram API errors in callback query handlers (confirm, plan action, session load) that caused the bot to silently crash when denying actions. Added try-catch around all `answerCallbackQuery` / `editMessageText` calls and a global `bot.catch()` error handler.
 
 ---
 
