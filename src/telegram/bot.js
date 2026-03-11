@@ -1161,6 +1161,9 @@ async function runSubAgentDetached(engine, text, userId, chatId, agentName, bot,
 function wireEngineEvents(engine, bot, chatId, editor, pendingConfirms, getPromptId) {
   // Track promptIds created during this request so cleanup can remove orphans
   const ownedPromptIds = [];
+  // Track whether tools have been executed — if so, the next response-start
+  // should create a NEW message instead of editing the existing one.
+  let toolsExecuted = false;
 
   const handlers = {
     "thinking-start": () => {
@@ -1179,7 +1182,18 @@ function wireEngineEvents(engine, bot, chatId, editor, pendingConfirms, getPromp
       }
     },
 
-    "response-start": () => {
+    "response-start": async () => {
+      if (toolsExecuted) {
+        // Tools were executed — flush the old message and start a new one
+        // so the post-tool response appears as a separate chat bubble.
+        await editor.flush();
+        try {
+          const newMsg = await bot.api.sendMessage(chatId, "🤔 Thinking...", { parse_mode: "HTML" });
+          editor.reset();
+          editor.setMessageId(newMsg.message_id);
+        } catch { /* rate limit */ }
+        toolsExecuted = false;
+      }
       editor.setContent("");
     },
 
@@ -1188,6 +1202,7 @@ function wireEngineEvents(engine, bot, chatId, editor, pendingConfirms, getPromp
     },
 
     "tool-start": async (data) => {
+      toolsExecuted = true;
       const text = formatToolStart(data.name, data.arguments);
       try {
         await bot.api.sendMessage(chatId, text, { parse_mode: "HTML" });

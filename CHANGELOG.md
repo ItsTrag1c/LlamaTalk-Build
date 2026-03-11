@@ -1,6 +1,19 @@
 # Changelog — Clank Build
 
-Last updated: 2026-03-11 (v2.5.12)
+Last updated: 2026-03-11 (v2.5.13)
+
+---
+
+## v2.5.13 (2026-03-11)
+
+### Bug Fixes
+- **Ollama tool_result messages now include tool_call_id** — tool results were sent without the `tool_call_id` field, so models couldn't correlate results with the tool calls that produced them. This caused tools like `web_search` to fail or produce confused follow-ups on Ollama models.
+- **Ollama assistant messages preserve tool_calls and id** — assistant messages in conversation history were stripped of their `tool_calls` property when sent to the API, and tool call entries were missing `id` and `type` fields. Models couldn't see their own prior tool usage, breaking multi-turn tool workflows.
+- **Google/Gemini enum values preserved in tool schemas** — `convertProperties()` was dropping `enum` constraints from tool parameter definitions, causing models to generate invalid values for enum-typed parameters.
+- **Tool parameter types corrected** — `max_results`, `offset`, `limit`, and `timeout` parameters changed from `type: "number"` to `type: "integer"`. Strict APIs (especially Gemini) distinguish between float and integer types, and these are all whole-number counts.
+
+### Improvements
+- **Telegram: new message bubble after tool calls** — the agent's response after tool execution now appears as a separate chat message instead of overwriting the pre-tool response in the same bubble. Each generation gets its own message.
 
 ---
 

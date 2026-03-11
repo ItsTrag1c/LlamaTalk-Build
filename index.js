@@ -18,7 +18,7 @@ import { TaskManager } from "./src/memory/tasks.js";
 import { existsSync, readdirSync, unlinkSync, readFileSync } from "fs";
 import { dirname, join } from "path";
 
-const VERSION = "2.5.12";
+const VERSION = "2.5.13";
 
 // Clean up leftover files from previous /update (old EXEs that couldn't be deleted while running)
 function startupCleanup() {
