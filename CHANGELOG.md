@@ -1,6 +1,14 @@
 # Changelog — Clank Build
 
-Last updated: 2026-03-11 (v2.5.8)
+Last updated: 2026-03-11 (v2.5.9)
+
+---
+
+## v2.5.9 (2026-03-11)
+
+### Bug Fixes
+- **Sub-agent conversation file now created on delegation** — previously, no conversation file was written to disk until `sendMessage()` finished, causing the agent loop to operate without a backing file. The conversation file is now created immediately when the sub-agent is initialized.
+- **Sub-agent engine reused across consecutive delegations** — each delegation used to create a brand-new engine with a new conversation ID, orphaning the old one. Now engines are cached per parent session and agent ID; messages are cleared between tasks so each delegation starts fresh, but the conversation file persists correctly.
 
 ---
 

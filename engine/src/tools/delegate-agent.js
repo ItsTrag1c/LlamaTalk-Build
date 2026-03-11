@@ -13,6 +13,7 @@
  */
 
 import { TaskManager } from "../memory/tasks.js";
+import { saveConversation } from "../config.js";
 
 let _taskManager = null;
 function getTaskManager() {
@@ -21,6 +22,10 @@ function getTaskManager() {
   }
   return _taskManager;
 }
+
+// Cache sub-agent engines by agent ID so consecutive delegations to the same
+// agent reuse the engine (and its conversation history) within a session.
+const _subEngineCache = new Map();
 
 export const delegateAgentTool = {
   definition: {
@@ -79,48 +84,78 @@ export const delegateAgentTool = {
     // Dynamically import AgentEngine to avoid circular deps
     const { AgentEngine } = await import("../agent.js");
 
-    // Build sub-agent config — inherit main config, override model if specified
-    const subConfig = { ...config };
-    if (def.model) {
-      subConfig.selectedModel = def.model;
-    }
+    // Reuse an existing sub-agent engine for the same agent within a session,
+    // so consecutive delegations retain conversation context. On new delegation
+    // the messages are cleared to start a fresh task, but the engine (and its
+    // underlying conversation file) is already initialized.
+    const cacheKey = `${parentEngine.conversationId}:${def.id}`;
+    let subEngine = _subEngineCache.get(cacheKey);
+    let isNewEngine = false;
 
-    // Create sub-agent engine with filtered tools
-    const subEngine = new AgentEngine(subConfig, {
-      projectRoot,
-      encKey: parentEngine.encKey,
-      noMemory: false,
-      subAgentDef: def,
-    });
+    if (!subEngine) {
+      isNewEngine = true;
 
-    // Share session changes so sub-agent writes are tracked by the parent
-    subEngine.sessionChanges = sessionChanges;
+      // Build sub-agent config — inherit main config, override model if specified
+      const subConfig = { ...config };
+      if (def.model) {
+        subConfig.selectedModel = def.model;
+      }
 
-    // Create a session for the sub-agent (transient — not persisted to index)
-    subEngine.conversationId = `sub-${def.id}-${Date.now()}`;
-    subEngine.messages = [];
-    subEngine.firstMessageSent = true; // skip auto-title
-
-    // Forward confirmation events to the parent engine so the user can approve.
-    // Skip this in async mode — the caller handles confirmations directly.
-    if (!onDelegation) {
-      subEngine.on("confirm-needed", (data) => {
-        parentEngine.emit("confirm-needed", data);
+      // Create sub-agent engine with filtered tools
+      subEngine = new AgentEngine(subConfig, {
+        projectRoot,
+        encKey: parentEngine.encKey,
+        noMemory: false,
+        subAgentDef: def,
       });
+
+      // Share session changes so sub-agent writes are tracked by the parent
+      subEngine.sessionChanges = sessionChanges;
+
+      // Create a session for the sub-agent (transient — not persisted to index)
+      subEngine.conversationId = `sub-${def.id}-${Date.now()}`;
+      subEngine.messages = [];
+      subEngine.firstMessageSent = true; // skip auto-title
+
+      // Write the conversation file immediately so it exists on disk before
+      // the agent loop runs — prevents the first sendMessage from operating
+      // without a backing file.
+      try {
+        saveConversation(subEngine.conversationId, subEngine.messages, parentEngine.encKey);
+      } catch { /* non-fatal — saveConversation creates dirs as needed */ }
+
+      // Forward confirmation events to the parent engine so the user can approve.
+      // Skip this in async mode — the caller handles confirmations directly.
+      if (!onDelegation) {
+        subEngine.on("confirm-needed", (data) => {
+          parentEngine.emit("confirm-needed", data);
+        });
+      }
+
+      _subEngineCache.set(cacheKey, subEngine);
+    } else {
+      // Reusing existing engine — clear conversation for the new task so
+      // the sub-agent starts fresh, but the conversation file already exists.
+      subEngine.messages = [];
+      try {
+        saveConversation(subEngine.conversationId, subEngine.messages, parentEngine.encKey);
+      } catch { /* non-fatal */ }
     }
 
     // Sub-agents run fully in the background — no events forwarded to chat.
     // The manager receives the final result as a tool return value.
 
-    // Collect the final response and iteration count (tool executions)
+    // Collect the final response and iteration count (tool executions).
+    // Re-bind listeners each delegation since the previous ones captured
+    // stale closure variables.
     let finalResponse = "";
     let lastIterationCount = 0;
-    subEngine.on("response-end", ({ text }) => {
-      finalResponse = text || "";
-    });
-    subEngine.on("usage", ({ iterationCount }) => {
-      lastIterationCount = iterationCount || 0;
-    });
+    const onResponseEnd = ({ text }) => { finalResponse = text || ""; };
+    const onUsage = ({ iterationCount }) => { lastIterationCount = iterationCount || 0; };
+    subEngine.removeAllListeners("response-end");
+    subEngine.removeAllListeners("usage");
+    subEngine.on("response-end", onResponseEnd);
+    subEngine.on("usage", onUsage);
 
     // Handle cancellation
     if (signal) {
