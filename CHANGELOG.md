@@ -8,6 +8,7 @@ Last updated: 2026-03-11 (v2.5.12)
 
 ### Bug Fixes
 - **Ollama provider preserves tool_calls in conversation history** — assistant messages sent to the Ollama API were stripped of their `tool_calls` property, so the model couldn't see its own prior tool calls. Tool results appeared disconnected and the model stopped the tool-use cycle after one round. Now `tool_calls` are preserved, matching the OpenAI provider behavior.
+- **Sub-agents now complete multi-step tasks fully** — sub-agents were stopping after completing one tool call instead of continuing through all steps. Strengthened the sub-agent system prompt to explain that text responses end the turn permanently, added a continuation mechanism that re-prompts up to 3 times if the agent's response indicates incomplete work, and clarified that looping only applies when explicitly requested.
 
 ---
 
