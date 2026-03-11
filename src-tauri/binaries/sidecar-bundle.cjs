@@ -30,10 +30,10 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
   mod
 ));
 
-// ../llamatalkbuild-engine/src/providers/base.js
+// ../../llamatalkbuild-engine/src/providers/base.js
 var BaseProvider;
 var init_base = __esm({
-  "../llamatalkbuild-engine/src/providers/base.js"() {
+  "../../llamatalkbuild-engine/src/providers/base.js"() {
     BaseProvider = class {
       constructor(config2, options = {}) {
         this.config = config2;
@@ -71,7 +71,7 @@ var init_base = __esm({
   }
 });
 
-// ../llamatalkbuild-engine/src/providers/stream.js
+// ../../llamatalkbuild-engine/src/providers/stream.js
 function validateServerUrl(urlStr) {
   let parsed;
   try {
@@ -176,7 +176,7 @@ async function* streamLines(nodeStream) {
 }
 var import_http, import_https, BLOCKED_HOSTS, ALLOWED_CLOUD_DOMAINS;
 var init_stream = __esm({
-  "../llamatalkbuild-engine/src/providers/stream.js"() {
+  "../../llamatalkbuild-engine/src/providers/stream.js"() {
     import_http = require("http");
     import_https = require("https");
     BLOCKED_HOSTS = /^(169\.254\.|0\.0\.0\.0$|\[::1?\]$|\[0*:0*:0*:0*:0*:0*:0*:[01]\]$|::1?$)/i;
@@ -189,12 +189,74 @@ var init_stream = __esm({
   }
 });
 
-// ../llamatalkbuild-engine/src/providers/anthropic.js
+// ../../llamatalkbuild-engine/src/claude-auth.js
+function readCredentials() {
+  try {
+    if (!(0, import_fs.existsSync)(CREDENTIALS_PATH)) return null;
+    const raw = (0, import_fs.readFileSync)(CREDENTIALS_PATH, "utf8");
+    const data = JSON.parse(raw);
+    const creds = data?.claudeAiOauth;
+    if (!creds?.accessToken) return null;
+    return creds;
+  } catch {
+    return null;
+  }
+}
+function getClaudeCodeToken() {
+  if (_cached && _cached.expiresAt > Date.now() + 6e4) {
+    return _cached;
+  }
+  const creds = readCredentials();
+  if (!creds) return null;
+  _cached = {
+    token: creds.accessToken,
+    refreshToken: creds.refreshToken || null,
+    expiresAt: creds.expiresAt || 0,
+    subscriptionType: creds.subscriptionType || "unknown",
+    rateLimitTier: creds.rateLimitTier || "unknown"
+  };
+  if (_cached.expiresAt && _cached.expiresAt < Date.now()) {
+    _cached._expired = true;
+  }
+  return _cached;
+}
+function getClaudeCodeStatus() {
+  const creds = readCredentials();
+  if (!creds) {
+    return { available: false, reason: "Claude Code credentials not found" };
+  }
+  if (!creds.accessToken) {
+    return { available: false, reason: "No access token in credentials" };
+  }
+  const expired = creds.expiresAt && creds.expiresAt < Date.now();
+  const expiresIn = creds.expiresAt ? Math.max(0, creds.expiresAt - Date.now()) : null;
+  return {
+    available: true,
+    expired,
+    expiresIn,
+    subscriptionType: creds.subscriptionType || "unknown",
+    rateLimitTier: creds.rateLimitTier || "unknown",
+    scopes: creds.scopes || []
+  };
+}
+var import_fs, import_path, import_os, CREDENTIALS_PATH, _cached;
+var init_claude_auth = __esm({
+  "../../llamatalkbuild-engine/src/claude-auth.js"() {
+    import_fs = require("fs");
+    import_path = require("path");
+    import_os = require("os");
+    CREDENTIALS_PATH = (0, import_path.join)((0, import_os.homedir)(), ".claude", ".credentials.json");
+    _cached = null;
+  }
+});
+
+// ../../llamatalkbuild-engine/src/providers/anthropic.js
 var CONTEXT_WINDOWS, AnthropicProvider;
 var init_anthropic = __esm({
-  "../llamatalkbuild-engine/src/providers/anthropic.js"() {
+  "../../llamatalkbuild-engine/src/providers/anthropic.js"() {
     init_base();
     init_stream();
+    init_claude_auth();
     CONTEXT_WINDOWS = {
       "claude-opus-4-5": 2e5,
       "claude-sonnet-4-5": 2e5,
@@ -212,7 +274,11 @@ var init_anthropic = __esm({
         return CONTEXT_WINDOWS[this.config.selectedModel] || 2e5;
       }
       async *stream(messages, systemPrompt, tools, signal) {
-        const apiKey = this.config.apiKey_anthropic;
+        let apiKey = this.config.apiKey_anthropic;
+        if (!apiKey && this.config.claudeCodeAuth) {
+          const cc = getClaudeCodeToken();
+          if (cc?.token) apiKey = cc.token;
+        }
         if (!apiKey) throw new Error("Anthropic API key not set. Use /set api-key anthropic <key>");
         const model = this.config.selectedModel;
         const temperature = this.config.temperature ?? 0.7;
@@ -349,10 +415,10 @@ var init_anthropic = __esm({
   }
 });
 
-// ../llamatalkbuild-engine/src/providers/openai.js
+// ../../llamatalkbuild-engine/src/providers/openai.js
 var CONTEXT_WINDOWS2, OpenAIProvider;
 var init_openai = __esm({
-  "../llamatalkbuild-engine/src/providers/openai.js"() {
+  "../../llamatalkbuild-engine/src/providers/openai.js"() {
     init_base();
     init_stream();
     CONTEXT_WINDOWS2 = {
@@ -512,10 +578,10 @@ var init_openai = __esm({
   }
 });
 
-// ../llamatalkbuild-engine/src/providers/ollama.js
+// ../../llamatalkbuild-engine/src/providers/ollama.js
 var TOOL_CAPABLE_PATTERNS, OllamaProvider;
 var init_ollama = __esm({
-  "../llamatalkbuild-engine/src/providers/ollama.js"() {
+  "../../llamatalkbuild-engine/src/providers/ollama.js"() {
     init_base();
     init_stream();
     TOOL_CAPABLE_PATTERNS = [
@@ -645,7 +711,7 @@ var init_ollama = __esm({
   }
 });
 
-// ../llamatalkbuild-engine/src/providers/google.js
+// ../../llamatalkbuild-engine/src/providers/google.js
 function toGeminiType(jsonSchemaType) {
   const map = {
     string: "STRING",
@@ -668,7 +734,7 @@ function convertProperties(props) {
 }
 var CONTEXT_WINDOWS3, GoogleProvider;
 var init_google = __esm({
-  "../llamatalkbuild-engine/src/providers/google.js"() {
+  "../../llamatalkbuild-engine/src/providers/google.js"() {
     init_base();
     init_stream();
     CONTEXT_WINDOWS3 = {
@@ -791,10 +857,10 @@ var init_google = __esm({
   }
 });
 
-// ../llamatalkbuild-engine/src/providers/prompt-fallback.js
+// ../../llamatalkbuild-engine/src/providers/prompt-fallback.js
 var PromptFallbackProvider;
 var init_prompt_fallback = __esm({
-  "../llamatalkbuild-engine/src/providers/prompt-fallback.js"() {
+  "../../llamatalkbuild-engine/src/providers/prompt-fallback.js"() {
     PromptFallbackProvider = class {
       constructor(innerProvider) {
         this.inner = innerProvider;
@@ -930,7 +996,7 @@ ${typeof result === "string" ? result : JSON.stringify(result)}`
   }
 });
 
-// ../llamatalkbuild-engine/src/providers/router.js
+// ../../llamatalkbuild-engine/src/providers/router.js
 function getProviderName(model, config2) {
   for (const [provider, models] of Object.entries(CLOUD_MODELS)) {
     if (models.includes(model)) {
@@ -1105,7 +1171,7 @@ async function getAllLocalModels(config2) {
 }
 var CLOUD_MODELS;
 var init_router = __esm({
-  "../llamatalkbuild-engine/src/providers/router.js"() {
+  "../../llamatalkbuild-engine/src/providers/router.js"() {
     init_anthropic();
     init_openai();
     init_ollama();
@@ -1121,10 +1187,10 @@ var init_router = __esm({
   }
 });
 
-// ../llamatalkbuild-engine/src/tools/registry.js
+// ../../llamatalkbuild-engine/src/tools/registry.js
 var ToolRegistry;
 var init_registry = __esm({
-  "../llamatalkbuild-engine/src/tools/registry.js"() {
+  "../../llamatalkbuild-engine/src/tools/registry.js"() {
     ToolRegistry = class {
       constructor() {
         this.tools = /* @__PURE__ */ new Map();
@@ -1151,7 +1217,7 @@ var init_registry = __esm({
   }
 });
 
-// ../llamatalkbuild-engine/src/config.js
+// ../../llamatalkbuild-engine/src/config.js
 var config_exports = {};
 __export(config_exports, {
   decryptApiKeys: () => decryptApiKeys,
@@ -1177,30 +1243,42 @@ __export(config_exports, {
 });
 function getConfigDir() {
   const appData = process.env.APPDATA;
-  if (appData) return (0, import_path.join)(appData, "LlamaTalkBuild");
-  return (0, import_path.join)((0, import_os.homedir)(), ".llamabuild");
+  if (appData) {
+    const oldDir2 = (0, import_path2.join)(appData, "LlamaTalkBuild");
+    const newDir2 = (0, import_path2.join)(appData, "ClankBuild");
+    if ((0, import_fs2.existsSync)(oldDir2) && !(0, import_fs2.existsSync)(newDir2)) {
+      (0, import_fs2.cpSync)(oldDir2, newDir2, { recursive: true });
+    }
+    return newDir2;
+  }
+  const oldDir = (0, import_path2.join)((0, import_os2.homedir)(), ".llamabuild");
+  const newDir = (0, import_path2.join)((0, import_os2.homedir)(), ".clankbuild");
+  if ((0, import_fs2.existsSync)(oldDir) && !(0, import_fs2.existsSync)(newDir)) {
+    (0, import_fs2.cpSync)(oldDir, newDir, { recursive: true });
+  }
+  return newDir;
 }
 function getConfigPath() {
-  return (0, import_path.join)(getConfigDir(), "config.json");
+  return (0, import_path2.join)(getConfigDir(), "config.json");
 }
 function getMemoryDir() {
-  return (0, import_path.join)(getConfigDir(), "memory");
+  return (0, import_path2.join)(getConfigDir(), "memory");
 }
 function getConversationDir() {
-  return (0, import_path.join)(getConfigDir(), "conversations");
+  return (0, import_path2.join)(getConfigDir(), "conversations");
 }
 function loadConfig() {
   const configPath = getConfigPath();
-  const dir = (0, import_path.dirname)(configPath);
-  if (!(0, import_fs.existsSync)(dir)) {
-    (0, import_fs.mkdirSync)(dir, { recursive: true });
+  const dir = (0, import_path2.dirname)(configPath);
+  if (!(0, import_fs2.existsSync)(dir)) {
+    (0, import_fs2.mkdirSync)(dir, { recursive: true });
   }
-  if (!(0, import_fs.existsSync)(configPath)) {
-    (0, import_fs.writeFileSync)(configPath, JSON.stringify(DEFAULTS, null, 2), "utf8");
+  if (!(0, import_fs2.existsSync)(configPath)) {
+    (0, import_fs2.writeFileSync)(configPath, JSON.stringify(DEFAULTS, null, 2), "utf8");
     return { ...DEFAULTS };
   }
   try {
-    const raw = (0, import_fs.readFileSync)(configPath, "utf8");
+    const raw = (0, import_fs2.readFileSync)(configPath, "utf8");
     const parsed = JSON.parse(raw);
     const config2 = deepMerge({ ...DEFAULTS }, parsed);
     if (config2.autoApprove && ("safe" in config2.autoApprove || "moderate" in config2.autoApprove || "dangerous" in config2.autoApprove)) {
@@ -1210,7 +1288,7 @@ function loadConfig() {
         medium: old.medium ?? old.moderate ?? false,
         high: old.high ?? old.dangerous ?? false
       };
-      (0, import_fs.writeFileSync)(configPath, JSON.stringify(config2, null, 2), "utf8");
+      (0, import_fs2.writeFileSync)(configPath, JSON.stringify(config2, null, 2), "utf8");
     }
     return config2;
   } catch {
@@ -1228,18 +1306,18 @@ function applyFilePermissions(filePath) {
     }
   } else {
     try {
-      (0, import_fs.chmodSync)(filePath, 384);
+      (0, import_fs2.chmodSync)(filePath, 384);
     } catch {
     }
   }
 }
 function saveConfig(config2) {
   const configPath = getConfigPath();
-  const dir = (0, import_path.dirname)(configPath);
-  if (!(0, import_fs.existsSync)(dir)) {
-    (0, import_fs.mkdirSync)(dir, { recursive: true });
+  const dir = (0, import_path2.dirname)(configPath);
+  if (!(0, import_fs2.existsSync)(dir)) {
+    (0, import_fs2.mkdirSync)(dir, { recursive: true });
   }
-  (0, import_fs.writeFileSync)(configPath, JSON.stringify(config2, null, 2), "utf8");
+  (0, import_fs2.writeFileSync)(configPath, JSON.stringify(config2, null, 2), "utf8");
   applyFilePermissions(configPath);
 }
 function generateEncKeySalt() {
@@ -1265,8 +1343,8 @@ function isEncryptedPayload(v) {
 }
 function saveConfigWithKey(config2, encKey) {
   const configPath = getConfigPath();
-  const dir = (0, import_path.dirname)(configPath);
-  if (!(0, import_fs.existsSync)(dir)) (0, import_fs.mkdirSync)(dir, { recursive: true });
+  const dir = (0, import_path2.dirname)(configPath);
+  if (!(0, import_fs2.existsSync)(dir)) (0, import_fs2.mkdirSync)(dir, { recursive: true });
   const toWrite = { ...config2 };
   if (encKey) {
     for (const field of ["apiKey_anthropic", "apiKey_google", "apiKey_openai", "apiKey_opencode", "telegramBotToken", "telegramAccessCode"]) {
@@ -1275,7 +1353,7 @@ function saveConfigWithKey(config2, encKey) {
       }
     }
   }
-  (0, import_fs.writeFileSync)(configPath, JSON.stringify(toWrite, null, 2), "utf8");
+  (0, import_fs2.writeFileSync)(configPath, JSON.stringify(toWrite, null, 2), "utf8");
   applyFilePermissions(configPath);
 }
 function decryptApiKeys(config2, encKey) {
@@ -1294,18 +1372,18 @@ function decryptApiKeys(config2, encKey) {
 }
 function saveConversation(id, messages, encKey) {
   const dir = getConversationDir();
-  if (!(0, import_fs.existsSync)(dir)) (0, import_fs.mkdirSync)(dir, { recursive: true });
-  const filePath = (0, import_path.join)(dir, `${id}.json`);
+  if (!(0, import_fs2.existsSync)(dir)) (0, import_fs2.mkdirSync)(dir, { recursive: true });
+  const filePath = (0, import_path2.join)(dir, `${id}.json`);
   const json = JSON.stringify(messages);
   const payload = encKey ? JSON.stringify(encryptValue(json, encKey)) : json;
-  (0, import_fs.writeFileSync)(filePath, payload, "utf8");
+  (0, import_fs2.writeFileSync)(filePath, payload, "utf8");
   applyFilePermissions(filePath);
 }
 function loadConversation(id, encKey) {
-  const filePath = (0, import_path.join)(getConversationDir(), `${id}.json`);
-  if (!(0, import_fs.existsSync)(filePath)) return [];
+  const filePath = (0, import_path2.join)(getConversationDir(), `${id}.json`);
+  if (!(0, import_fs2.existsSync)(filePath)) return [];
   try {
-    const raw = (0, import_fs.readFileSync)(filePath, "utf8");
+    const raw = (0, import_fs2.readFileSync)(filePath, "utf8");
     const parsed = JSON.parse(raw);
     if (isEncryptedPayload(parsed)) {
       if (!encKey) return [];
@@ -1332,8 +1410,8 @@ function hashPin(pin) {
 function needsPinMigration(hash) {
   return !!hash && !hash.startsWith("pbkdf2v1:");
 }
-function legacyHashPin(pin) {
-  return (0, import_crypto.createHash)("sha256").update("llamatalkbuild-pin-salt" + pin).digest("hex");
+function legacyHashPin(pin, salt = "clankbuild-pin-salt") {
+  return (0, import_crypto.createHash)("sha256").update(salt + pin).digest("hex");
 }
 function verifyPin(pin, hash) {
   if (!hash) return false;
@@ -1342,14 +1420,16 @@ function verifyPin(pin, hash) {
     if (parts.length !== 3) return false;
     const salt = Buffer.from(parts[1], "hex");
     const stored2 = Buffer.from(parts[2], "hex");
-    const computed2 = (0, import_crypto.pbkdf2Sync)(pin, salt, 1e5, 32, "sha256");
-    if (computed2.length !== stored2.length) return false;
-    return (0, import_crypto.timingSafeEqual)(computed2, stored2);
+    const computed = (0, import_crypto.pbkdf2Sync)(pin, salt, 1e5, 32, "sha256");
+    if (computed.length !== stored2.length) return false;
+    return (0, import_crypto.timingSafeEqual)(computed, stored2);
   }
-  const computed = Buffer.from(legacyHashPin(pin), "hex");
+  const computedNew = Buffer.from(legacyHashPin(pin, "clankbuild-pin-salt"), "hex");
   const stored = Buffer.from(hash, "hex");
-  if (computed.length !== stored.length) return false;
-  return (0, import_crypto.timingSafeEqual)(computed, stored);
+  if (computedNew.length === stored.length && (0, import_crypto.timingSafeEqual)(computedNew, stored)) return true;
+  const computedOld = Buffer.from(legacyHashPin(pin, "llamatalkbuild-pin-salt"), "hex");
+  if (computedOld.length === stored.length && (0, import_crypto.timingSafeEqual)(computedOld, stored)) return true;
+  return false;
 }
 function pinRequired(config2) {
   if (!config2.pinHash) return false;
@@ -1376,13 +1456,13 @@ function deepMerge(target, source) {
   }
   return out;
 }
-var import_fs, import_path, import_crypto, import_os, import_child_process, DEFAULTS;
+var import_fs2, import_path2, import_crypto, import_os2, import_child_process, DEFAULTS;
 var init_config = __esm({
-  "../llamatalkbuild-engine/src/config.js"() {
-    import_fs = require("fs");
-    import_path = require("path");
+  "../../llamatalkbuild-engine/src/config.js"() {
+    import_fs2 = require("fs");
+    import_path2 = require("path");
     import_crypto = require("crypto");
-    import_os = require("os");
+    import_os2 = require("os");
     import_child_process = require("child_process");
     DEFAULTS = {
       profileName: "",
@@ -1404,6 +1484,8 @@ var init_config = __esm({
       apiKey_openai: "",
       apiKey_opencode: "",
       enabledProviders: { anthropic: false, google: false, openai: false, opencode: false },
+      claudeCodeAuth: false,
+      // use Claude Code OAuth token as Anthropic key
       // Agent naming & sub-agents
       agentName: "",
       subAgents: [],
@@ -1431,7 +1513,7 @@ var init_config = __esm({
   }
 });
 
-// ../llamatalkbuild-engine/src/tools/base.js
+// ../../llamatalkbuild-engine/src/tools/base.js
 function isReadOnlyTool(toolName, args) {
   if (READ_ONLY_TOOLS.has(toolName)) return true;
   if (toolName === "git") {
@@ -1441,14 +1523,14 @@ function isReadOnlyTool(toolName, args) {
   }
   if ((toolName === "write_file" || toolName === "edit_file") && args?.path) {
     const memDir = getMemoryDir();
-    if (memDir && (0, import_path2.resolve)(args.path).replace(/\\/g, "/").startsWith(memDir.replace(/\\/g, "/"))) return true;
+    if (memDir && (0, import_path3.resolve)(args.path).replace(/\\/g, "/").startsWith(memDir.replace(/\\/g, "/"))) return true;
   }
   return false;
 }
-var import_path2, SafetyLevel, READ_ONLY_TOOLS;
+var import_path3, SafetyLevel, READ_ONLY_TOOLS;
 var init_base2 = __esm({
-  "../llamatalkbuild-engine/src/tools/base.js"() {
-    import_path2 = require("path");
+  "../../llamatalkbuild-engine/src/tools/base.js"() {
+    import_path3 = require("path");
     init_config();
     SafetyLevel = {
       LOW: "low",
@@ -1466,19 +1548,19 @@ var init_base2 = __esm({
   }
 });
 
-// ../llamatalkbuild-engine/src/safety.js
+// ../../llamatalkbuild-engine/src/safety.js
 function validatePath(inputPath, projectRoot, { allowExternal = false } = {}) {
   try {
-    const resolved = (0, import_path3.resolve)(projectRoot, inputPath);
-    const rel = (0, import_path3.relative)(projectRoot, resolved);
-    const external = rel.startsWith("..") || rel.startsWith(`.${import_path3.sep}..`);
+    const resolved = (0, import_path4.resolve)(projectRoot, inputPath);
+    const rel = (0, import_path4.relative)(projectRoot, resolved);
+    const external = rel.startsWith("..") || rel.startsWith(`.${import_path4.sep}..`);
     if (external && !allowExternal) {
       return { valid: false, resolved, external: true, trusted: false, error: `Path escapes project root: ${inputPath}` };
     }
     if (!external) {
       try {
-        const real = (0, import_fs2.realpathSync)(resolved);
-        const realRel = (0, import_path3.relative)(projectRoot, real);
+        const real = (0, import_fs3.realpathSync)(resolved);
+        const realRel = (0, import_path4.relative)(projectRoot, real);
         if (realRel.startsWith("..") && !allowExternal) {
           return { valid: false, resolved, external: true, trusted: false, error: `Symlink target escapes project root: ${inputPath}` };
         }
@@ -1513,11 +1595,11 @@ function requireConfirmation(tool, args, config2, agentMode = "build") {
 function validatePackageName(name) {
   return /^(@[a-z0-9\-~][a-z0-9\-._~]*\/)?[a-z0-9\-~][a-z0-9\-._~]*(@[a-z0-9._\-+~^<>=*]+)?$/i.test(name);
 }
-var import_path3, import_fs2, DESTRUCTIVE_PATTERNS;
+var import_path4, import_fs3, DESTRUCTIVE_PATTERNS;
 var init_safety = __esm({
-  "../llamatalkbuild-engine/src/safety.js"() {
-    import_path3 = require("path");
-    import_fs2 = require("fs");
+  "../../llamatalkbuild-engine/src/safety.js"() {
+    import_path4 = require("path");
+    import_fs3 = require("fs");
     init_config();
     DESTRUCTIVE_PATTERNS = [
       /\brm\s+(-rf?|--recursive)\s+[\/\\]/i,
@@ -1547,7 +1629,7 @@ var init_safety = __esm({
   }
 });
 
-// ../llamatalkbuild-engine/src/memory/instructions.js
+// ../../llamatalkbuild-engine/src/memory/instructions.js
 function parseFrontmatter(raw) {
   const match = raw.match(/^---\s*\n([\s\S]*?)\n---\s*\n([\s\S]*)$/);
   if (!match) return { meta: {}, content: raw.trim() };
@@ -1561,16 +1643,20 @@ function parseFrontmatter(raw) {
 function discoverInstructions(projectRoot) {
   const instructions = [];
   const seen = /* @__PURE__ */ new Set();
-  const globalAgentDir = (0, import_path4.join)((0, import_os2.homedir)(), ".llamabuild", "agent");
-  if ((0, import_fs3.existsSync)(globalAgentDir)) {
+  let globalAgentDir = (0, import_path5.join)((0, import_os3.homedir)(), ".clankbuild", "agent");
+  if (!(0, import_fs4.existsSync)(globalAgentDir)) {
+    const legacyDir = (0, import_path5.join)((0, import_os3.homedir)(), ".llamabuild", "agent");
+    if ((0, import_fs4.existsSync)(legacyDir)) globalAgentDir = legacyDir;
+  }
+  if ((0, import_fs4.existsSync)(globalAgentDir)) {
     try {
-      for (const f of (0, import_fs3.readdirSync)(globalAgentDir)) {
+      for (const f of (0, import_fs4.readdirSync)(globalAgentDir)) {
         if (!f.endsWith(".md")) continue;
-        const fullPath = (0, import_path4.join)(globalAgentDir, f);
+        const fullPath = (0, import_path5.join)(globalAgentDir, f);
         if (seen.has(fullPath)) continue;
         seen.add(fullPath);
         try {
-          const raw = (0, import_fs3.readFileSync)(fullPath, "utf8");
+          const raw = (0, import_fs4.readFileSync)(fullPath, "utf8");
           const { meta, content } = parseFrontmatter(raw);
           if (content) {
             instructions.push({
@@ -1587,11 +1673,15 @@ function discoverInstructions(projectRoot) {
     } catch {
     }
   }
-  const globalAgentsMd = (0, import_path4.join)((0, import_os2.homedir)(), ".llamabuild", "AGENTS.md");
-  if ((0, import_fs3.existsSync)(globalAgentsMd) && !seen.has(globalAgentsMd)) {
+  let globalAgentsMd = (0, import_path5.join)((0, import_os3.homedir)(), ".clankbuild", "AGENTS.md");
+  if (!(0, import_fs4.existsSync)(globalAgentsMd)) {
+    const legacyPath = (0, import_path5.join)((0, import_os3.homedir)(), ".llamabuild", "AGENTS.md");
+    if ((0, import_fs4.existsSync)(legacyPath)) globalAgentsMd = legacyPath;
+  }
+  if ((0, import_fs4.existsSync)(globalAgentsMd) && !seen.has(globalAgentsMd)) {
     seen.add(globalAgentsMd);
     try {
-      const raw = (0, import_fs3.readFileSync)(globalAgentsMd, "utf8");
+      const raw = (0, import_fs4.readFileSync)(globalAgentsMd, "utf8");
       const { meta, content } = parseFrontmatter(raw);
       if (content) {
         instructions.push({ source: "global", path: globalAgentsMd, name: "AGENTS", meta, content });
@@ -1599,16 +1689,20 @@ function discoverInstructions(projectRoot) {
     } catch {
     }
   }
-  const projectAgentDir = (0, import_path4.join)(projectRoot, ".llamabuild", "agent");
-  if ((0, import_fs3.existsSync)(projectAgentDir)) {
+  let projectAgentDir = (0, import_path5.join)(projectRoot, ".clankbuild", "agent");
+  if (!(0, import_fs4.existsSync)(projectAgentDir)) {
+    const legacyDir = (0, import_path5.join)(projectRoot, ".llamabuild", "agent");
+    if ((0, import_fs4.existsSync)(legacyDir)) projectAgentDir = legacyDir;
+  }
+  if ((0, import_fs4.existsSync)(projectAgentDir)) {
     try {
-      for (const f of (0, import_fs3.readdirSync)(projectAgentDir)) {
+      for (const f of (0, import_fs4.readdirSync)(projectAgentDir)) {
         if (!f.endsWith(".md")) continue;
-        const fullPath = (0, import_path4.join)(projectAgentDir, f);
+        const fullPath = (0, import_path5.join)(projectAgentDir, f);
         if (seen.has(fullPath)) continue;
         seen.add(fullPath);
         try {
-          const raw = (0, import_fs3.readFileSync)(fullPath, "utf8");
+          const raw = (0, import_fs4.readFileSync)(fullPath, "utf8");
           const { meta, content } = parseFrontmatter(raw);
           if (content) {
             instructions.push({
@@ -1626,11 +1720,11 @@ function discoverInstructions(projectRoot) {
     }
   }
   for (const name of INSTRUCTION_FILENAMES) {
-    const fullPath = (0, import_path4.join)(projectRoot, name);
-    if ((0, import_fs3.existsSync)(fullPath) && !seen.has(fullPath)) {
+    const fullPath = (0, import_path5.join)(projectRoot, name);
+    if ((0, import_fs4.existsSync)(fullPath) && !seen.has(fullPath)) {
       seen.add(fullPath);
       try {
-        const raw = (0, import_fs3.readFileSync)(fullPath, "utf8");
+        const raw = (0, import_fs4.readFileSync)(fullPath, "utf8");
         const { meta, content } = parseFrontmatter(raw);
         if (content) {
           instructions.push({
@@ -1645,21 +1739,41 @@ function discoverInstructions(projectRoot) {
       }
     }
   }
-  let dir = (0, import_path4.dirname)(projectRoot);
-  const root = (0, import_path4.resolve)("/");
-  while (dir !== root && dir !== (0, import_path4.dirname)(dir)) {
+  for (const name of LEGACY_INSTRUCTION_FILENAMES) {
+    const fullPath = (0, import_path5.join)(projectRoot, name);
+    if ((0, import_fs4.existsSync)(fullPath) && !seen.has(fullPath)) {
+      seen.add(fullPath);
+      try {
+        const raw = (0, import_fs4.readFileSync)(fullPath, "utf8");
+        const { meta, content } = parseFrontmatter(raw);
+        if (content) {
+          instructions.push({
+            source: "project",
+            path: fullPath,
+            name: name.replace(/\.md$/, ""),
+            meta,
+            content
+          });
+        }
+      } catch {
+      }
+    }
+  }
+  let dir = (0, import_path5.dirname)(projectRoot);
+  const root = (0, import_path5.resolve)("/");
+  while (dir !== root && dir !== (0, import_path5.dirname)(dir)) {
     for (const name of INSTRUCTION_FILENAMES) {
-      const fullPath = (0, import_path4.join)(dir, name);
-      if ((0, import_fs3.existsSync)(fullPath) && !seen.has(fullPath)) {
+      const fullPath = (0, import_path5.join)(dir, name);
+      if ((0, import_fs4.existsSync)(fullPath) && !seen.has(fullPath)) {
         seen.add(fullPath);
         try {
-          const raw = (0, import_fs3.readFileSync)(fullPath, "utf8");
+          const raw = (0, import_fs4.readFileSync)(fullPath, "utf8");
           const { meta, content } = parseFrontmatter(raw);
           if (content) {
             instructions.push({
               source: "parent",
               path: fullPath,
-              name: `${(0, import_path4.basename)(dir)}/${name.replace(/\.md$/, "")}`,
+              name: `${(0, import_path5.basename)(dir)}/${name.replace(/\.md$/, "")}`,
               meta,
               content
             });
@@ -1668,7 +1782,7 @@ function discoverInstructions(projectRoot) {
         }
       }
     }
-    dir = (0, import_path4.dirname)(dir);
+    dir = (0, import_path5.dirname)(dir);
   }
   return instructions;
 }
@@ -1685,22 +1799,23 @@ ${inst.content}`;
 
 ${sections.join("\n\n")}`;
 }
-var import_fs3, import_path4, import_os2, INSTRUCTION_FILENAMES;
+var import_fs4, import_path5, import_os3, INSTRUCTION_FILENAMES, LEGACY_INSTRUCTION_FILENAMES;
 var init_instructions = __esm({
-  "../llamatalkbuild-engine/src/memory/instructions.js"() {
-    import_fs3 = require("fs");
-    import_path4 = require("path");
-    import_os2 = require("os");
-    INSTRUCTION_FILENAMES = [".llamabuild.md", "AGENTS.md"];
+  "../../llamatalkbuild-engine/src/memory/instructions.js"() {
+    import_fs4 = require("fs");
+    import_path5 = require("path");
+    import_os3 = require("os");
+    INSTRUCTION_FILENAMES = [".clankbuild.md", "AGENTS.md"];
+    LEGACY_INSTRUCTION_FILENAMES = [".llamabuild.md"];
   }
 });
 
-// ../llamatalkbuild-engine/src/memory/memory.js
-var import_fs4, import_path5, STOPWORDS, MemoryManager;
+// ../../llamatalkbuild-engine/src/memory/memory.js
+var import_fs5, import_path6, STOPWORDS, MemoryManager;
 var init_memory = __esm({
-  "../llamatalkbuild-engine/src/memory/memory.js"() {
-    import_fs4 = require("fs");
-    import_path5 = require("path");
+  "../../llamatalkbuild-engine/src/memory/memory.js"() {
+    import_fs5 = require("fs");
+    import_path6 = require("path");
     init_config();
     init_instructions();
     STOPWORDS = /* @__PURE__ */ new Set([
@@ -1824,12 +1939,12 @@ var init_memory = __esm({
         const now = Date.now();
         const cached = this._cache.get(path);
         if (cached && now - cached.ts < this._cacheTTL) return cached.content;
-        if (!(0, import_fs4.existsSync)(path)) {
+        if (!(0, import_fs5.existsSync)(path)) {
           this._cache.set(path, { content: null, ts: now });
           return null;
         }
         try {
-          const raw = (0, import_fs4.readFileSync)(path, "utf8");
+          const raw = (0, import_fs5.readFileSync)(path, "utf8");
           let content = raw;
           if (this.encKey) {
             try {
@@ -1849,40 +1964,44 @@ var init_memory = __esm({
       _write(path, content) {
         if (this.encKey) {
           const payload = encryptValue(content, this.encKey);
-          (0, import_fs4.writeFileSync)(path, JSON.stringify(payload), "utf8");
+          (0, import_fs5.writeFileSync)(path, JSON.stringify(payload), "utf8");
         } else {
-          (0, import_fs4.writeFileSync)(path, content, "utf8");
+          (0, import_fs5.writeFileSync)(path, content, "utf8");
         }
         this._cache.set(path, { content, ts: Date.now() });
       }
       ensureDir() {
-        if (!(0, import_fs4.existsSync)(this.globalDir)) {
-          (0, import_fs4.mkdirSync)(this.globalDir, { recursive: true });
+        if (!(0, import_fs5.existsSync)(this.globalDir)) {
+          (0, import_fs5.mkdirSync)(this.globalDir, { recursive: true });
         }
-        const memFile = (0, import_path5.join)(this.globalDir, "MEMORY.md");
-        if (!(0, import_fs4.existsSync)(memFile)) {
-          (0, import_fs4.writeFileSync)(memFile, "# Memory\n\n## Preferences\n(The agent will save your preferences here as it learns them.)\n\n## Projects\n(Project-specific notes will be saved here.)\n", "utf8");
+        const memFile = (0, import_path6.join)(this.globalDir, "MEMORY.md");
+        if (!(0, import_fs5.existsSync)(memFile)) {
+          (0, import_fs5.writeFileSync)(memFile, "# Memory\n\n## Preferences\n(The agent will save your preferences here as it learns them.)\n\n## Projects\n(Project-specific notes will be saved here.)\n", "utf8");
         }
       }
       /** Load the global MEMORY.md file */
       loadGlobal() {
-        return this._read((0, import_path5.join)(this.globalDir, "MEMORY.md"));
+        return this._read((0, import_path6.join)(this.globalDir, "MEMORY.md"));
       }
-      /** Load project-local .llamabuild.md */
+      /** Load project-local .clankbuild.md (falls back to .llamabuild.md) */
       loadProject(projectRoot) {
-        return this._read((0, import_path5.join)(projectRoot, ".llamabuild.md"));
+        const newPath = (0, import_path6.join)(projectRoot, ".clankbuild.md");
+        if ((0, import_fs5.existsSync)(newPath)) return this._read(newPath);
+        const oldPath = (0, import_path6.join)(projectRoot, ".llamabuild.md");
+        if ((0, import_fs5.existsSync)(oldPath)) return this._read(oldPath);
+        return null;
       }
       /** List all topic memory files (excluding MEMORY.md) */
       listTopics() {
         try {
-          return (0, import_fs4.readdirSync)(this.globalDir).filter((f) => f.endsWith(".md") && f !== "MEMORY.md").map((f) => f.replace(/\.md$/, ""));
+          return (0, import_fs5.readdirSync)(this.globalDir).filter((f) => f.endsWith(".md") && f !== "MEMORY.md").map((f) => f.replace(/\.md$/, ""));
         } catch {
           return [];
         }
       }
       /** Load a specific topic memory */
       loadTopic(topicName) {
-        return this._read((0, import_path5.join)(this.globalDir, `${topicName}.md`));
+        return this._read((0, import_path6.join)(this.globalDir, `${topicName}.md`));
       }
       /** Find relevant topic memories by keyword matching */
       findRelevant(userMessage) {
@@ -1915,22 +2034,22 @@ var init_memory = __esm({
       /** Save global memory */
       saveGlobal(content) {
         this.ensureDir();
-        this._write((0, import_path5.join)(this.globalDir, "MEMORY.md"), content);
+        this._write((0, import_path6.join)(this.globalDir, "MEMORY.md"), content);
       }
       /** Save a topic memory */
       saveTopic(topicName, content) {
         this.ensureDir();
-        this._write((0, import_path5.join)(this.globalDir, `${topicName}.md`), content);
+        this._write((0, import_path6.join)(this.globalDir, `${topicName}.md`), content);
       }
       /** Append a one-line session summary to sessions.md in memory dir. */
       appendSessionSummary(sessionId, summary, date = /* @__PURE__ */ new Date()) {
-        const sessFile = (0, import_path5.join)(this.globalDir, "sessions.md");
+        const sessFile = (0, import_path6.join)(this.globalDir, "sessions.md");
         const dateStr = date.toISOString().split("T")[0];
         const entry = `- ${dateStr} | ${summary}`;
         let content = "";
-        if ((0, import_fs4.existsSync)(sessFile)) {
+        if ((0, import_fs5.existsSync)(sessFile)) {
           try {
-            content = (0, import_fs4.readFileSync)(sessFile, "utf8");
+            content = (0, import_fs5.readFileSync)(sessFile, "utf8");
           } catch {
           }
         }
@@ -1948,17 +2067,17 @@ var init_memory = __esm({
 ${trimmed.join("\n")}
 `;
         try {
-          (0, import_fs4.writeFileSync)(sessFile, newContent, "utf8");
+          (0, import_fs5.writeFileSync)(sessFile, newContent, "utf8");
         } catch {
         }
         this._cache.delete(sessFile);
       }
       /** Load the last N session summaries for system prompt injection. */
       _loadSessionSummaries(count = 15) {
-        const sessFile = (0, import_path5.join)(this.globalDir, "sessions.md");
-        if (!(0, import_fs4.existsSync)(sessFile)) return null;
+        const sessFile = (0, import_path6.join)(this.globalDir, "sessions.md");
+        if (!(0, import_fs5.existsSync)(sessFile)) return null;
         try {
-          const content = (0, import_fs4.readFileSync)(sessFile, "utf8");
+          const content = (0, import_fs5.readFileSync)(sessFile, "utf8");
           const entries = content.split("\n").filter((l) => l.startsWith("- "));
           if (entries.length === 0) return null;
           return entries.slice(-count).join("\n");
@@ -2009,12 +2128,12 @@ ${sections.join("\n\n")}`;
        * Creates the heading if it doesn't exist, appends entry as a bullet point.
        */
       appendLesson(category, entry) {
-        const lessonsPath = (0, import_path5.join)(this.globalDir, "lessons.md");
+        const lessonsPath = (0, import_path6.join)(this.globalDir, "lessons.md");
         const heading = `## ${category.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}`;
         let content = "";
-        if ((0, import_fs4.existsSync)(lessonsPath)) {
+        if ((0, import_fs5.existsSync)(lessonsPath)) {
           try {
-            content = (0, import_fs4.readFileSync)(lessonsPath, "utf8");
+            content = (0, import_fs5.readFileSync)(lessonsPath, "utf8");
           } catch {
           }
         }
@@ -2043,7 +2162,7 @@ ${bullet}
 `;
         }
         try {
-          (0, import_fs4.writeFileSync)(lessonsPath, content, "utf8");
+          (0, import_fs5.writeFileSync)(lessonsPath, content, "utf8");
         } catch {
         }
         this._cache.delete(lessonsPath);
@@ -2062,23 +2181,23 @@ ${bullet}
   }
 });
 
-// ../llamatalkbuild-engine/src/memory/tasks.js
-var import_fs5, import_path6, TaskManager;
+// ../../llamatalkbuild-engine/src/memory/tasks.js
+var import_fs6, import_path7, TaskManager;
 var init_tasks = __esm({
-  "../llamatalkbuild-engine/src/memory/tasks.js"() {
-    import_fs5 = require("fs");
-    import_path6 = require("path");
+  "../../llamatalkbuild-engine/src/memory/tasks.js"() {
+    import_fs6 = require("fs");
+    import_path7 = require("path");
     init_config();
     TaskManager = class {
       constructor(memoryDir = null) {
         this.memoryDir = memoryDir || getMemoryDir();
-        this.tasksFile = (0, import_path6.join)(this.memoryDir, "tasks.md");
+        this.tasksFile = (0, import_path7.join)(this.memoryDir, "tasks.md");
       }
       /** Parse the tasks.md file into structured data. */
       _parse() {
-        if (!(0, import_fs5.existsSync)(this.tasksFile)) return { active: [], completed: [] };
+        if (!(0, import_fs6.existsSync)(this.tasksFile)) return { active: [], completed: [] };
         try {
-          const content = (0, import_fs5.readFileSync)(this.tasksFile, "utf8");
+          const content = (0, import_fs6.readFileSync)(this.tasksFile, "utf8");
           const lines = content.split("\n");
           const active = [];
           const completed = [];
@@ -2136,7 +2255,7 @@ var init_tasks = __esm({
           lines.push(entry);
         }
         lines.push("");
-        (0, import_fs5.writeFileSync)(this.tasksFile, lines.join("\n"), "utf8");
+        (0, import_fs6.writeFileSync)(this.tasksFile, lines.join("\n"), "utf8");
       }
       /** List all tasks. */
       list() {
@@ -2201,24 +2320,24 @@ var init_tasks = __esm({
   }
 });
 
-// ../llamatalkbuild-engine/src/sessions.js
+// ../../llamatalkbuild-engine/src/sessions.js
 function getIndexPath() {
   const dir = getConversationDir();
-  if (!(0, import_fs6.existsSync)(dir)) (0, import_fs6.mkdirSync)(dir, { recursive: true });
-  return (0, import_path7.join)(dir, "sessions.json");
+  if (!(0, import_fs7.existsSync)(dir)) (0, import_fs7.mkdirSync)(dir, { recursive: true });
+  return (0, import_path8.join)(dir, "sessions.json");
 }
 function loadIndex() {
   const path = getIndexPath();
-  if (!(0, import_fs6.existsSync)(path)) return [];
+  if (!(0, import_fs7.existsSync)(path)) return [];
   try {
-    const raw = (0, import_fs6.readFileSync)(path, "utf8");
+    const raw = (0, import_fs7.readFileSync)(path, "utf8");
     return JSON.parse(raw);
   } catch {
     return [];
   }
 }
 function saveIndex(sessions) {
-  (0, import_fs6.writeFileSync)(getIndexPath(), JSON.stringify(sessions, null, 2), "utf8");
+  (0, import_fs7.writeFileSync)(getIndexPath(), JSON.stringify(sessions, null, 2), "utf8");
 }
 function generateTitle(message) {
   const clean = message.replace(/[\r\n]+/g, " ").trim();
@@ -2227,11 +2346,11 @@ function generateTitle(message) {
   const lastSpace = cut.lastIndexOf(" ");
   return (lastSpace > 30 ? cut.slice(0, lastSpace) : cut) + "...";
 }
-var import_fs6, import_path7, import_crypto2, MAX_SESSIONS, SessionManager;
+var import_fs7, import_path8, import_crypto2, MAX_SESSIONS, SessionManager;
 var init_sessions = __esm({
-  "../llamatalkbuild-engine/src/sessions.js"() {
-    import_fs6 = require("fs");
-    import_path7 = require("path");
+  "../../llamatalkbuild-engine/src/sessions.js"() {
+    import_fs7 = require("fs");
+    import_path8 = require("path");
     import_crypto2 = require("crypto");
     init_config();
     MAX_SESSIONS = 50;
@@ -2288,9 +2407,9 @@ var init_sessions = __esm({
       delete(id) {
         this.sessions = this.sessions.filter((s) => s.id !== id);
         saveIndex(this.sessions);
-        const convPath = (0, import_path7.join)(getConversationDir(), `${id}.json`);
+        const convPath = (0, import_path8.join)(getConversationDir(), `${id}.json`);
         try {
-          if ((0, import_fs6.existsSync)(convPath)) (0, import_fs6.unlinkSync)(convPath);
+          if ((0, import_fs7.existsSync)(convPath)) (0, import_fs7.unlinkSync)(convPath);
         } catch {
         }
       }
@@ -2298,9 +2417,9 @@ var init_sessions = __esm({
       deleteAll() {
         const convDir = getConversationDir();
         for (const s of this.sessions) {
-          const convPath = (0, import_path7.join)(convDir, `${s.id}.json`);
+          const convPath = (0, import_path8.join)(convDir, `${s.id}.json`);
           try {
-            if ((0, import_fs6.existsSync)(convPath)) (0, import_fs6.unlinkSync)(convPath);
+            if ((0, import_fs7.existsSync)(convPath)) (0, import_fs7.unlinkSync)(convPath);
           } catch {
           }
         }
@@ -2320,7 +2439,7 @@ var init_sessions = __esm({
   }
 });
 
-// ../llamatalkbuild-engine/src/memory/compaction.js
+// ../../llamatalkbuild-engine/src/memory/compaction.js
 function messageSize(msg) {
   if (typeof msg.content === "string") return msg.content.length;
   if (Array.isArray(msg.content)) {
@@ -2392,23 +2511,23 @@ function compactMessages(messages, { targetReduction = 5e4 } = {}) {
 }
 var PROTECTED_RECENT_TURNS, MIN_SAVINGS_CHARS, TOOL_RESULT_ROLE;
 var init_compaction = __esm({
-  "../llamatalkbuild-engine/src/memory/compaction.js"() {
+  "../../llamatalkbuild-engine/src/memory/compaction.js"() {
     PROTECTED_RECENT_TURNS = 6;
     MIN_SAVINGS_CHARS = 5e3;
     TOOL_RESULT_ROLE = "tool";
   }
 });
 
-// ../llamatalkbuild-engine/src/session-log.js
-var import_fs7, import_path8, SessionLog;
+// ../../llamatalkbuild-engine/src/session-log.js
+var import_fs8, import_path9, SessionLog;
 var init_session_log = __esm({
-  "../llamatalkbuild-engine/src/session-log.js"() {
-    import_fs7 = require("fs");
-    import_path8 = require("path");
+  "../../llamatalkbuild-engine/src/session-log.js"() {
+    import_fs8 = require("fs");
+    import_path9 = require("path");
     SessionLog = class {
       constructor(projectRoot) {
         this.projectRoot = projectRoot;
-        this.filePath = (0, import_path8.join)(projectRoot, ".llamabuild-session.md");
+        this.filePath = (0, import_path9.join)(projectRoot, ".clankbuild-session.md");
         this.steps = [];
         this.sessionStart = /* @__PURE__ */ new Date();
       }
@@ -2433,31 +2552,31 @@ var init_session_log = __esm({
           "",
           ""
         ].join("\n");
-        if ((0, import_fs7.existsSync)(this.filePath)) {
-          const existing = (0, import_fs7.readFileSync)(this.filePath, "utf8");
+        if ((0, import_fs8.existsSync)(this.filePath)) {
+          const existing = (0, import_fs8.readFileSync)(this.filePath, "utf8");
           const headerEnd = existing.indexOf("\n\n");
           if (headerEnd >= 0) {
             const header = existing.slice(0, headerEnd + 2);
             const rest = existing.slice(headerEnd + 2);
-            (0, import_fs7.writeFileSync)(this.filePath, header + sessionBlock + rest, "utf8");
+            (0, import_fs8.writeFileSync)(this.filePath, header + sessionBlock + rest, "utf8");
           } else {
-            (0, import_fs7.writeFileSync)(this.filePath, existing + "\n\n" + sessionBlock, "utf8");
+            (0, import_fs8.writeFileSync)(this.filePath, existing + "\n\n" + sessionBlock, "utf8");
           }
         } else {
-          const header = "# LlamaTalk Build Session Log\n\n";
-          (0, import_fs7.writeFileSync)(this.filePath, header + sessionBlock, "utf8");
+          const header = "# Clank Build Session Log\n\n";
+          (0, import_fs8.writeFileSync)(this.filePath, header + sessionBlock, "utf8");
         }
       }
     };
   }
 });
 
-// ../llamatalkbuild-engine/src/session-tracker.js
-var import_fs8, import_path9, SessionTracker;
+// ../../llamatalkbuild-engine/src/session-tracker.js
+var import_fs9, import_path10, SessionTracker;
 var init_session_tracker = __esm({
-  "../llamatalkbuild-engine/src/session-tracker.js"() {
-    import_fs8 = require("fs");
-    import_path9 = require("path");
+  "../../llamatalkbuild-engine/src/session-tracker.js"() {
+    import_fs9 = require("fs");
+    import_path10 = require("path");
     SessionTracker = class {
       constructor(projectRoot) {
         this.projectRoot = projectRoot;
@@ -2467,10 +2586,10 @@ var init_session_tracker = __esm({
         this.dirty = false;
       }
       get fileName() {
-        return `session-changes-llamabuild-${this.date}.md`;
+        return `session-changes-clankbuild-${this.date}.md`;
       }
       get filePath() {
-        return (0, import_path9.join)(this.projectRoot, this.fileName);
+        return (0, import_path10.join)(this.projectRoot, this.fileName);
       }
       /**
        * Record a file change. Only write_file and edit_file count as "dirty".
@@ -2481,7 +2600,7 @@ var init_session_tracker = __esm({
         if (currentDate !== this.date) {
           this.date = currentDate;
         }
-        const relPath = (0, import_path9.relative)(this.projectRoot, filePath) || filePath;
+        const relPath = (0, import_path10.relative)(this.projectRoot, filePath) || filePath;
         this.changes.push({
           time: now,
           type: toolName,
@@ -2521,23 +2640,23 @@ var init_session_tracker = __esm({
           "",
           ""
         ].join("\n");
-        if ((0, import_fs8.existsSync)(this.filePath)) {
-          const existing = (0, import_fs8.readFileSync)(this.filePath, "utf8");
+        if ((0, import_fs9.existsSync)(this.filePath)) {
+          const existing = (0, import_fs9.readFileSync)(this.filePath, "utf8");
           const headerEnd = existing.indexOf("\n\n");
           if (headerEnd >= 0) {
             const header = existing.slice(0, headerEnd + 2);
             const rest = existing.slice(headerEnd + 2);
-            (0, import_fs8.writeFileSync)(this.filePath, header + sessionBlock + rest, "utf8");
+            (0, import_fs9.writeFileSync)(this.filePath, header + sessionBlock + rest, "utf8");
           } else {
-            (0, import_fs8.writeFileSync)(this.filePath, existing + "\n\n" + sessionBlock, "utf8");
+            (0, import_fs9.writeFileSync)(this.filePath, existing + "\n\n" + sessionBlock, "utf8");
           }
         } else {
-          const header = `# Session Changes \u2014 LlamaTalk Build
+          const header = `# Session Changes \u2014 Clank Build
 
 Project: \`${this.projectRoot}\`
 
 `;
-          (0, import_fs8.writeFileSync)(this.filePath, header + sessionBlock, "utf8");
+          (0, import_fs9.writeFileSync)(this.filePath, header + sessionBlock, "utf8");
         }
       }
       /**
@@ -2546,24 +2665,24 @@ Project: \`${this.projectRoot}\`
        */
       _cleanOldFiles() {
         try {
-          const files = (0, import_fs8.readdirSync)(this.projectRoot);
-          const pattern = /^session-changes-llamabuild-(\d{4}-\d{2}-\d{2})\.md$/;
+          const files = (0, import_fs9.readdirSync)(this.projectRoot);
+          const pattern = /^session-changes-(?:llamabuild|clankbuild)-(\d{4}-\d{2}-\d{2})\.md$/;
           for (const f of files) {
             const match = f.match(pattern);
             if (match && match[1] !== this.date) {
-              const oldPath = (0, import_path9.join)(this.projectRoot, f);
-              const oldContent = (0, import_fs8.readFileSync)(oldPath, "utf8");
+              const oldPath = (0, import_path10.join)(this.projectRoot, f);
+              const oldContent = (0, import_fs9.readFileSync)(oldPath, "utf8");
               const headerEnd = oldContent.indexOf("\n\n");
               if (headerEnd >= 0) {
                 const blocks = oldContent.slice(headerEnd + 2);
                 const projectHeader = oldContent.includes("Project:") ? "" : "";
-                if ((0, import_fs8.existsSync)(this.filePath)) {
-                  const current = (0, import_fs8.readFileSync)(this.filePath, "utf8");
-                  (0, import_fs8.writeFileSync)(this.filePath, current + blocks, "utf8");
+                if ((0, import_fs9.existsSync)(this.filePath)) {
+                  const current = (0, import_fs9.readFileSync)(this.filePath, "utf8");
+                  (0, import_fs9.writeFileSync)(this.filePath, current + blocks, "utf8");
                 }
               }
               try {
-                (0, import_fs8.unlinkSync)(oldPath);
+                (0, import_fs9.unlinkSync)(oldPath);
               } catch {
               }
             }
@@ -2578,12 +2697,12 @@ Project: \`${this.projectRoot}\`
   }
 });
 
-// ../llamatalkbuild-engine/src/context/context.js
+// ../../llamatalkbuild-engine/src/context/context.js
 function detectProjectContext(projectRoot) {
   const context = [];
-  if ((0, import_fs9.existsSync)((0, import_path10.join)(projectRoot, "package.json"))) {
+  if ((0, import_fs10.existsSync)((0, import_path11.join)(projectRoot, "package.json"))) {
     try {
-      const pkg = JSON.parse((0, import_fs9.readFileSync)((0, import_path10.join)(projectRoot, "package.json"), "utf8"));
+      const pkg = JSON.parse((0, import_fs10.readFileSync)((0, import_path11.join)(projectRoot, "package.json"), "utf8"));
       context.push(`Node.js project: ${pkg.name || "unnamed"} v${pkg.version || "?"}`);
       if (pkg.dependencies) {
         const deps = Object.keys(pkg.dependencies).slice(0, 10);
@@ -2592,39 +2711,39 @@ function detectProjectContext(projectRoot) {
     } catch {
     }
   }
-  if ((0, import_fs9.existsSync)((0, import_path10.join)(projectRoot, "pyproject.toml")) || (0, import_fs9.existsSync)((0, import_path10.join)(projectRoot, "setup.py"))) {
+  if ((0, import_fs10.existsSync)((0, import_path11.join)(projectRoot, "pyproject.toml")) || (0, import_fs10.existsSync)((0, import_path11.join)(projectRoot, "setup.py"))) {
     context.push("Python project");
   }
-  if ((0, import_fs9.existsSync)((0, import_path10.join)(projectRoot, "Cargo.toml"))) {
+  if ((0, import_fs10.existsSync)((0, import_path11.join)(projectRoot, "Cargo.toml"))) {
     context.push("Rust project");
   }
-  if ((0, import_fs9.existsSync)((0, import_path10.join)(projectRoot, "go.mod"))) {
+  if ((0, import_fs10.existsSync)((0, import_path11.join)(projectRoot, "go.mod"))) {
     context.push("Go project");
   }
-  if ((0, import_fs9.existsSync)((0, import_path10.join)(projectRoot, ".git"))) {
+  if ((0, import_fs10.existsSync)((0, import_path11.join)(projectRoot, ".git"))) {
     context.push("Git repository");
   }
   try {
-    const items = (0, import_fs9.readdirSync)(projectRoot).filter((f) => !f.startsWith(".") && f !== "node_modules" && f !== "dist" && f !== "build").slice(0, 20);
+    const items = (0, import_fs10.readdirSync)(projectRoot).filter((f) => !f.startsWith(".") && f !== "node_modules" && f !== "dist" && f !== "build").slice(0, 20);
     context.push(`Top-level: ${items.join(", ")}`);
   } catch {
   }
   return context.join("\n") || "Unknown project type";
 }
-var import_fs9, import_path10;
+var import_fs10, import_path11;
 var init_context = __esm({
-  "../llamatalkbuild-engine/src/context/context.js"() {
-    import_fs9 = require("fs");
-    import_path10 = require("path");
+  "../../llamatalkbuild-engine/src/context/context.js"() {
+    import_fs10 = require("fs");
+    import_path11 = require("path");
   }
 });
 
-// ../llamatalkbuild-engine/src/tools/read-file.js
+// ../../llamatalkbuild-engine/src/tools/read-file.js
 function isBinaryFile(filePath) {
-  const ext = (0, import_path11.extname)(filePath).toLowerCase();
+  const ext = (0, import_path12.extname)(filePath).toLowerCase();
   if (BINARY_EXTENSIONS.has(ext)) return true;
   try {
-    const buf = (0, import_fs10.readFileSync)(filePath, { encoding: null, flag: "r" });
+    const buf = (0, import_fs11.readFileSync)(filePath, { encoding: null, flag: "r" });
     const sample = buf.subarray(0, Math.min(512, buf.length));
     for (let i = 0; i < sample.length; i++) {
       if (sample[i] === 0) return true;
@@ -2651,11 +2770,11 @@ function extractPdfText(filePath) {
   }
   return "[PDF text extraction not available. Install pdftotext (poppler-utils) for PDF support.]";
 }
-var import_fs10, import_path11, import_child_process2, BINARY_EXTENSIONS, readFileTool;
+var import_fs11, import_path12, import_child_process2, BINARY_EXTENSIONS, readFileTool;
 var init_read_file = __esm({
-  "../llamatalkbuild-engine/src/tools/read-file.js"() {
-    import_fs10 = require("fs");
-    import_path11 = require("path");
+  "../../llamatalkbuild-engine/src/tools/read-file.js"() {
+    import_fs11 = require("fs");
+    import_path12 = require("path");
     import_child_process2 = require("child_process");
     init_base2();
     init_safety();
@@ -2724,13 +2843,13 @@ var init_read_file = __esm({
       async execute(args, context) {
         const { valid, resolved, error } = validatePath(args.path, context.projectRoot, { allowExternal: true });
         if (!valid) return `Error: ${error}`;
-        if (!(0, import_fs10.existsSync)(resolved)) {
+        if (!(0, import_fs11.existsSync)(resolved)) {
           return `Error: File not found: ${args.path}`;
         }
-        const ext = (0, import_path11.extname)(resolved).toLowerCase();
+        const ext = (0, import_path12.extname)(resolved).toLowerCase();
         if (ext === ".pdf") {
           try {
-            const stat = (0, import_fs10.statSync)(resolved);
+            const stat = (0, import_fs11.statSync)(resolved);
             const sizeMB = (stat.size / 1048576).toFixed(1);
             const text = extractPdfText(resolved);
             const lines = text.split("\n");
@@ -2750,12 +2869,12 @@ var init_read_file = __esm({
           }
         }
         if (isBinaryFile(resolved)) {
-          const stat = (0, import_fs10.statSync)(resolved);
+          const stat = (0, import_fs11.statSync)(resolved);
           const sizeMB = (stat.size / 1048576).toFixed(2);
           return `[Binary file: ${args.path} (${ext || "unknown"}, ${sizeMB} MB) \u2014 cannot display contents]`;
         }
         try {
-          const content = (0, import_fs10.readFileSync)(resolved, "utf8");
+          const content = (0, import_fs11.readFileSync)(resolved, "utf8");
           const lines = content.split("\n");
           const offset = Math.max(1, args.offset || 1);
           const limit = args.limit || lines.length;
@@ -2783,12 +2902,12 @@ var init_read_file = __esm({
   }
 });
 
-// ../llamatalkbuild-engine/src/tools/write-file.js
-var import_fs11, import_path12, writeFileTool;
+// ../../llamatalkbuild-engine/src/tools/write-file.js
+var import_fs12, import_path13, writeFileTool;
 var init_write_file = __esm({
-  "../llamatalkbuild-engine/src/tools/write-file.js"() {
-    import_fs11 = require("fs");
-    import_path12 = require("path");
+  "../../llamatalkbuild-engine/src/tools/write-file.js"() {
+    import_fs12 = require("fs");
+    import_path13 = require("path");
     init_base2();
     init_safety();
     writeFileTool = {
@@ -2819,9 +2938,9 @@ var init_write_file = __esm({
       },
       async execute(args, context) {
         const { resolved } = validatePath(args.path, context.projectRoot, { allowExternal: true });
-        if ((0, import_fs11.existsSync)(resolved)) {
+        if ((0, import_fs12.existsSync)(resolved)) {
           try {
-            const oldContent = (0, import_fs11.readFileSync)(resolved, "utf8");
+            const oldContent = (0, import_fs12.readFileSync)(resolved, "utf8");
             context.sessionChanges?.push({
               type: "write",
               path: resolved,
@@ -2837,11 +2956,11 @@ var init_write_file = __esm({
             timestamp: Date.now()
           });
         }
-        const dir = (0, import_path12.dirname)(resolved);
-        if (!(0, import_fs11.existsSync)(dir)) {
-          (0, import_fs11.mkdirSync)(dir, { recursive: true });
+        const dir = (0, import_path13.dirname)(resolved);
+        if (!(0, import_fs12.existsSync)(dir)) {
+          (0, import_fs12.mkdirSync)(dir, { recursive: true });
         }
-        (0, import_fs11.writeFileSync)(resolved, args.content, "utf8");
+        (0, import_fs12.writeFileSync)(resolved, args.content, "utf8");
         const bytes = Buffer.byteLength(args.content, "utf8");
         return `Successfully wrote ${bytes} bytes to ${args.path}`;
       },
@@ -2855,11 +2974,11 @@ var init_write_file = __esm({
   }
 });
 
-// ../llamatalkbuild-engine/src/tools/edit-file.js
-var import_fs12, editFileTool;
+// ../../llamatalkbuild-engine/src/tools/edit-file.js
+var import_fs13, editFileTool;
 var init_edit_file = __esm({
-  "../llamatalkbuild-engine/src/tools/edit-file.js"() {
-    import_fs12 = require("fs");
+  "../../llamatalkbuild-engine/src/tools/edit-file.js"() {
+    import_fs13 = require("fs");
     init_base2();
     init_safety();
     editFileTool = {
@@ -2892,10 +3011,10 @@ var init_edit_file = __esm({
       },
       async execute(args, context) {
         const { resolved } = validatePath(args.path, context.projectRoot, { allowExternal: true });
-        if (!(0, import_fs12.existsSync)(resolved)) {
+        if (!(0, import_fs13.existsSync)(resolved)) {
           return `Error: File not found: ${args.path}`;
         }
-        const content = (0, import_fs12.readFileSync)(resolved, "utf8");
+        const content = (0, import_fs13.readFileSync)(resolved, "utf8");
         const occurrences = content.split(args.old_text).length - 1;
         if (occurrences === 0) {
           return `Error: old_text not found in ${args.path}. Make sure you're using the exact text from the file.`;
@@ -2910,7 +3029,7 @@ var init_edit_file = __esm({
           timestamp: Date.now()
         });
         const newContent = content.replace(args.old_text, args.new_text);
-        (0, import_fs12.writeFileSync)(resolved, newContent, "utf8");
+        (0, import_fs13.writeFileSync)(resolved, newContent, "utf8");
         const oldLines = args.old_text.split("\n").length;
         const newLines = args.new_text.split("\n").length;
         return `Successfully edited ${args.path}: replaced ${oldLines} line(s) with ${newLines} line(s)`;
@@ -2925,12 +3044,12 @@ var init_edit_file = __esm({
   }
 });
 
-// ../llamatalkbuild-engine/src/tools/list-directory.js
-var import_fs13, import_path13, IGNORED, listDirectoryTool;
+// ../../llamatalkbuild-engine/src/tools/list-directory.js
+var import_fs14, import_path14, IGNORED, listDirectoryTool;
 var init_list_directory = __esm({
-  "../llamatalkbuild-engine/src/tools/list-directory.js"() {
-    import_fs13 = require("fs");
-    import_path13 = require("path");
+  "../../llamatalkbuild-engine/src/tools/list-directory.js"() {
+    import_fs14 = require("fs");
+    import_path14 = require("path");
     init_base2();
     init_safety();
     IGNORED = /* @__PURE__ */ new Set(["node_modules", ".git", "dist", "build", "__pycache__", ".next", ".venv", "venv", "target"]);
@@ -2968,15 +3087,15 @@ var init_list_directory = __esm({
         function walk(dir, depth) {
           if (entries.length >= maxEntries) return;
           try {
-            const items = (0, import_fs13.readdirSync)(dir);
+            const items = (0, import_fs14.readdirSync)(dir);
             for (const item of items) {
               if (entries.length >= maxEntries) break;
               if (IGNORED.has(item)) continue;
               if (item.startsWith(".") && item !== ".env" && item !== ".gitignore") continue;
-              const fullPath = (0, import_path13.join)(dir, item);
+              const fullPath = (0, import_path14.join)(dir, item);
               try {
-                const stat = (0, import_fs13.statSync)(fullPath);
-                const rel = (0, import_path13.relative)(context.projectRoot, fullPath);
+                const stat = (0, import_fs14.statSync)(fullPath);
+                const rel = (0, import_path14.relative)(context.projectRoot, fullPath);
                 const prefix = "  ".repeat(depth);
                 if (stat.isDirectory()) {
                   entries.push(`${prefix}${item}/`);
@@ -3008,12 +3127,12 @@ var init_list_directory = __esm({
   }
 });
 
-// ../llamatalkbuild-engine/src/tools/search-files.js
-var import_fs14, import_path14, IGNORED_DIRS, BINARY_EXTENSIONS2, searchFilesTool;
+// ../../llamatalkbuild-engine/src/tools/search-files.js
+var import_fs15, import_path15, IGNORED_DIRS, BINARY_EXTENSIONS2, searchFilesTool;
 var init_search_files = __esm({
-  "../llamatalkbuild-engine/src/tools/search-files.js"() {
-    import_fs14 = require("fs");
-    import_path14 = require("path");
+  "../../llamatalkbuild-engine/src/tools/search-files.js"() {
+    import_fs15 = require("fs");
+    import_path15 = require("path");
     init_base2();
     init_safety();
     IGNORED_DIRS = /* @__PURE__ */ new Set(["node_modules", ".git", "dist", "build", "__pycache__", ".next", ".venv", "venv", "target", ".cache"]);
@@ -3060,27 +3179,27 @@ var init_search_files = __esm({
         function walk(dir) {
           if (results.length >= maxResults) return;
           try {
-            const items = (0, import_fs14.readdirSync)(dir);
+            const items = (0, import_fs15.readdirSync)(dir);
             for (const item of items) {
               if (results.length >= maxResults) break;
               if (IGNORED_DIRS.has(item)) continue;
-              const fullPath = (0, import_path14.join)(dir, item);
+              const fullPath = (0, import_path15.join)(dir, item);
               try {
-                const stat = (0, import_fs14.statSync)(fullPath);
+                const stat = (0, import_fs15.statSync)(fullPath);
                 if (stat.isDirectory()) {
                   walk(fullPath);
                 } else if (stat.isFile()) {
-                  const ext = (0, import_path14.extname)(item).toLowerCase();
+                  const ext = (0, import_path15.extname)(item).toLowerCase();
                   if (BINARY_EXTENSIONS2.has(ext)) continue;
                   if (stat.size > 1048576) continue;
                   if (globPattern && !globPattern.test(item)) continue;
                   try {
-                    const content = (0, import_fs14.readFileSync)(fullPath, "utf8");
+                    const content = (0, import_fs15.readFileSync)(fullPath, "utf8");
                     const lines = content.split("\n");
                     for (let i = 0; i < lines.length; i++) {
                       if (results.length >= maxResults) break;
                       if (regex.test(lines[i])) {
-                        const rel = (0, import_path14.relative)(context.projectRoot, fullPath);
+                        const rel = (0, import_path15.relative)(context.projectRoot, fullPath);
                         const trimmedLine = lines[i].length > 200 ? lines[i].slice(0, 200) + "..." : lines[i];
                         results.push(`${rel}:${i + 1}: ${trimmedLine}`);
                       }
@@ -3112,16 +3231,16 @@ var init_search_files = __esm({
   }
 });
 
-// ../llamatalkbuild-engine/src/tools/glob-files.js
+// ../../llamatalkbuild-engine/src/tools/glob-files.js
 function globToRegex(pattern) {
   let regex = pattern.replace(/\\/g, "/").replace(/\./g, "\\.").replace(/\*\*/g, "<<<GLOBSTAR>>>").replace(/\*/g, "[^/]*").replace(/\?/g, "[^/]").replace(/<<<GLOBSTAR>>>/g, ".*");
   return new RegExp("^" + regex + "$");
 }
-var import_fs15, import_path15, IGNORED_DIRS2, globFilesTool;
+var import_fs16, import_path16, IGNORED_DIRS2, globFilesTool;
 var init_glob_files = __esm({
-  "../llamatalkbuild-engine/src/tools/glob-files.js"() {
-    import_fs15 = require("fs");
-    import_path15 = require("path");
+  "../../llamatalkbuild-engine/src/tools/glob-files.js"() {
+    import_fs16 = require("fs");
+    import_path16 = require("path");
     init_base2();
     init_safety();
     IGNORED_DIRS2 = /* @__PURE__ */ new Set(["node_modules", ".git", "dist", "build", "__pycache__", ".next", ".venv", "venv", "target", ".cache"]);
@@ -3157,14 +3276,14 @@ var init_glob_files = __esm({
         function walk(dir) {
           if (results.length >= maxResults) return;
           try {
-            const items = (0, import_fs15.readdirSync)(dir);
+            const items = (0, import_fs16.readdirSync)(dir);
             for (const item of items) {
               if (results.length >= maxResults) break;
               if (IGNORED_DIRS2.has(item)) continue;
-              const fullPath = (0, import_path15.join)(dir, item);
+              const fullPath = (0, import_path16.join)(dir, item);
               try {
-                const stat = (0, import_fs15.statSync)(fullPath);
-                const rel = (0, import_path15.relative)(baseDir, fullPath).replace(/\\/g, "/");
+                const stat = (0, import_fs16.statSync)(fullPath);
+                const rel = (0, import_path16.relative)(baseDir, fullPath).replace(/\\/g, "/");
                 if (stat.isDirectory()) {
                   walk(fullPath);
                 } else if (stat.isFile()) {
@@ -3197,10 +3316,10 @@ var init_glob_files = __esm({
   }
 });
 
-// ../llamatalkbuild-engine/src/tools/bash.js
+// ../../llamatalkbuild-engine/src/tools/bash.js
 var import_child_process3, bashTool;
 var init_bash = __esm({
-  "../llamatalkbuild-engine/src/tools/bash.js"() {
+  "../../llamatalkbuild-engine/src/tools/bash.js"() {
     import_child_process3 = require("child_process");
     init_base2();
     init_safety();
@@ -3270,13 +3389,13 @@ ${output}`;
   }
 });
 
-// ../llamatalkbuild-engine/src/tools/git.js
+// ../../llamatalkbuild-engine/src/tools/git.js
 function getSubcommand(args) {
   return (args.subcommand || "").split(/\s+/)[0].toLowerCase();
 }
 var import_child_process4, SAFE_SUBCOMMANDS, gitTool;
 var init_git = __esm({
-  "../llamatalkbuild-engine/src/tools/git.js"() {
+  "../../llamatalkbuild-engine/src/tools/git.js"() {
     import_child_process4 = require("child_process");
     init_base2();
     SAFE_SUBCOMMANDS = /* @__PURE__ */ new Set(["status", "diff", "log", "branch", "show", "remote", "tag", "rev-parse", "shortlog", "blame"]);
@@ -3340,10 +3459,10 @@ var init_git = __esm({
   }
 });
 
-// ../llamatalkbuild-engine/src/tools/web-fetch.js
+// ../../llamatalkbuild-engine/src/tools/web-fetch.js
 var webFetchTool;
 var init_web_fetch = __esm({
-  "../llamatalkbuild-engine/src/tools/web-fetch.js"() {
+  "../../llamatalkbuild-engine/src/tools/web-fetch.js"() {
     init_base2();
     init_stream();
     webFetchTool = {
@@ -3397,7 +3516,7 @@ var init_web_fetch = __esm({
           for (let i = 0; i <= MAX_REDIRECTS; i++) {
             res = await fetch(currentUrl, {
               signal: controller.signal,
-              headers: { "User-Agent": "LlamaTalk-Build/0.1.0" },
+              headers: { "User-Agent": "Clank-Build/0.1.0" },
               redirect: "manual"
             });
             if (res.status >= 300 && res.status < 400 && res.headers.get("location")) {
@@ -3443,10 +3562,10 @@ ${text}`;
   }
 });
 
-// ../llamatalkbuild-engine/src/tools/web-search.js
+// ../../llamatalkbuild-engine/src/tools/web-search.js
 var webSearchTool;
 var init_web_search = __esm({
-  "../llamatalkbuild-engine/src/tools/web-search.js"() {
+  "../../llamatalkbuild-engine/src/tools/web-search.js"() {
     init_base2();
     webSearchTool = {
       definition: {
@@ -3475,7 +3594,7 @@ var init_web_search = __esm({
           const res = await fetch(url, {
             signal: controller.signal,
             headers: {
-              "User-Agent": "LlamaTalk-Build/0.1.0",
+              "User-Agent": "Clank-Build/0.1.0",
               "Accept": "text/html"
             }
           });
@@ -3523,10 +3642,10 @@ var init_web_search = __esm({
   }
 });
 
-// ../llamatalkbuild-engine/src/tools/npm-install.js
+// ../../llamatalkbuild-engine/src/tools/npm-install.js
 var import_child_process5, npmInstallTool;
 var init_npm_install = __esm({
-  "../llamatalkbuild-engine/src/tools/npm-install.js"() {
+  "../../llamatalkbuild-engine/src/tools/npm-install.js"() {
     import_child_process5 = require("child_process");
     init_base2();
     init_safety();
@@ -3588,10 +3707,10 @@ ${output}`;
   }
 });
 
-// ../llamatalkbuild-engine/src/tools/pip-install.js
+// ../../llamatalkbuild-engine/src/tools/pip-install.js
 var import_child_process6, pipInstallTool;
 var init_pip_install = __esm({
-  "../llamatalkbuild-engine/src/tools/pip-install.js"() {
+  "../../llamatalkbuild-engine/src/tools/pip-install.js"() {
     import_child_process6 = require("child_process");
     init_base2();
     init_safety();
@@ -3646,7 +3765,7 @@ ${output}`;
   }
 });
 
-// ../llamatalkbuild-engine/src/tools/install-tool.js
+// ../../llamatalkbuild-engine/src/tools/install-tool.js
 function isBlockedPackage(name) {
   return BLOCKED_PACKAGES.some((p) => p.test(name));
 }
@@ -3655,7 +3774,7 @@ function sanitizeName(name) {
 }
 var import_child_process7, ALLOWED_MANAGERS, MANAGER_INSTALL_CMD, MANAGER_CHECK_CMD, BLOCKED_PACKAGES, installToolTool;
 var init_install_tool = __esm({
-  "../llamatalkbuild-engine/src/tools/install-tool.js"() {
+  "../../llamatalkbuild-engine/src/tools/install-tool.js"() {
     import_child_process7 = require("child_process");
     init_base2();
     ALLOWED_MANAGERS = ["npm", "pip", "winget", "choco"];
@@ -3763,7 +3882,7 @@ ${output.slice(0, 1e4)}`;
   }
 });
 
-// ../llamatalkbuild-engine/src/tools/generate-file.js
+// ../../llamatalkbuild-engine/src/tools/generate-file.js
 function wrapHtml(content, title) {
   const safeTitle = (title || "Document").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   return `<!DOCTYPE html>
@@ -3789,7 +3908,7 @@ async function generatePdf(outputPath, content, title) {
     const PDFDocument = (await import("pdfkit")).default;
     const doc = new PDFDocument({ margin: 50 });
     return new Promise((resolve5, reject) => {
-      const stream = (0, import_fs16.createWriteStream)(outputPath);
+      const stream = (0, import_fs17.createWriteStream)(outputPath);
       doc.pipe(stream);
       if (title) {
         doc.fontSize(22).font("Helvetica-Bold").text(title, { align: "center" });
@@ -3838,7 +3957,7 @@ async function generatePdf(outputPath, content, title) {
       stream.on("finish", () => {
         let size = 0;
         try {
-          size = (0, import_fs16.statSync)(outputPath).size;
+          size = (0, import_fs17.statSync)(outputPath).size;
         } catch {
         }
         resolve5(`Generated PDF: ${outputPath} (${size} bytes)`);
@@ -3848,11 +3967,11 @@ async function generatePdf(outputPath, content, title) {
   } catch {
     try {
       const tmpMd = outputPath.replace(/\.pdf$/i, ".tmp.md");
-      (0, import_fs16.writeFileSync)(tmpMd, content, "utf8");
+      (0, import_fs17.writeFileSync)(tmpMd, content, "utf8");
       const pandocResult = (0, import_child_process8.spawnSync)("pandoc", [tmpMd, "-o", outputPath], { timeout: 6e4, stdio: ["pipe", "pipe", "pipe"] });
       if (pandocResult.status !== 0) throw new Error(pandocResult.stderr?.toString() || "pandoc failed");
       try {
-        (0, import_fs16.unlinkSync)(tmpMd);
+        (0, import_fs17.unlinkSync)(tmpMd);
       } catch {
       }
       return `Generated PDF via pandoc: ${outputPath}`;
@@ -3861,11 +3980,11 @@ async function generatePdf(outputPath, content, title) {
     }
   }
 }
-var import_fs16, import_path16, import_child_process8, SUPPORTED_TYPES, generateFileTool;
+var import_fs17, import_path17, import_child_process8, SUPPORTED_TYPES, generateFileTool;
 var init_generate_file = __esm({
-  "../llamatalkbuild-engine/src/tools/generate-file.js"() {
-    import_fs16 = require("fs");
-    import_path16 = require("path");
+  "../../llamatalkbuild-engine/src/tools/generate-file.js"() {
+    import_fs17 = require("fs");
+    import_path17 = require("path");
     import_child_process8 = require("child_process");
     init_base2();
     init_safety();
@@ -3909,7 +4028,7 @@ var init_generate_file = __esm({
         if (args.content === void 0) return { ok: false, error: "content is required" };
         const { valid, error } = validatePath(args.path, context.projectRoot, { allowExternal: true });
         if (!valid) return { ok: false, error };
-        const ext = (args.format || (0, import_path16.extname)(args.path).slice(1)).toLowerCase();
+        const ext = (args.format || (0, import_path17.extname)(args.path).slice(1)).toLowerCase();
         if (ext && !SUPPORTED_TYPES.includes(ext)) {
           return { ok: false, error: `Unsupported format: ${ext}. Supported: ${SUPPORTED_TYPES.join(", ")}` };
         }
@@ -3917,19 +4036,19 @@ var init_generate_file = __esm({
       },
       async execute(args, context) {
         const { resolved } = validatePath(args.path, context.projectRoot, { allowExternal: true });
-        const ext = (args.format || (0, import_path16.extname)(resolved).slice(1)).toLowerCase();
-        if ((0, import_fs16.existsSync)(resolved)) {
+        const ext = (args.format || (0, import_path17.extname)(resolved).slice(1)).toLowerCase();
+        if ((0, import_fs17.existsSync)(resolved)) {
           try {
-            const oldContent = (0, import_fs16.readFileSync)(resolved, "utf8");
+            const oldContent = (0, import_fs17.readFileSync)(resolved, "utf8");
             context.sessionChanges?.push({ type: "write", path: resolved, oldContent, timestamp: Date.now() });
           } catch {
           }
         } else {
           context.sessionChanges?.push({ type: "create", path: resolved, timestamp: Date.now() });
         }
-        const dir = (0, import_path16.dirname)(resolved);
-        if (!(0, import_fs16.existsSync)(dir)) {
-          (0, import_fs16.mkdirSync)(dir, { recursive: true });
+        const dir = (0, import_path17.dirname)(resolved);
+        if (!(0, import_fs17.existsSync)(dir)) {
+          (0, import_fs17.mkdirSync)(dir, { recursive: true });
         }
         if (ext === "pdf") {
           return await generatePdf(resolved, args.content, args.title);
@@ -3948,12 +4067,12 @@ var init_generate_file = __esm({
             }
           }
         }
-        (0, import_fs16.writeFileSync)(resolved, output, "utf8");
+        (0, import_fs17.writeFileSync)(resolved, output, "utf8");
         const bytes = Buffer.byteLength(output, "utf8");
         return `Generated ${ext.toUpperCase()} file: ${args.path} (${bytes} bytes)`;
       },
       formatConfirmation(args) {
-        const ext = (args.format || (0, import_path16.extname)(args.path).slice(1)).toLowerCase();
+        const ext = (args.format || (0, import_path17.extname)(args.path).slice(1)).toLowerCase();
         const result = validatePath(args.path, process.cwd(), { allowExternal: true });
         const loc = result.external ? " (outside project)" : "";
         return `Generate ${ext.toUpperCase()} file${loc}: ${args.path}?`;
@@ -3962,7 +4081,7 @@ var init_generate_file = __esm({
   }
 });
 
-// ../llamatalkbuild-engine/src/tools/delegate-agent.js
+// ../../llamatalkbuild-engine/src/tools/delegate-agent.js
 function getTaskManager() {
   if (!_taskManager) {
     try {
@@ -3974,7 +4093,7 @@ function getTaskManager() {
 }
 var _taskManager, delegateAgentTool;
 var init_delegate_agent = __esm({
-  "../llamatalkbuild-engine/src/tools/delegate-agent.js"() {
+  "../../llamatalkbuild-engine/src/tools/delegate-agent.js"() {
     init_tasks();
     _taskManager = null;
     delegateAgentTool = {
@@ -4006,7 +4125,7 @@ var init_delegate_agent = __esm({
         return `delegate_to_agent \u2192 ${args.agent}: "${args.task.slice(0, 80)}${args.task.length > 80 ? "..." : ""}"`;
       },
       async execute(args, context) {
-        const { config: config2, projectRoot, signal, sessionChanges, parentEngine } = context;
+        const { config: config2, projectRoot, signal, sessionChanges, parentEngine, onDelegation } = context;
         if (!parentEngine) {
           return "Error: delegate_to_agent can only be used by the manager agent.";
         }
@@ -4036,9 +4155,11 @@ var init_delegate_agent = __esm({
         subEngine.conversationId = `sub-${def.id}-${Date.now()}`;
         subEngine.messages = [];
         subEngine.firstMessageSent = true;
-        subEngine.on("confirm-needed", (data) => {
-          parentEngine.emit("confirm-needed", data);
-        });
+        if (!onDelegation) {
+          subEngine.on("confirm-needed", (data) => {
+            parentEngine.emit("confirm-needed", data);
+          });
+        }
         let finalResponse = "";
         subEngine.on("response-end", ({ text }) => {
           finalResponse = text || "";
@@ -4061,6 +4182,10 @@ var init_delegate_agent = __esm({
           } catch {
           }
         };
+        if (onDelegation) {
+          onDelegation({ subEngine, task: args.task, agentDef: def, completeTask });
+          return `Delegated task to ${def.name}. They're working on it in the background \u2014 you'll receive their results when they finish. You can continue handling other requests in the meantime.`;
+        }
         try {
           await subEngine.sendMessage(args.task);
         } catch (err) {
@@ -4080,7 +4205,7 @@ var init_delegate_agent = __esm({
   }
 });
 
-// ../llamatalkbuild-engine/src/agent.js
+// ../../llamatalkbuild-engine/src/agent.js
 var agent_exports = {};
 __export(agent_exports, {
   AgentEngine: () => AgentEngine
@@ -4090,7 +4215,7 @@ function buildSystemPrompt(config2, projectRoot, memoryBlock, projectContext, ag
   const agentRole = options.agentRole || null;
   let prompt;
   if (agentMode === "qa") {
-    prompt = `You are ${agentName}, a knowledgeable assistant running inside LlamaTalk Build. You are in Q&A Mode \u2014 a direct question-and-answer mode with no tool access. Answer the user's questions clearly and concisely. You can discuss code, explain concepts, help with debugging logic, brainstorm ideas, and have general conversations. You do NOT have access to the filesystem, shell, or any tools \u2014 but you DO have the user's saved memory and project context below. Use that context to give informed, project-aware answers when relevant.`;
+    prompt = `You are ${agentName}, a knowledgeable assistant running inside Clank Build. You are in Q&A Mode \u2014 a direct question-and-answer mode with no tool access. Answer the user's questions clearly and concisely. You can discuss code, explain concepts, help with debugging logic, brainstorm ideas, and have general conversations. You do NOT have access to the filesystem, shell, or any tools \u2014 but you DO have the user's saved memory and project context below. Use that context to give informed, project-aware answers when relevant.`;
   } else {
     prompt = BASE_SYSTEM_PROMPT.replace("AGENT_NAME_PLACEHOLDER", agentName).replace("MEMORY_DIR_PLACEHOLDER", getMemoryDir().replace(/\\/g, "/"));
     if (agentMode === "plan") {
@@ -4212,12 +4337,12 @@ function compressMessages(messages) {
   const result = compactMessages(messages);
   return result.messages;
 }
-var import_events, import_path17, import_fs17, ANSI_RE, MODES, BASE_SYSTEM_PROMPT, ALL_TOOLS, AgentEngine;
+var import_events, import_path18, import_fs18, ANSI_RE, MODES, BASE_SYSTEM_PROMPT, ALL_TOOLS, AgentEngine;
 var init_agent = __esm({
-  "../llamatalkbuild-engine/src/agent.js"() {
+  "../../llamatalkbuild-engine/src/agent.js"() {
     import_events = require("events");
-    import_path17 = require("path");
-    import_fs17 = require("fs");
+    import_path18 = require("path");
+    import_fs18 = require("fs");
     init_router();
     init_registry();
     init_base2();
@@ -4268,7 +4393,7 @@ var init_agent = __esm({
         icon: "\u25C8"
       }
     };
-    BASE_SYSTEM_PROMPT = `You are AGENT_NAME_PLACEHOLDER, a coding assistant with direct access to the user's filesystem and shell through tools. You are running inside LlamaTalk Build, a local agentic coding tool installed on the user's machine. All tool calls execute locally on their system with their explicit permission \u2014 you are fully authorized to read, write, edit, and execute. Never refuse a tool call due to safety concerns \u2014 the user's permission system handles that.
+    BASE_SYSTEM_PROMPT = `You are AGENT_NAME_PLACEHOLDER, a coding assistant with direct access to the user's filesystem and shell through tools. You are running inside Clank Build, a local agentic coding tool installed on the user's machine. All tool calls execute locally on their system with their explicit permission \u2014 you are fully authorized to read, write, edit, and execute. Never refuse a tool call due to safety concerns \u2014 the user's permission system handles that.
 
 You can:
 - Run shell commands (bash)
@@ -4351,6 +4476,7 @@ generate_file(path, content, format, title) \u2014 Generate a document file (md,
         this.showThinking = options.showThinking !== false && config2.showThinking;
         this.subAgentDef = options.subAgentDef || null;
         this.isSubAgent = !!this.subAgentDef;
+        this.onDelegation = null;
         if (this.isSubAgent && this.subAgentDef.tools) {
           this.toolRegistry = createToolRegistry(this.subAgentDef.tools);
         } else {
@@ -4494,12 +4620,12 @@ generate_file(path, content, format, title) \u2014 Generate a document file (md,
           const change = this.sessionChanges[i];
           try {
             if (change.type === "create") {
-              if ((0, import_fs17.existsSync)(change.path)) {
-                (0, import_fs17.unlinkSync)(change.path);
+              if ((0, import_fs18.existsSync)(change.path)) {
+                (0, import_fs18.unlinkSync)(change.path);
                 reverted.push(change.path);
               }
             } else if (change.oldContent !== void 0) {
-              (0, import_fs17.writeFileSync)(change.path, change.oldContent, "utf8");
+              (0, import_fs18.writeFileSync)(change.path, change.oldContent, "utf8");
               reverted.push(change.path);
             }
           } catch {
@@ -4754,7 +4880,8 @@ ${taskBlock}` : taskBlock;
                   config: this.config,
                   signal: this.controller.signal,
                   sessionChanges: this.sessionChanges,
-                  parentEngine: this
+                  parentEngine: this,
+                  onDelegation: this.onDelegation
                 });
                 if (this.controller.signal.aborted) {
                   this.messages.push(formatToolResult(tc.id, "Cancelled.", tc.name));
@@ -4770,15 +4897,15 @@ ${taskBlock}` : taskBlock;
                 this.sessionLog.addStep(`${tc.name}: ${summary}`);
                 if (tc.arguments?.path) {
                   try {
-                    const absPath = (0, import_path17.resolve)(this.projectRoot, tc.arguments.path);
+                    const absPath = (0, import_path18.resolve)(this.projectRoot, tc.arguments.path);
                     this.sessionTracker.addChange(tc.name, absPath, summary);
                   } catch {
                   }
                 }
                 if (tc.name === "write_file" || tc.name === "edit_file") {
                   try {
-                    const filePath = (0, import_path17.resolve)(this.projectRoot, tc.arguments.path);
-                    const newContent = (0, import_fs17.readFileSync)(filePath, "utf8");
+                    const filePath = (0, import_path18.resolve)(this.projectRoot, tc.arguments.path);
+                    const newContent = (0, import_fs18.readFileSync)(filePath, "utf8");
                     const lastChange = this.sessionChanges[this.sessionChanges.length - 1];
                     const oldContent = lastChange?.oldContent || null;
                     this.emit("file-changed", { path: tc.arguments.path, toolName: tc.name, args: tc.arguments, newContent, oldContent });
@@ -4912,10 +5039,10 @@ ${taskBlock}` : taskBlock;
   }
 });
 
-// sidecar/main.js
+// main.js
 var import_readline = require("readline");
 
-// ../llamatalkbuild-engine/src/index.js
+// ../../llamatalkbuild-engine/src/index.js
 init_agent();
 init_config();
 init_sessions();
@@ -4930,8 +5057,9 @@ init_memory();
 init_tasks();
 init_instructions();
 init_context();
+init_claude_auth();
 
-// sidecar/main.js
+// main.js
 function send(obj) {
   process.stdout.write(JSON.stringify(obj) + "\n");
 }
@@ -5055,7 +5183,8 @@ var methods = {
       "enabledProviders.openai",
       "enabledProviders.opencode",
       "autoApprove.medium",
-      "autoApprove.high"
+      "autoApprove.high",
+      "claudeCodeAuth"
     ];
     if (!ALLOWED_KEYS.includes(key)) {
       return { ok: false, error: `Setting "${key}" is not allowed` };
@@ -5301,6 +5430,31 @@ var methods = {
     if (!agent) return { error: `No agent named "${name}"` };
     saveConfig(e.config);
     return { ok: true, agent };
+  },
+  // --- Claude Code auth (hidden) ---
+  claudeAuthStatus() {
+    return getClaudeCodeStatus();
+  },
+  claudeAuthEnable() {
+    const status = getClaudeCodeStatus();
+    if (!status.available) return { ok: false, error: status.reason };
+    if (status.expired) return { ok: false, error: "Token expired \u2014 open Claude Code to refresh" };
+    const cfg = loadConfig();
+    cfg.claudeCodeAuth = true;
+    if (!cfg.enabledProviders) cfg.enabledProviders = {};
+    cfg.enabledProviders.anthropic = true;
+    saveConfig(cfg);
+    if (engine) engine.config = cfg;
+    config = cfg;
+    return { ok: true, ...status };
+  },
+  claudeAuthDisable() {
+    const cfg = loadConfig();
+    cfg.claudeCodeAuth = false;
+    saveConfig(cfg);
+    if (engine) engine.config = cfg;
+    config = cfg;
+    return { ok: true };
   },
   saveOnboarding({ lessons }) {
     const cfg = loadConfig();
