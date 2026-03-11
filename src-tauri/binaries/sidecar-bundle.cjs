@@ -4284,7 +4284,14 @@ ${projectContext}`;
 }
 function createToolRegistry(allowedTools = null) {
   const registry = new ToolRegistry();
-  const filter = allowedTools ? new Set(allowedTools) : null;
+  const validToolNames = new Set(ALL_TOOLS.map((t) => t.definition.name));
+  let filter = allowedTools ? new Set(allowedTools) : null;
+  if (filter) {
+    const hasAnyValid = [...filter].some((name) => validToolNames.has(name));
+    if (!hasAnyValid) {
+      filter = null;
+    }
+  }
   for (const tool of ALL_TOOLS) {
     if (!filter || filter.has(tool.definition.name)) {
       registry.register(tool);
