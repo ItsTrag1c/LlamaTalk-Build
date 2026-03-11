@@ -14,7 +14,7 @@
  */
 import { createInterface } from "readline";
 import {
-  AgentEngine, loadConfig, saveConfig, SessionManager, getAllLocalModels,
+  AgentEngine, Scheduler, loadConfig, saveConfig, SessionManager, getAllLocalModels,
   CLOUD_MODELS, detectBackend, TaskManager, MemoryManager,
 } from "clankbuild-engine";
 
@@ -53,6 +53,7 @@ function sendPrompt(event, data) {
 
 let engine = null;
 let config = null;
+let scheduler = null;
 
 const SIDECAR_VERSION = "2.4.2";
 
@@ -65,8 +66,19 @@ function ensureEngine(projectRoot) {
       config.appVersion = SIDECAR_VERSION;
       saveConfig(config);
     }
+
+    // Create scheduler (shared across sessions)
+    if (!scheduler) {
+      scheduler = new Scheduler(config, { projectRoot: projectRoot || process.cwd() });
+      scheduler.on("schedule-triggered", (data) => sendEvent("schedule-triggered", data));
+      scheduler.on("schedule-completed", (data) => sendEvent("schedule-completed", data));
+      scheduler.on("schedule-error", (data) => sendEvent("schedule-error", data));
+      scheduler.start();
+    }
+
     engine = new AgentEngine(config, {
       projectRoot: projectRoot || process.cwd(),
+      scheduler,
     });
     wireEvents(engine);
   }

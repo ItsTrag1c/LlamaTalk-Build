@@ -1,6 +1,17 @@
 # Changelog — Clank Build Desktop
 
-Last updated: 2026-03-11 (v2.4.10)
+Last updated: 2026-03-11 (v2.4.11)
+
+---
+
+## v2.4.11 (2026-03-11)
+
+### New Features
+- **Autonomous job scheduler** — sub-agents can now be assigned recurring or one-shot scheduled tasks via the manager agent. Uses cron-style expressions with shorthands like `@hourly`, `@daily`, `@every_30m`. Schedules persist across restarts. Scheduler events forwarded to frontend via RPC.
+
+### Improvements
+- **Multi-step sub-agent completion** — engine update: sub-agents now reliably complete multi-step tasks instead of stopping after the first tool call. Continuation mechanism re-prompts up to 3 times when incomplete work is detected.
+- **Provider tool compatibility** — engine update: Ollama preserves `tool_calls` and `tool_call_id` in conversation history, Google/Gemini preserves `enum` in tool schemas, integer types corrected across all tool definitions.
 
 ---
 

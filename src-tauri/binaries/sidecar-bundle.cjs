@@ -560,9 +560,13 @@ var init_ollama = __esm({
         if (systemPrompt) msgs.push({ role: "system", content: systemPrompt });
         for (const m of messages) {
           if (m.role === "tool_result") {
-            msgs.push({ role: "tool", content: typeof m.content === "string" ? m.content : JSON.stringify(m.content) });
+            msgs.push({
+              role: "tool",
+              tool_call_id: m.tool_use_id,
+              content: typeof m.content === "string" ? m.content : JSON.stringify(m.content)
+            });
           } else if (m.role === "assistant" && m.tool_calls) {
-            msgs.push(m);
+            msgs.push({ role: m.role, content: m.content || "", tool_calls: m.tool_calls });
           } else {
             msgs.push({ role: m.role, content: m.content });
           }
@@ -632,6 +636,8 @@ var init_ollama = __esm({
           role: "assistant",
           content: text || "",
           tool_calls: toolCalls.map((tc) => ({
+            id: tc.id,
+            type: "function",
             function: { name: tc.name, arguments: tc.arguments }
           }))
         };
@@ -665,6 +671,7 @@ function convertProperties(props) {
   for (const [key, val] of Object.entries(props)) {
     out[key] = { type: toGeminiType(val.type), description: val.description || "" };
     if (val.items) out[key].items = { type: toGeminiType(val.items.type) };
+    if (val.enum) out[key].enum = val.enum;
   }
   return out;
 }
@@ -2756,8 +2763,8 @@ var init_read_file = __esm({
           type: "object",
           properties: {
             path: { type: "string", description: "File path (absolute or relative to project root)" },
-            offset: { type: "number", description: "Line number to start reading from (1-based)" },
-            limit: { type: "number", description: "Maximum number of lines to read" }
+            offset: { type: "integer", description: "Line number to start reading from (1-based)" },
+            limit: { type: "integer", description: "Maximum number of lines to read" }
           },
           required: ["path"]
         }
@@ -3081,7 +3088,7 @@ var init_search_files = __esm({
             pattern: { type: "string", description: "Regex pattern to search for" },
             path: { type: "string", description: "Directory to search in (default: project root)" },
             glob: { type: "string", description: "File glob pattern to filter (e.g., '*.js', '*.ts')" },
-            max_results: { type: "number", description: "Maximum results to return (default: 50)" }
+            max_results: { type: "integer", description: "Maximum results to return (default: 50)" }
           },
           required: ["pattern"]
         }
@@ -3273,7 +3280,7 @@ var init_bash = __esm({
           type: "object",
           properties: {
             command: { type: "string", description: "The shell command to execute" },
-            timeout: { type: "number", description: "Timeout in milliseconds (default: 120000, max: 600000)" },
+            timeout: { type: "integer", description: "Timeout in milliseconds (default: 120000, max: 600000)" },
             cwd: { type: "string", description: "Working directory (default: project root)" }
           },
           required: ["command"]
@@ -3530,7 +3537,7 @@ var init_web_search = __esm({
           type: "object",
           properties: {
             query: { type: "string", description: "Search query" },
-            max_results: { type: "number", description: "Number of results (default: 5, max: 10)" }
+            max_results: { type: "integer", description: "Number of results (default: 5, max: 10)" }
           },
           required: ["query"]
         }
@@ -4178,7 +4185,7 @@ var init_delegate_agent = __esm({
         let retries = 0;
         const wrappedTask = `TASK: ${args.task}
 
-Execute this task now using your tools. Start your response with a tool call \u2014 do not reply with text first.`;
+Execute this task NOW using your tools. Start your response with a tool call \u2014 do not reply with text first. If this task has multiple steps, you MUST complete ALL of them before responding with text. Each time you see a tool result, immediately make the next tool call. Text ends your turn \u2014 only produce text after ALL work is done.`;
         try {
           await subEngine.sendMessage(wrappedTask);
           while (lastIterationCount === 0 && retries < MAX_RETRIES) {
@@ -4187,6 +4194,19 @@ Execute this task now using your tools. Start your response with a tool call \u2
             lastIterationCount = 0;
             await subEngine.sendMessage(
               "You did not execute any tools. You MUST respond with a tool call right now. If the task says to search, call web_search. If it says to read, call read_file. If it says to write, call write_file. Do NOT reply with text \u2014 reply with a tool call."
+            );
+          }
+          const MAX_CONTINUATIONS = 3;
+          let continuations = 0;
+          while (continuations < MAX_CONTINUATIONS && lastIterationCount > 0) {
+            const lower = (finalResponse || "").toLowerCase();
+            const incomplete = /\b(next[,:]?\s+i\s+(will|would|can|need|should|'ll))\b/.test(lower) || /\b(remaining\s+(steps?|tasks?|items?|parts?))\b/.test(lower) || /\b(still\s+need\s+to)\b/.test(lower) || /\b(have\s+not\s+(yet|completed|finished))\b/.test(lower) || /\b(haven'?t\s+(yet|completed|finished))\b/.test(lower) || /\b(todo|to\s+do\s+next)\b/.test(lower) || /\b(now\s+(i\s+)?(will|need|should|let\s+me))\b/.test(lower);
+            if (!incomplete) break;
+            continuations++;
+            finalResponse = "";
+            lastIterationCount = 0;
+            await subEngine.sendMessage(
+              "You stopped before completing the full task. Continue executing the remaining steps NOW \u2014 start with a tool call, not text. Do not repeat work you already did."
             );
           }
         } catch (err) {
@@ -4215,6 +4235,136 @@ Execute this task now using your tools. Start your response with a tool call \u2
           return `Sub-agent "${def.name}" acknowledged the task but did not use any tools to complete it. The task was NOT completed. You may need to re-delegate with more specific instructions, or handle it yourself.`;
         }
         return finalResponse || `Sub-agent "${def.name}" completed the task but produced no text response.`;
+      }
+    };
+  }
+});
+
+// ../../llamatalkbuild-engine/src/tools/schedule-task.js
+var scheduleTaskTool;
+var init_schedule_task = __esm({
+  "../../llamatalkbuild-engine/src/tools/schedule-task.js"() {
+    scheduleTaskTool = {
+      definition: {
+        name: "schedule_task",
+        description: `Manage scheduled autonomous jobs for sub-agents. Actions:
+- "add": Schedule a recurring or one-shot job for a sub-agent (requires agent, task, cron)
+- "list": Show all scheduled jobs
+- "remove": Remove a scheduled job by index (1-based)
+- "enable": Enable a paused schedule by index
+- "disable": Pause a schedule by index
+
+Cron format: "minute hour day-of-month month day-of-week" (e.g., "0 */6 * * *" = every 6 hours).
+Shorthands: @hourly, @daily, @weekly, @monthly, @every_30m, @every_2h.`,
+        parameters: {
+          type: "object",
+          properties: {
+            action: {
+              type: "string",
+              description: "Action to perform: add, list, remove, enable, disable",
+              enum: ["add", "list", "remove", "enable", "disable"]
+            },
+            agent: {
+              type: "string",
+              description: "Name or ID of the sub-agent (required for 'add')"
+            },
+            task: {
+              type: "string",
+              description: "Task description to run on schedule (required for 'add')"
+            },
+            cron: {
+              type: "string",
+              description: "Cron expression or shorthand (required for 'add'). E.g., '*/30 * * * *', '@hourly', '@every_2h'"
+            },
+            index: {
+              type: "integer",
+              description: "Schedule index (1-based) for remove/enable/disable actions"
+            },
+            one_shot: {
+              type: "boolean",
+              description: "If true, the schedule runs once then auto-disables (default: false)"
+            }
+          },
+          required: ["action"]
+        }
+      },
+      safetyLevel: "medium",
+      validate(args) {
+        if (!args?.action) return { ok: false, error: "Missing action" };
+        const action = args.action.toLowerCase();
+        if (action === "add") {
+          if (!args.agent) return { ok: false, error: "Missing agent name for 'add'" };
+          if (!args.task) return { ok: false, error: "Missing task description for 'add'" };
+          if (!args.cron) return { ok: false, error: "Missing cron expression for 'add'" };
+        }
+        if (["remove", "enable", "disable"].includes(action)) {
+          if (!args.index && args.index !== 0) return { ok: false, error: `Missing index for '${action}'` };
+        }
+        return { ok: true };
+      },
+      formatConfirmation(args) {
+        const action = (args.action || "").toLowerCase();
+        if (action === "add") {
+          return `schedule_task \u2192 add: ${args.agent} "${(args.task || "").slice(0, 60)}" [${args.cron}]`;
+        }
+        if (action === "remove") return `schedule_task \u2192 remove schedule #${args.index}`;
+        if (action === "enable") return `schedule_task \u2192 enable schedule #${args.index}`;
+        if (action === "disable") return `schedule_task \u2192 disable schedule #${args.index}`;
+        return `schedule_task \u2192 ${action}`;
+      },
+      async execute(args, context) {
+        const { parentEngine } = context;
+        const scheduler2 = parentEngine?.scheduler;
+        if (!scheduler2) {
+          return "Error: Scheduler is not available. The scheduler must be started before scheduling tasks.";
+        }
+        const action = (args.action || "").toLowerCase();
+        if (action === "list") {
+          const schedules = scheduler2.list();
+          if (schedules.length === 0) return "No scheduled jobs.";
+          const lines = ["Scheduled jobs:\n"];
+          for (let i = 0; i < schedules.length; i++) {
+            const s = schedules[i];
+            const status = s.enabled ? "\u2713 enabled" : "\u2717 disabled";
+            const lastInfo = s.lastRun ? `last run: ${new Date(s.lastRun).toLocaleString()} (${s.lastResult || "unknown"})` : "never run";
+            const shotInfo = s.oneShot ? " [one-shot]" : "";
+            lines.push(`${i + 1}. [${status}] ${s.agentName}: "${s.task}"`);
+            lines.push(`   Cron: ${s.cron}${shotInfo} | Runs: ${s.runCount || 0} | ${lastInfo}`);
+          }
+          return lines.join("\n");
+        }
+        if (action === "add") {
+          const result = scheduler2.add({
+            agentId: args.agent,
+            task: args.task,
+            cron: args.cron,
+            oneShot: args.one_shot || false
+          });
+          if (result.error) return `Error: ${result.error}`;
+          return `Scheduled job created:
+- Agent: ${result.agentName}
+- Task: "${result.task}"
+- Cron: ${result.cron}${result.oneShot ? " (one-shot)" : ""}
+- ID: ${result.id}
+
+The scheduler will run this automatically. Use schedule_task with action "list" to see all jobs.`;
+        }
+        if (action === "remove") {
+          const removed = scheduler2.remove(args.index);
+          if (!removed) return `Error: No schedule at index ${args.index}.`;
+          return `Removed schedule: ${removed.agentName} \u2014 "${removed.task}" [${removed.cron}]`;
+        }
+        if (action === "enable") {
+          const toggled = scheduler2.toggle(args.index, true);
+          if (!toggled) return `Error: No schedule at index ${args.index}.`;
+          return `Enabled schedule: ${toggled.agentName} \u2014 "${toggled.task}"`;
+        }
+        if (action === "disable") {
+          const toggled = scheduler2.toggle(args.index, false);
+          if (!toggled) return `Error: No schedule at index ${args.index}.`;
+          return `Disabled schedule: ${toggled.agentName} \u2014 "${toggled.task}"`;
+        }
+        return `Unknown action: "${action}". Use: add, list, remove, enable, disable.`;
       }
     };
   }
@@ -4287,7 +4437,20 @@ If the task involves reading: call read_file immediately.
 If the task involves writing or editing: read the file first, then write/edit.
 If the task involves running commands: call bash immediately.
 
-You are expected to complete the full task autonomously. Use multiple tool calls in sequence until the task is fully done. Only respond with a text summary AFTER you have finished all tool operations.`;
+### CRITICAL: Multi-Step Task Completion
+You are expected to complete the FULL task autonomously. Most tasks require MULTIPLE tool calls in sequence \u2014 do NOT stop after the first tool call.
+
+**How the loop works:** After each tool call, you will see the tool's result. You MUST immediately make the NEXT tool call needed for the task. Keep making tool calls until EVERY part of the task is done. The moment you respond with text instead of a tool call, your turn ENDS and you cannot make any more tool calls.
+
+**Rules:**
+- After each tool result, ask yourself: "Is the ENTIRE task complete?" If NO \u2192 make another tool call. If YES \u2192 respond with a text summary.
+- Never respond with text between tool calls \u2014 text ends your turn permanently.
+- Never say "next I will..." or "let me now..." \u2014 just call the tool.
+- If a task has multiple steps (e.g., "read file A, then edit file B, then run tests"), you must complete ALL steps before responding with text.
+- Only produce a text summary as your FINAL response after ALL work is done.
+
+### Looping Behavior
+Do NOT repeat the same operation in an infinite loop. Only loop/repeat actions when the task EXPLICITLY asks for repeated or continuous execution (e.g., "keep checking", "retry until", "monitor"). If the task is a one-shot set of steps, complete them once and stop.`;
   }
   if (!options.isSubAgent && config2.subAgents?.length > 0) {
     const enabled = config2.subAgents.filter((a) => a.enabled !== false);
@@ -4471,6 +4634,7 @@ var init_agent = __esm({
     init_install_tool();
     init_generate_file();
     init_delegate_agent();
+    init_schedule_task();
     ANSI_RE = /\x1B(?:\[[0-9;]*[A-Za-z]|\(.|#.|].*?(?:\x07|\x1B\\))/g;
     MODES = {
       build: {
@@ -4579,12 +4743,14 @@ generate_file(path, content, format, title) \u2014 Generate a document file (md,
         this.subAgentDef = options.subAgentDef || null;
         this.isSubAgent = !!this.subAgentDef;
         this.onDelegation = null;
+        this.scheduler = options.scheduler || null;
         if (this.isSubAgent && this.subAgentDef.tools) {
           this.toolRegistry = createToolRegistry(this.subAgentDef.tools);
         } else {
           this.toolRegistry = createToolRegistry();
           if (!this.isSubAgent && config2.subAgents?.length > 0) {
             this.toolRegistry.register(delegateAgentTool);
+            this.toolRegistry.register(scheduleTaskTool);
           }
         }
         this.memory = new MemoryManager(config2, this.encKey);
@@ -4681,6 +4847,7 @@ generate_file(path, content, format, title) \u2014 Generate a document file (md,
         this.config.subAgents.push(agent);
         if (this.config.subAgents.length === 1 && !this.toolRegistry.get("delegate_to_agent")) {
           this.toolRegistry.register(delegateAgentTool);
+          this.toolRegistry.register(scheduleTaskTool);
         }
         return agent;
       }
@@ -4791,6 +4958,14 @@ generate_file(path, content, format, title) \u2014 Generate a document file (md,
           memoryBlock = memoryBlock ? `${memoryBlock}
 
 ${taskBlock}` : taskBlock;
+        }
+        if (this.scheduler) {
+          const schedBlock = this.scheduler.buildScheduleBlock();
+          if (schedBlock) {
+            memoryBlock = memoryBlock ? `${memoryBlock}
+
+${schedBlock}` : schedBlock;
+          }
         }
         await new Promise((r) => setTimeout(r, 150));
         this.emit("memory-loading", { status: "done" });
@@ -5154,6 +5329,334 @@ init_router();
 init_registry();
 init_base2();
 init_delegate_agent();
+init_schedule_task();
+
+// ../../llamatalkbuild-engine/src/scheduler.js
+var import_events2 = require("events");
+var import_fs18 = require("fs");
+var import_path18 = require("path");
+init_config();
+var CHECK_INTERVAL_MS = 6e4;
+function parseCronField(field, min, max) {
+  if (field === "*") return null;
+  const values = /* @__PURE__ */ new Set();
+  for (const part of field.split(",")) {
+    const trimmed = part.trim();
+    const stepMatch = trimmed.match(/^\*\/(\d+)$/);
+    if (stepMatch) {
+      const step = parseInt(stepMatch[1], 10);
+      for (let i = min; i <= max; i += step) values.add(i);
+      continue;
+    }
+    const rangeMatch = trimmed.match(/^(\d+)-(\d+)$/);
+    if (rangeMatch) {
+      const from = parseInt(rangeMatch[1], 10);
+      const to = parseInt(rangeMatch[2], 10);
+      for (let i = from; i <= to; i++) values.add(i);
+      continue;
+    }
+    const num = parseInt(trimmed, 10);
+    if (!isNaN(num) && num >= min && num <= max) {
+      values.add(num);
+    }
+  }
+  return values.size > 0 ? values : null;
+}
+function expandShorthand(expr) {
+  if (expr === "@hourly") return "0 * * * *";
+  if (expr === "@daily") return "0 0 * * *";
+  if (expr === "@weekly") return "0 0 * * 0";
+  if (expr === "@monthly") return "0 0 1 * *";
+  const everyMatch = expr.match(/^@every_(\d+)([mh])$/);
+  if (everyMatch) {
+    const n = parseInt(everyMatch[1], 10);
+    if (everyMatch[2] === "m") return `*/${n} * * * *`;
+    if (everyMatch[2] === "h") return `0 */${n} * * *`;
+  }
+  return expr;
+}
+function parseCron(expression) {
+  const expanded = expandShorthand(expression.trim());
+  const parts = expanded.split(/\s+/);
+  if (parts.length !== 5) return null;
+  return {
+    minute: parseCronField(parts[0], 0, 59),
+    hour: parseCronField(parts[1], 0, 23),
+    dayOfMonth: parseCronField(parts[2], 1, 31),
+    month: parseCronField(parts[3], 1, 12),
+    dayOfWeek: parseCronField(parts[4], 0, 6)
+  };
+}
+function cronMatches(parsed, date) {
+  const m = date.getMinutes();
+  const h = date.getHours();
+  const dom = date.getDate();
+  const mon = date.getMonth() + 1;
+  const dow = date.getDay();
+  if (parsed.minute && !parsed.minute.has(m)) return false;
+  if (parsed.hour && !parsed.hour.has(h)) return false;
+  if (parsed.dayOfMonth && !parsed.dayOfMonth.has(dom)) return false;
+  if (parsed.month && !parsed.month.has(mon)) return false;
+  if (parsed.dayOfWeek && !parsed.dayOfWeek.has(dow)) return false;
+  return true;
+}
+var Scheduler = class extends import_events2.EventEmitter {
+  constructor(config2, options = {}) {
+    super();
+    this.config = config2;
+    this.projectRoot = options.projectRoot || process.cwd();
+    this.encKey = options.encKey || null;
+    this.memoryDir = getMemoryDir();
+    this.schedulesFile = (0, import_path18.join)(this.memoryDir, "schedules.json");
+    this._timer = null;
+    this._running = /* @__PURE__ */ new Set();
+    this._subEngineCache = /* @__PURE__ */ new Map();
+    if (!(0, import_fs18.existsSync)(this.memoryDir)) {
+      (0, import_fs18.mkdirSync)(this.memoryDir, { recursive: true });
+    }
+  }
+  // ─── Persistence ───────────────────────────────────────────────────
+  _load() {
+    if (!(0, import_fs18.existsSync)(this.schedulesFile)) return [];
+    try {
+      return JSON.parse((0, import_fs18.readFileSync)(this.schedulesFile, "utf8"));
+    } catch {
+      return [];
+    }
+  }
+  _save(schedules) {
+    (0, import_fs18.writeFileSync)(this.schedulesFile, JSON.stringify(schedules, null, 2), "utf8");
+  }
+  // ─── Public API ────────────────────────────────────────────────────
+  /** Start the scheduler timer. */
+  start() {
+    if (this._timer) return;
+    this._timer = setInterval(() => this._tick(), CHECK_INTERVAL_MS);
+    if (this._timer.unref) this._timer.unref();
+    this.emit("started");
+  }
+  /** Stop the scheduler timer. */
+  stop() {
+    if (this._timer) {
+      clearInterval(this._timer);
+      this._timer = null;
+    }
+    this.emit("stopped");
+  }
+  /** Add a new scheduled job. Returns the created schedule. */
+  add({ agentId, task, cron, enabled = true, oneShot = false }) {
+    const parsed = parseCron(cron);
+    if (!parsed) return { error: `Invalid cron expression: "${cron}"` };
+    const agents = this.config.subAgents || [];
+    const agent = agents.find(
+      (a) => a.id === agentId || a.name.toLowerCase() === agentId.toLowerCase()
+    );
+    if (!agent) {
+      const available = agents.filter((a) => a.enabled !== false).map((a) => a.name).join(", ");
+      return { error: `No sub-agent "${agentId}". Available: ${available || "none"}` };
+    }
+    const schedules = this._load();
+    const schedule = {
+      id: `sched_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      agentId: agent.id,
+      agentName: agent.name,
+      task,
+      cron,
+      enabled,
+      oneShot,
+      lastRun: null,
+      lastResult: null,
+      // "success" | "error" | "no_tools"
+      runCount: 0,
+      createdAt: (/* @__PURE__ */ new Date()).toISOString()
+    };
+    schedules.push(schedule);
+    this._save(schedules);
+    this.emit("schedule-added", schedule);
+    return schedule;
+  }
+  /** List all schedules. */
+  list() {
+    return this._load();
+  }
+  /** Remove a schedule by ID or index (1-based). */
+  remove(idOrIndex) {
+    const schedules = this._load();
+    let removed = null;
+    if (typeof idOrIndex === "number") {
+      if (idOrIndex < 1 || idOrIndex > schedules.length) return null;
+      [removed] = schedules.splice(idOrIndex - 1, 1);
+    } else {
+      const idx = schedules.findIndex((s) => s.id === idOrIndex);
+      if (idx < 0) return null;
+      [removed] = schedules.splice(idx, 1);
+    }
+    this._save(schedules);
+    this.emit("schedule-removed", removed);
+    return removed;
+  }
+  /** Enable/disable a schedule by ID or index (1-based). */
+  toggle(idOrIndex, enabled) {
+    const schedules = this._load();
+    let schedule = null;
+    if (typeof idOrIndex === "number") {
+      if (idOrIndex < 1 || idOrIndex > schedules.length) return null;
+      schedule = schedules[idOrIndex - 1];
+    } else {
+      schedule = schedules.find((s) => s.id === idOrIndex);
+    }
+    if (!schedule) return null;
+    schedule.enabled = enabled;
+    this._save(schedules);
+    this.emit("schedule-toggled", schedule);
+    return schedule;
+  }
+  /** Build a summary block for system prompt injection. */
+  buildScheduleBlock() {
+    const schedules = this._load().filter((s) => s.enabled);
+    if (schedules.length === 0) return "";
+    const lines = ["## Scheduled Jobs"];
+    for (const s of schedules) {
+      const lastInfo = s.lastRun ? ` (last run: ${new Date(s.lastRun).toLocaleString()}, result: ${s.lastResult || "unknown"})` : " (never run)";
+      lines.push(`- **${s.agentName}**: "${s.task}" \u2014 \`${s.cron}\`${s.oneShot ? " [one-shot]" : ""}${lastInfo}`);
+    }
+    return lines.join("\n");
+  }
+  // ─── Tick: check and execute due schedules ─────────────────────────
+  async _tick() {
+    const now = /* @__PURE__ */ new Date();
+    const schedules = this._load();
+    let dirty = false;
+    for (const schedule of schedules) {
+      if (!schedule.enabled) continue;
+      if (this._running.has(schedule.id)) continue;
+      const parsed = parseCron(schedule.cron);
+      if (!parsed) continue;
+      if (!cronMatches(parsed, now)) continue;
+      if (schedule.lastRun) {
+        const lastRun = new Date(schedule.lastRun);
+        const diffMs = now.getTime() - lastRun.getTime();
+        if (diffMs < CHECK_INTERVAL_MS) continue;
+      }
+      this._running.add(schedule.id);
+      schedule.lastRun = now.toISOString();
+      schedule.runCount = (schedule.runCount || 0) + 1;
+      dirty = true;
+      this._executeSchedule(schedule).catch((err) => {
+        console.error(`   Scheduler error [${schedule.agentName}]:`, err.message || err);
+      });
+    }
+    if (dirty) this._save(schedules);
+  }
+  async _executeSchedule(schedule) {
+    const { AgentEngine: AgentEngine2 } = await Promise.resolve().then(() => (init_agent(), agent_exports));
+    const agents = this.config.subAgents || [];
+    const def = agents.find((a) => a.id === schedule.agentId);
+    if (!def) {
+      this._finishSchedule(schedule.id, "error", `Agent "${schedule.agentId}" not found`);
+      return;
+    }
+    this.emit("schedule-triggered", {
+      scheduleId: schedule.id,
+      agentName: schedule.agentName,
+      task: schedule.task,
+      cron: schedule.cron
+    });
+    let subEngine = this._subEngineCache.get(schedule.agentId);
+    if (!subEngine) {
+      const subConfig = { ...this.config };
+      if (def.model) subConfig.selectedModel = def.model;
+      subEngine = new AgentEngine2(subConfig, {
+        projectRoot: this.projectRoot,
+        encKey: this.encKey,
+        noMemory: false,
+        subAgentDef: def
+      });
+      subEngine.conversationId = `sched-${def.id}-${Date.now()}`;
+      subEngine.messages = [];
+      subEngine.firstMessageSent = true;
+      try {
+        saveConversation(subEngine.conversationId, subEngine.messages, this.encKey);
+      } catch {
+      }
+      this._subEngineCache.set(schedule.agentId, subEngine);
+    } else {
+      subEngine.messages = [];
+      try {
+        saveConversation(subEngine.conversationId, subEngine.messages, this.encKey);
+      } catch {
+      }
+    }
+    let finalResponse = "";
+    let iterCount = 0;
+    const onEnd = ({ text }) => {
+      finalResponse = text || "";
+    };
+    const onUsage = ({ iterationCount }) => {
+      iterCount = iterationCount || 0;
+    };
+    subEngine.removeAllListeners("response-end");
+    subEngine.removeAllListeners("usage");
+    subEngine.on("response-end", onEnd);
+    subEngine.on("usage", onUsage);
+    const wrappedTask = `SCHEDULED TASK: ${schedule.task}
+
+Execute this task NOW using your tools. Start with a tool call \u2014 do not reply with text first. Complete ALL steps before responding with text.`;
+    try {
+      await subEngine.sendMessage(wrappedTask);
+      if (iterCount === 0) {
+        finalResponse = "";
+        iterCount = 0;
+        await subEngine.sendMessage(
+          "You did not execute any tools. You MUST respond with a tool call right now. Do NOT reply with text \u2014 reply with a tool call."
+        );
+      }
+    } catch (err) {
+      this._finishSchedule(schedule.id, "error", err.message);
+      this.emit("schedule-error", {
+        scheduleId: schedule.id,
+        agentName: schedule.agentName,
+        error: err.message
+      });
+      return;
+    }
+    const result = iterCount > 0 ? "success" : "no_tools";
+    this._finishSchedule(schedule.id, result, null);
+    const maxLen = 4e3;
+    const response = finalResponse.length > maxLen ? finalResponse.slice(0, maxLen) + `
+
+[Truncated \u2014 ${finalResponse.length - maxLen} chars omitted]` : finalResponse;
+    this.emit("schedule-completed", {
+      scheduleId: schedule.id,
+      agentName: schedule.agentName,
+      task: schedule.task,
+      result,
+      response,
+      iterationCount: iterCount
+    });
+    if (schedule.oneShot && result === "success") {
+      const schedules = this._load();
+      const s = schedules.find((sc) => sc.id === schedule.id);
+      if (s) {
+        s.enabled = false;
+        this._save(schedules);
+        this.emit("schedule-toggled", s);
+      }
+    }
+  }
+  _finishSchedule(scheduleId, result, errorMsg) {
+    this._running.delete(scheduleId);
+    const schedules = this._load();
+    const s = schedules.find((sc) => sc.id === scheduleId);
+    if (s) {
+      s.lastResult = result;
+      if (errorMsg) s.lastError = errorMsg;
+      this._save(schedules);
+    }
+  }
+};
+
+// ../../llamatalkbuild-engine/src/index.js
 init_safety();
 init_memory();
 init_tasks();
@@ -5184,6 +5687,7 @@ function sendPrompt(event, data) {
 }
 var engine = null;
 var config = null;
+var scheduler = null;
 var SIDECAR_VERSION = "2.4.2";
 function ensureEngine(projectRoot) {
   if (!engine) {
@@ -5193,8 +5697,16 @@ function ensureEngine(projectRoot) {
       config.appVersion = SIDECAR_VERSION;
       saveConfig(config);
     }
+    if (!scheduler) {
+      scheduler = new Scheduler(config, { projectRoot: projectRoot || process.cwd() });
+      scheduler.on("schedule-triggered", (data) => sendEvent("schedule-triggered", data));
+      scheduler.on("schedule-completed", (data) => sendEvent("schedule-completed", data));
+      scheduler.on("schedule-error", (data) => sendEvent("schedule-error", data));
+      scheduler.start();
+    }
     engine = new AgentEngine(config, {
-      projectRoot: projectRoot || process.cwd()
+      projectRoot: projectRoot || process.cwd(),
+      scheduler
     });
     wireEvents(engine);
   }
