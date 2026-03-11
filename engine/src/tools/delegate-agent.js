@@ -162,25 +162,27 @@ export const delegateAgentTool = {
       signal.addEventListener("abort", () => subEngine.cancel(), { once: true });
     }
 
-    // Track the delegation as a task
+    // Track the delegation as a transient task (removed when delegation returns —
+    // the manager reviews the result and decides whether the work is truly done).
     const tm = getTaskManager();
     const taskDesc = `[${def.name}] ${args.task.length > 100 ? args.task.slice(0, 97) + "..." : args.task}`;
     try { if (tm) tm.add(taskDesc); } catch { /* non-critical */ }
 
-    // Helper to find and complete the task by description (index-safe across concurrent ops)
-    const completeTask = () => {
+    // Helper to remove the tracking task when delegation ends (not "complete" —
+    // only the manager or user should decide when a task is actually done).
+    const removeTrackingTask = () => {
       try {
         if (!tm) return;
         const tasks = tm.list();
         const idx = tasks.active.findIndex((t) => t.description === taskDesc);
-        if (idx >= 0) tm.complete(idx + 1); // complete() uses 1-based index
+        if (idx >= 0) tm.remove(idx + 1);
       } catch { /* non-critical */ }
     };
 
     // Async delegation mode — hand off to the caller (e.g. Telegram bot) and
     // return immediately so the main agent isn't blocked while the sub-agent works.
     if (onDelegation) {
-      onDelegation({ subEngine, task: args.task, agentDef: def, completeTask });
+      onDelegation({ subEngine, task: args.task, agentDef: def, removeTrackingTask });
       return `Delegated task to ${def.name}. They're working on it in the background — you'll receive their results when they finish. You can continue handling other requests in the meantime.`;
     }
 
@@ -234,23 +236,13 @@ export const delegateAgentTool = {
         );
       }
     } catch (err) {
-      completeTask();
+      removeTrackingTask();
       return `Sub-agent "${def.name}" encountered an error: ${err.message}`;
     }
 
-    // Only mark the task complete if the agent actually did work
-    if (lastIterationCount > 0) {
-      completeTask();
-    } else {
-      // Remove the task from active (it wasn't completed, just abandoned)
-      try {
-        if (tm) {
-          const tasks = tm.list();
-          const idx = tasks.active.findIndex((t) => t.description === taskDesc);
-          if (idx >= 0) tm.remove(idx + 1);
-        }
-      } catch { /* non-critical */ }
-    }
+    // Remove the transient tracking task — the delegation is done regardless
+    // of outcome. The manager reviews the result and decides next steps.
+    removeTrackingTask();
 
     // Truncate very long responses to avoid bloating the parent's context
     const MAX_RESPONSE = 8000;

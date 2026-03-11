@@ -1,6 +1,16 @@
 # Changelog — Clank Build
 
-Last updated: 2026-03-11 (v2.5.14)
+Last updated: 2026-03-11 (v2.5.15)
+
+---
+
+## v2.5.15 (2026-03-11)
+
+### Bug Fixes
+- **CLI scheduler now works** — the scheduler was only created in Telegram bot mode, never in the interactive CLI. The CLI now creates a Scheduler instance, starts it, wires events to the terminal, and passes it to tools via the `parentEngine` proxy. The `schedule_task` tool is also now registered in the CLI tool registry.
+- **Delegation tasks no longer auto-completed** — tasks created by `delegate_to_agent` were marked "completed" the moment the sub-agent used any tool, even if the actual work wasn't done. Delegation tasks are now transient tracking entries that are removed when the delegation returns — the manager reviews the result and decides completion.
+- **Scheduler created on-demand** — if sub-agents are added mid-session via `/agent create`, the scheduler is created and started immediately rather than requiring a restart.
+- **Schedule block injected into CLI system prompt** — the CLI agent now sees active schedules in its context, matching the engine and Telegram behavior.
 
 ---
 

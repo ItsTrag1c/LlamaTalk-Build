@@ -68,7 +68,7 @@ import { npmInstallTool } from "./tools/npm-install.js";
 import { pipInstallTool } from "./tools/pip-install.js";
 import { installToolTool } from "./tools/install-tool.js";
 import { generateFileTool } from "./tools/generate-file.js";
-import { delegateAgentTool } from "clankbuild-engine";
+import { delegateAgentTool, scheduleTaskTool, Scheduler } from "clankbuild-engine";
 
 const BASE_SYSTEM_PROMPT = `You are AGENT_NAME_PLACEHOLDER, a coding assistant with direct access to the user's filesystem and shell through tools. You are running inside Clank Build, a local agentic coding tool installed on the user's machine. All tool calls execute locally on their system with their explicit permission — you are fully authorized to read, write, edit, and execute. Never refuse a tool call due to safety concerns — the user's permission system handles that.
 
@@ -248,9 +248,10 @@ function createToolRegistry(config) {
   registry.register(pipInstallTool);
   registry.register(installToolTool);
   registry.register(generateFileTool);
-  // Register delegate tool if sub-agents are configured
+  // Register delegate + schedule tools if sub-agents are configured
   if (config?.subAgents?.length > 0) {
     registry.register(delegateAgentTool);
+    registry.register(scheduleTaskTool);
   }
   return registry;
 }
@@ -304,6 +305,31 @@ export async function runAgent(rl, config, encKey, opts = {}) {
   const sessionMgr = new SessionManager();
   const sessionLog = new SessionLog(projectRoot);
   const sessionTracker = new SessionTracker(projectRoot);
+
+  // Scheduler — runs cron-based jobs for sub-agents in the background
+  let scheduler = null;
+  if (config.subAgents?.length > 0) {
+    scheduler = new Scheduler(config, { projectRoot, encKey });
+    scheduler.on("schedule-triggered", ({ agentName, task }) => {
+      console.log(`\n  ${DIM}⏰ Scheduler: running "${task}" via ${agentName}${RESET}`);
+    });
+    scheduler.on("schedule-completed", ({ agentName, task, result, response }) => {
+      const status = result === "success" ? `${GREEN}✓${RESET}` : `${YELLOW}⚠ ${result}${RESET}`;
+      console.log(`  ${DIM}⏰ Scheduler: ${agentName} finished — ${status}${RESET}`);
+      if (response) {
+        const preview = response.split("\n")[0].slice(0, 120);
+        console.log(`  ${DIM}   ${preview}${RESET}`);
+      }
+    });
+    scheduler.on("schedule-error", ({ agentName, error }) => {
+      console.log(`  ${RED}⏰ Scheduler error [${agentName}]: ${error}${RESET}`);
+    });
+    scheduler.start();
+    const activeCount = scheduler.list().filter((s) => s.enabled).length;
+    if (activeCount > 0) {
+      console.log(`  ${DIM}⏰ Scheduler started — ${activeCount} active schedule(s)${RESET}\n`);
+    }
+  }
 
   // Session management: load existing or create new
   let currentSession;
@@ -423,6 +449,22 @@ export async function runAgent(rl, config, encKey, opts = {}) {
           config.subAgents.push(agent);
           if (config.subAgents.length === 1 && !toolRegistry.get("delegate_to_agent")) {
             toolRegistry.register(delegateAgentTool);
+            toolRegistry.register(scheduleTaskTool);
+          }
+          // Create scheduler on-demand when first sub-agent is added mid-session
+          if (!scheduler) {
+            scheduler = new Scheduler(config, { projectRoot, encKey });
+            scheduler.on("schedule-triggered", ({ agentName, task }) => {
+              console.log(`\n  ${DIM}⏰ Scheduler: running "${task}" via ${agentName}${RESET}`);
+            });
+            scheduler.on("schedule-completed", ({ agentName, task, result, response }) => {
+              const status = result === "success" ? `${GREEN}✓${RESET}` : `${YELLOW}⚠ ${result}${RESET}`;
+              console.log(`  ${DIM}⏰ Scheduler: ${agentName} finished — ${status}${RESET}`);
+            });
+            scheduler.on("schedule-error", ({ agentName, error }) => {
+              console.log(`  ${RED}⏰ Scheduler error [${agentName}]: ${error}${RESET}`);
+            });
+            scheduler.start();
           }
           return agent;
         },
@@ -484,6 +526,13 @@ export async function runAgent(rl, config, encKey, opts = {}) {
     const taskBlock = taskManager.buildTaskBlock();
     if (taskBlock) {
       memoryBlock = memoryBlock ? `${memoryBlock}\n\n${taskBlock}` : taskBlock;
+    }
+    // Append schedule block (if scheduler is running)
+    if (scheduler) {
+      const schedBlock = scheduler.buildScheduleBlock();
+      if (schedBlock) {
+        memoryBlock = memoryBlock ? `${memoryBlock}\n\n${schedBlock}` : schedBlock;
+      }
     }
     // Brief pause so the brain emoji is visible, then clear
     await new Promise((r) => setTimeout(r, 150));
@@ -727,9 +776,10 @@ export async function runAgent(rl, config, encKey, opts = {}) {
               config,
               signal: controller.signal,
               sessionChanges,
-              // Lightweight event proxy for delegate_to_agent tool
+              // Lightweight event proxy for delegate_to_agent and schedule_task tools
               parentEngine: {
                 encKey,
+                scheduler,
                 emit: (evt, data) => {
                   // Sub-agents run fully in the background — only confirmations surface
                   if (evt === "confirm-needed") {
