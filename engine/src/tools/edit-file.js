@@ -27,7 +27,7 @@ export const editFileTool = {
   validate(args, context) {
     if (!args.path) return { ok: false, error: "path is required" };
     if (!args.old_text) return { ok: false, error: "old_text is required" };
-    if (args.new_text === undefined) return { ok: false, error: "new_text is required" };
+    if (args.new_text == null || typeof args.new_text !== "string") return { ok: false, error: "new_text is required and must be a string" };
     const { valid, error } = validatePath(args.path, context.projectRoot, { allowExternal: true });
     if (!valid) return { ok: false, error };
     return { ok: true };

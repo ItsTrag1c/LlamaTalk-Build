@@ -6,8 +6,7 @@ import { streamRequest, streamLines, validateServerUrl } from "./stream.js";
 const TOOL_CAPABLE_PATTERNS = [
   /(?:^|\/)llama3\.[1-9]/,
   /(?:^|\/)llama-3\.[1-9]/,
-  /(?:^|\/)qwen2\.5/,
-  /(?:^|\/)qwen2/,
+  /(?:^|\/)qwen[23]/,       // Qwen2, Qwen2.5, Qwen3, Qwen3.5, etc.
   /(?:^|\/)mistral-nemo/,
   /(?:^|\/)mistral-large/,
   /(?:^|\/)command-r/,

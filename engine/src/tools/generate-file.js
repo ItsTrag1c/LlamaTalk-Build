@@ -48,7 +48,7 @@ export const generateFileTool = {
 
   validate(args, context) {
     if (!args.path) return { ok: false, error: "path is required" };
-    if (args.content === undefined) return { ok: false, error: "content is required" };
+    if (args.content == null || typeof args.content !== "string") return { ok: false, error: "content is required and must be a string" };
     const { valid, error } = validatePath(args.path, context.projectRoot, { allowExternal: true });
     if (!valid) return { ok: false, error };
 
