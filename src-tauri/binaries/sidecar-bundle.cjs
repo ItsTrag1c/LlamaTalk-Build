@@ -4120,8 +4120,12 @@ var init_delegate_agent = __esm({
           });
         }
         let finalResponse = "";
+        let lastIterationCount = 0;
         subEngine.on("response-end", ({ text }) => {
           finalResponse = text || "";
+        });
+        subEngine.on("usage", ({ iterationCount }) => {
+          lastIterationCount = iterationCount || 0;
         });
         if (signal) {
           signal.addEventListener("abort", () => subEngine.cancel(), { once: true });
@@ -4145,18 +4149,42 @@ var init_delegate_agent = __esm({
           onDelegation({ subEngine, task: args.task, agentDef: def, completeTask });
           return `Delegated task to ${def.name}. They're working on it in the background \u2014 you'll receive their results when they finish. You can continue handling other requests in the meantime.`;
         }
+        const MAX_RETRIES = 1;
+        let retries = 0;
         try {
           await subEngine.sendMessage(args.task);
+          while (lastIterationCount === 0 && retries < MAX_RETRIES) {
+            retries++;
+            finalResponse = "";
+            lastIterationCount = 0;
+            await subEngine.sendMessage(
+              "You did not execute any tools. You MUST use your tools (read_file, write_file, edit_file, search_files, web_search, bash, etc.) to complete this task. Do not just describe what you would do \u2014 actually do it now."
+            );
+          }
         } catch (err) {
           completeTask();
           return `Sub-agent "${def.name}" encountered an error: ${err.message}`;
         }
-        completeTask();
+        if (lastIterationCount > 0) {
+          completeTask();
+        } else {
+          try {
+            if (tm) {
+              const tasks = tm.list();
+              const idx = tasks.active.findIndex((t) => t.description === taskDesc);
+              if (idx >= 0) tm.remove(idx + 1);
+            }
+          } catch {
+          }
+        }
         const MAX_RESPONSE = 8e3;
         if (finalResponse.length > MAX_RESPONSE) {
           finalResponse = finalResponse.slice(0, MAX_RESPONSE) + `
 
 [Response truncated \u2014 ${finalResponse.length - MAX_RESPONSE} chars omitted]`;
+        }
+        if (lastIterationCount === 0) {
+          return `Sub-agent "${def.name}" acknowledged the task but did not use any tools to complete it. The task was NOT completed. You may need to re-delegate with more specific instructions, or handle it yourself.`;
         }
         return finalResponse || `Sub-agent "${def.name}" completed the task but produced no text response.`;
       }

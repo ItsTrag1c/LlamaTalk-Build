@@ -1,6 +1,13 @@
 # Changelog — Clank Build Desktop
 
-Last updated: 2026-03-11 (v2.4.5)
+Last updated: 2026-03-11 (v2.4.6)
+
+---
+
+## v2.4.6 (2026-03-11)
+
+### Bug Fixes
+- **Sub-agent tasks no longer marked complete without actual work** — engine update: the delegation tool now tracks whether the sub-agent actually used tools. If it didn't, it retries once with explicit instructions, and reports failure to the manager if the sub-agent still won't act. Tasks are only marked complete when real work was performed.
 
 ---
 
