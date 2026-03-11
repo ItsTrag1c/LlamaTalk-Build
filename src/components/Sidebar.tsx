@@ -939,6 +939,7 @@ interface UpdateInfo {
   version: string;
   download_url?: string;
   asset_name?: string;
+  checksum_url?: string;
 }
 
 function UpdateButton() {
@@ -968,6 +969,7 @@ function UpdateButton() {
         await invoke("download_and_install_update", {
           downloadUrl: updateInfo.download_url,
           assetName: updateInfo.asset_name,
+          checksumUrl: updateInfo.checksum_url || null,
         });
       } catch (err) {
         unlisten();

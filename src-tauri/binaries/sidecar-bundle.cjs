@@ -202,10 +202,6 @@ function readCredentials() {
     return null;
   }
 }
-function isClaudeCodeAvailable() {
-  const creds = readCredentials();
-  return !!creds?.accessToken;
-}
 function getClaudeCodeToken() {
   if (_cached && _cached.expiresAt > Date.now() + 6e4) {
     return _cached;
@@ -223,25 +219,6 @@ function getClaudeCodeToken() {
     _cached._expired = true;
   }
   return _cached;
-}
-function getClaudeCodeStatus() {
-  const creds = readCredentials();
-  if (!creds) {
-    return { available: false, reason: "Claude Code credentials not found" };
-  }
-  if (!creds.accessToken) {
-    return { available: false, reason: "No access token in credentials" };
-  }
-  const expired = creds.expiresAt && creds.expiresAt < Date.now();
-  const expiresIn = creds.expiresAt ? Math.max(0, creds.expiresAt - Date.now()) : null;
-  return {
-    available: true,
-    expired,
-    expiresIn,
-    subscriptionType: creds.subscriptionType || "unknown",
-    rateLimitTier: creds.rateLimitTier || "unknown",
-    scopes: creds.scopes || []
-  };
 }
 var import_fs, import_path, import_os, CREDENTIALS_PATH, _cached;
 var init_claude_auth = __esm({
@@ -3165,6 +3142,9 @@ var init_search_files = __esm({
       },
       validate(args, context) {
         if (!args.pattern) return { ok: false, error: "pattern is required" };
+        if (args.pattern.length > 500) {
+          return { ok: false, error: "Pattern too long (max 500 characters)" };
+        }
         try {
           new RegExp(args.pattern);
         } catch (e) {
@@ -3174,7 +3154,12 @@ var init_search_files = __esm({
       },
       async execute(args, context) {
         const searchRoot = args.path ? validatePath(args.path, context.projectRoot, { allowExternal: true }).resolved : context.projectRoot;
-        const regex = new RegExp(args.pattern, "i");
+        let regex;
+        try {
+          regex = new RegExp(args.pattern, "i");
+        } catch (e) {
+          return `Invalid regex pattern: ${e.message}`;
+        }
         const maxResults = args.max_results || 50;
         const results = [];
         const globPattern = args.glob ? new RegExp(
@@ -3397,6 +3382,16 @@ ${output}`;
 function getSubcommand(args) {
   return (args.subcommand || "").split(/\s+/)[0].toLowerCase();
 }
+function parseGitArgs(subcommand, extra) {
+  const combined = extra ? `${subcommand} ${extra}` : subcommand;
+  const args = [];
+  const regex = /(?:"([^"]*)")|(?:'([^']*)')|(\S+)/g;
+  let match;
+  while ((match = regex.exec(combined)) !== null) {
+    args.push(match[1] ?? match[2] ?? match[3]);
+  }
+  return args;
+}
 var import_child_process4, SAFE_SUBCOMMANDS, gitTool;
 var init_git = __esm({
   "../../llamatalkbuild-engine/src/tools/git.js"() {
@@ -3434,26 +3429,29 @@ var init_git = __esm({
         return { ok: true };
       },
       async execute(args, context) {
-        const fullCmd = `git ${args.subcommand}${args.args ? " " + args.args : ""}`;
+        const gitArgs = parseGitArgs(args.subcommand, args.args);
         try {
-          const output = (0, import_child_process4.execSync)(fullCmd, {
+          const result = (0, import_child_process4.spawnSync)("git", gitArgs, {
             cwd: context.projectRoot,
             timeout: 3e4,
             encoding: "utf8",
             maxBuffer: 5 * 1024 * 1024,
             stdio: ["pipe", "pipe", "pipe"]
           });
-          let result = output || "(no output)";
-          if (result.length > 3e4) {
-            result = result.slice(0, 3e4) + `
+          if (result.status !== 0) {
+            let output2 = "";
+            if (result.stdout) output2 += result.stdout;
+            if (result.stderr) output2 += (output2 ? "\n" : "") + result.stderr;
+            return output2 || `Git error (exit code ${result.status})`;
+          }
+          let output = result.stdout || "(no output)";
+          if (output.length > 3e4) {
+            output = output.slice(0, 3e4) + `
 ... [truncated]`;
           }
-          return result;
+          return output;
         } catch (err) {
-          let output = "";
-          if (err.stdout) output += err.stdout;
-          if (err.stderr) output += (output ? "\n" : "") + err.stderr;
-          return output || `Git error: ${err.message}`;
+          return `Git error: ${err.message}`;
         }
       },
       formatConfirmation(args) {
@@ -3887,8 +3885,14 @@ ${err.message.slice(0, 1e4)}`;
 });
 
 // ../../llamatalkbuild-engine/src/tools/generate-file.js
+function sanitizeHtmlBody(html) {
+  let safe = html.replace(/<script[\s\S]*?<\/script>/gi, "<!-- script removed for safety -->");
+  safe = safe.replace(/\s+on[a-z]+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, "");
+  return safe;
+}
 function wrapHtml(content, title) {
   const safeTitle = (title || "Document").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const safeContent = sanitizeHtmlBody(content);
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -3903,7 +3907,7 @@ code { background: #f0f0f0; padding: 2px 6px; border-radius: 3px; }
 </style>
 </head>
 <body>
-${content.replace(/<script[\s\S]*?<\/script>/gi, "<!-- script removed for safety -->")}
+${safeContent}
 </body>
 </html>`;
 }
@@ -5087,7 +5091,7 @@ function sendPrompt(event, data) {
 }
 var engine = null;
 var config = null;
-var SIDECAR_VERSION = "2.4.0";
+var SIDECAR_VERSION = "2.4.2";
 function ensureEngine(projectRoot) {
   if (!engine) {
     config = loadConfig();
@@ -5187,8 +5191,7 @@ var methods = {
       "enabledProviders.openai",
       "enabledProviders.opencode",
       "autoApprove.medium",
-      "autoApprove.high",
-      "claudeCodeAuth"
+      "autoApprove.high"
     ];
     if (!ALLOWED_KEYS.includes(key)) {
       return { ok: false, error: `Setting "${key}" is not allowed` };
@@ -5434,31 +5437,6 @@ var methods = {
     if (!agent) return { error: `No agent named "${name}"` };
     saveConfig(e.config);
     return { ok: true, agent };
-  },
-  // --- Claude Code auth (internal) ---
-  getClaudeCodeStatus() {
-    return getClaudeCodeStatus();
-  },
-  isClaudeCodeAvailable() {
-    return { available: isClaudeCodeAvailable() };
-  },
-  enableClaudeCodeAuth() {
-    const cfg = loadConfig();
-    cfg.claudeCodeAuth = true;
-    if (!cfg.enabledProviders) cfg.enabledProviders = {};
-    cfg.enabledProviders.anthropic = true;
-    saveConfig(cfg);
-    if (engine) engine.config = cfg;
-    config = cfg;
-    return { ok: true };
-  },
-  disableClaudeCodeAuth() {
-    const cfg = loadConfig();
-    cfg.claudeCodeAuth = false;
-    saveConfig(cfg);
-    if (engine) engine.config = cfg;
-    config = cfg;
-    return { ok: true };
   },
   saveOnboarding({ lessons }) {
     const cfg = loadConfig();
