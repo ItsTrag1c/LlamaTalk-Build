@@ -77,9 +77,7 @@ export class AnthropicProvider extends BaseProvider {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...(apiKey.startsWith("sk-ant-oat")
-            ? { "Authorization": `Bearer ${apiKey}` }
-            : { "x-api-key": apiKey }),
+          "x-api-key": apiKey,
           "anthropic-version": "2023-06-01",
         },
         body: JSON.stringify(reqBody),

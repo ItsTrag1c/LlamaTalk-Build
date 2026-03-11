@@ -231,7 +231,19 @@ const ALL_TOOLS = [
  */
 function createToolRegistry(allowedTools = null) {
   const registry = new ToolRegistry();
-  const filter = allowedTools ? new Set(allowedTools) : null;
+  const validToolNames = new Set(ALL_TOOLS.map((t) => t.definition.name));
+
+  // Validate the filter — if none of the entries match real tool names,
+  // the list is probably documentation (e.g. ["See prompt"]), not a filter.
+  // In that case, fall back to registering all tools.
+  let filter = allowedTools ? new Set(allowedTools) : null;
+  if (filter) {
+    const hasAnyValid = [...filter].some((name) => validToolNames.has(name));
+    if (!hasAnyValid) {
+      filter = null; // no valid tool names in the list — give all tools
+    }
+  }
+
   for (const tool of ALL_TOOLS) {
     if (!filter || filter.has(tool.definition.name)) {
       registry.register(tool);
