@@ -194,17 +194,43 @@ export const delegateAgentTool = {
 
     // Wrap the task with an execution directive so small models generate
     // tool calls instead of conversational text.
-    const wrappedTask = `TASK: ${args.task}\n\nExecute this task now using your tools. Start your response with a tool call — do not reply with text first.`;
+    const wrappedTask = `TASK: ${args.task}\n\nExecute this task NOW using your tools. Start your response with a tool call — do not reply with text first. If this task has multiple steps, you MUST complete ALL of them before responding with text. Each time you see a tool result, immediately make the next tool call. Text ends your turn — only produce text after ALL work is done.`;
 
     try {
       await subEngine.sendMessage(wrappedTask);
 
+      // Retry if no tools were used at all (agent just responded with text)
       while (lastIterationCount === 0 && retries < MAX_RETRIES) {
         retries++;
         finalResponse = "";
         lastIterationCount = 0;
         await subEngine.sendMessage(
           "You did not execute any tools. You MUST respond with a tool call right now. If the task says to search, call web_search. If it says to read, call read_file. If it says to write, call write_file. Do NOT reply with text — reply with a tool call."
+        );
+      }
+
+      // Continuation: if the agent used tools but its final response suggests
+      // incomplete work (mentions remaining steps), re-prompt to continue.
+      // Cap continuations to avoid infinite loops.
+      const MAX_CONTINUATIONS = 3;
+      let continuations = 0;
+      while (continuations < MAX_CONTINUATIONS && lastIterationCount > 0) {
+        const lower = (finalResponse || "").toLowerCase();
+        const incomplete =
+          /\b(next[,:]?\s+i\s+(will|would|can|need|should|'ll))\b/.test(lower) ||
+          /\b(remaining\s+(steps?|tasks?|items?|parts?))\b/.test(lower) ||
+          /\b(still\s+need\s+to)\b/.test(lower) ||
+          /\b(have\s+not\s+(yet|completed|finished))\b/.test(lower) ||
+          /\b(haven'?t\s+(yet|completed|finished))\b/.test(lower) ||
+          /\b(todo|to\s+do\s+next)\b/.test(lower) ||
+          /\b(now\s+(i\s+)?(will|need|should|let\s+me))\b/.test(lower);
+        if (!incomplete) break;
+
+        continuations++;
+        finalResponse = "";
+        lastIterationCount = 0;
+        await subEngine.sendMessage(
+          "You stopped before completing the full task. Continue executing the remaining steps NOW — start with a tool call, not text. Do not repeat work you already did."
         );
       }
     } catch (err) {

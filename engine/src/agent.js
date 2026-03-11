@@ -173,7 +173,20 @@ If the task involves reading: call read_file immediately.
 If the task involves writing or editing: read the file first, then write/edit.
 If the task involves running commands: call bash immediately.
 
-You are expected to complete the full task autonomously. Use multiple tool calls in sequence until the task is fully done. Only respond with a text summary AFTER you have finished all tool operations.`;
+### CRITICAL: Multi-Step Task Completion
+You are expected to complete the FULL task autonomously. Most tasks require MULTIPLE tool calls in sequence — do NOT stop after the first tool call.
+
+**How the loop works:** After each tool call, you will see the tool's result. You MUST immediately make the NEXT tool call needed for the task. Keep making tool calls until EVERY part of the task is done. The moment you respond with text instead of a tool call, your turn ENDS and you cannot make any more tool calls.
+
+**Rules:**
+- After each tool result, ask yourself: "Is the ENTIRE task complete?" If NO → make another tool call. If YES → respond with a text summary.
+- Never respond with text between tool calls — text ends your turn permanently.
+- Never say "next I will..." or "let me now..." — just call the tool.
+- If a task has multiple steps (e.g., "read file A, then edit file B, then run tests"), you must complete ALL steps before responding with text.
+- Only produce a text summary as your FINAL response after ALL work is done.
+
+### Looping Behavior
+Do NOT repeat the same operation in an infinite loop. Only loop/repeat actions when the task EXPLICITLY asks for repeated or continuous execution (e.g., "keep checking", "retry until", "monitor"). If the task is a one-shot set of steps, complete them once and stop.`;
   }
 
   // List available sub-agents (only for the main/manager agent)
