@@ -521,8 +521,8 @@ var init_ollama = __esm({
     TOOL_CAPABLE_PATTERNS = [
       /(?:^|\/)llama3\.[1-9]/,
       /(?:^|\/)llama-3\.[1-9]/,
-      /(?:^|\/)qwen2\.5/,
-      /(?:^|\/)qwen2/,
+      /(?:^|\/)qwen[23]/,
+      // Qwen2, Qwen2.5, Qwen3, Qwen3.5, etc.
       /(?:^|\/)mistral-nemo/,
       /(?:^|\/)mistral-large/,
       /(?:^|\/)command-r/,
@@ -2863,7 +2863,7 @@ var init_write_file = __esm({
       },
       validate(args, context) {
         if (!args.path) return { ok: false, error: "path is required" };
-        if (args.content === void 0) return { ok: false, error: "content is required" };
+        if (args.content == null || typeof args.content !== "string") return { ok: false, error: "content is required and must be a string" };
         const { valid, error } = validatePath(args.path, context.projectRoot, { allowExternal: true });
         if (!valid) return { ok: false, error };
         return { ok: true };
@@ -2936,7 +2936,7 @@ var init_edit_file = __esm({
       validate(args, context) {
         if (!args.path) return { ok: false, error: "path is required" };
         if (!args.old_text) return { ok: false, error: "old_text is required" };
-        if (args.new_text === void 0) return { ok: false, error: "new_text is required" };
+        if (args.new_text == null || typeof args.new_text !== "string") return { ok: false, error: "new_text is required and must be a string" };
         const { valid, error } = validatePath(args.path, context.projectRoot, { allowExternal: true });
         if (!valid) return { ok: false, error };
         return { ok: true };
@@ -3984,7 +3984,7 @@ var init_generate_file = __esm({
       },
       validate(args, context) {
         if (!args.path) return { ok: false, error: "path is required" };
-        if (args.content === void 0) return { ok: false, error: "content is required" };
+        if (args.content == null || typeof args.content !== "string") return { ok: false, error: "content is required and must be a string" };
         const { valid, error } = validatePath(args.path, context.projectRoot, { allowExternal: true });
         if (!valid) return { ok: false, error };
         const ext = (args.format || (0, import_path16.extname)(args.path).slice(1)).toLowerCase();

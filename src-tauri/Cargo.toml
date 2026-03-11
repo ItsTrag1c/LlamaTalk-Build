@@ -1,6 +1,6 @@
 [package]
 name = "clankbuilddesktop"
-version = "2.4.4"
+version = "2.4.5"
 description = "Clank Build Desktop — Agentic Coding Assistant"
 authors = ["ItsTrag1c"]
 edition = "2021"
