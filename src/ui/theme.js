@@ -58,7 +58,7 @@ export const theme = {
   italic: ANSI.italic,
 
   // Brand
-  accent: ANSI.fg256(208),        // Orange — LlamaTalk brand
+  accent: ANSI.fg256(208),        // Orange — Clank brand
   accentAlt: ANSI.fg256(220),     // Gold — secondary accent
 
   // Text

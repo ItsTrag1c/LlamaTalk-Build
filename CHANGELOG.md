@@ -1,4 +1,4 @@
-# Changelog — LlamaTalk Build
+# Changelog — Clank Build
 
 Last updated: 2026-03-10 (v2.5.1)
 
@@ -118,14 +118,14 @@ Last updated: 2026-03-10 (v2.5.1)
 
 ### Bug Fixes
 - **Telegram bot crash on deny** — fixed unhandled Telegram API errors in callback query handlers (confirm, plan action, session load) that caused the bot to silently crash when denying actions. Added try-catch around all `answerCallbackQuery` / `editMessageText` calls and a global `bot.catch()` error handler.
-- **`/update` broken by engine dependency** — moved the `llamatalkbuild-engine` package into the CLI repo (`engine/`) so `/update` can build from a clean clone without the local `file:` dependency failing.
+- **`/update` broken by engine dependency** — moved the `clankbuild-engine` package into the CLI repo (`engine/`) so `/update` can build from a clean clone without the local `file:` dependency failing.
 
 ---
 
 ## v2.3.0 — 2026-03-09
 
 ### New Features
-- **Telegram bot** — chat with the Build agent from Telegram. Start with `llamabuild --telegram`. All 14 tools work, streaming via message edits, tool confirmations via inline keyboards. Supports Build, Plan, and Recall modes. Bot commands: `/start`, `/new`, `/sessions`, `/mode`, `/model`, `/cancel`, `/status`.
+- **Telegram bot** — chat with the Build agent from Telegram. Start with `clankbuild --telegram`. All 14 tools work, streaming via message edits, tool confirmations via inline keyboards. Supports Build, Plan, and Recall modes. Bot commands: `/start`, `/new`, `/sessions`, `/mode`, `/model`, `/cancel`, `/status`.
 - **Access code authentication** — Telegram bot generates an 8-character access code. Send it to the bot on Telegram to authenticate. Brute-force protected (5 attempts, 5-minute lockout).
 - **`/telegram` command** — manage Telegram settings: view status, set bot token, generate access codes, list authenticated users.
 - **`/home` command** — redisplay the dashboard with tasks, sessions, agent status, and command tips.
@@ -238,7 +238,7 @@ Last updated: 2026-03-10 (v2.5.1)
 
 ### New Features
 - **Theme system** — unified theming engine (`src/ui/theme.js`) with semantic color tokens, box-drawing helpers, icon sets, and terminal-width utilities. All UI components now use consistent styling.
-- **Agent instructions** — new `/instructions` command and `instructions.js` module to discover and display project-level agent instructions from `.llamabuild/agent/*.md` and `AGENTS.md` files. Instructions are injected into the system prompt.
+- **Agent instructions** — new `/instructions` command and `instructions.js` module to discover and display project-level agent instructions from `.clankbuild/agent/*.md` and `AGENTS.md` files. Instructions are injected into the system prompt.
 - **Context compaction** — smarter conversation compression (`compaction.js`) that prunes old tool outputs first, then drops oldest messages, preserving more useful context before hitting limits.
 - **Activity panel** — redesigned file-change panel (`activityPanel`) replaces the old sidebar, showing inline code-change boxes with diffs on file writes/edits.
 - **Plan mode enforcement** — plan mode now truly blocks all write tools. Read-only tool detection (`isReadOnlyTool`) allows only safe tools (file reads, directory listings, search, read-only git subcommands) while rejecting writes and commands.
@@ -356,7 +356,7 @@ Last updated: 2026-03-10 (v2.5.1)
 ## v0.9.10 — 2026-03-06
 
 ### Branding
-- **Renamed banner to LlamaTalkBuild** — the ASCII art banner displayed on startup now reads "LlamaTalkBuild" instead of "LlamaBuild" in both large and small variants. Terminal width threshold adjusted for the wider art.
+- **Renamed banner to ClankBuild** — the ASCII art banner displayed on startup now reads "ClankBuild" instead of "LlamaBuild" in both large and small variants. Terminal width threshold adjusted for the wider art.
 
 ---
 
@@ -420,7 +420,7 @@ Last updated: 2026-03-10 (v2.5.1)
 - **File tools now support paths outside the project root** — read, write, edit, list, search, and glob tools can now operate on files anywhere on the system when given an absolute path. External read operations prompt for confirmation (MODERATE), and external write/edit operations require explicit approval (DANGEROUS). Users can approve with "always" to auto-approve that safety level for the session, matching the Claude Code workflow.
 
 ### Memory Fixes
-- **Fixed memory writes being blocked** — the agent's persistent memory directory (`%APPDATA%\LlamaTalkBuild\memory\`) was treated as an external path and rejected by the path validation system. The memory directory is now recognized as a trusted location, allowing the agent to read and write memory files without extra confirmation prompts.
+- **Fixed memory writes being blocked** — the agent's persistent memory directory (`%APPDATA%\ClankBuild\memory\`) was treated as an external path and rejected by the path validation system. The memory directory is now recognized as a trusted location, allowing the agent to read and write memory files without extra confirmation prompts.
 - **Memory directory path now included in system prompt** — the agent is told the exact absolute path to its memory directory, so it can reliably save and load memory files using `write_file` and `read_file`.
 
 ---
@@ -456,7 +456,7 @@ Last updated: 2026-03-10 (v2.5.1)
 - **New `/activity` command** — toggles a scrolling activity feed panel that appears after each file modification. Shows a bordered timeline of all changes made in the current session with timestamps, change type icons (`+` write, `~` edit, `>` read), and file paths. Older entries scroll off the top with a summary count.
 
 ### Session Changes Tracker
-- **Automatic session-changes file** — file modifications are now tracked to `session-changes-llamabuild-YYYY-MM-DD.md` in the project root. Each session appends a timestamped block listing every write and edit with file paths and summaries. The filename updates automatically when the date changes, and old date files are cleaned up. The file is only written when actual file modifications occur — read-only sessions produce no output.
+- **Automatic session-changes file** — file modifications are now tracked to `session-changes-clankbuild-YYYY-MM-DD.md` in the project root. Each session appends a timestamped block listing every write and edit with file paths and summaries. The filename updates automatically when the date changes, and old date files are cleaned up. The file is only written when actual file modifications occur — read-only sessions produce no output.
 
 ---
 
@@ -474,7 +474,7 @@ Last updated: 2026-03-10 (v2.5.1)
 - **New `/sidebar` command** — toggles an inline code preview panel that appears after each file modification. Shows a bordered view of the changed file with line numbers (for writes) or a colored diff (for edits). Long files are truncated with a summary.
 
 ### Session Logging
-- **Automatic session log** — every tool execution is now recorded in `.llamabuild-session.md` in the project root. Each session gets a timestamped section listing all actions taken. New sessions prepend at the top. The file is only written when changes actually occur.
+- **Automatic session log** — every tool execution is now recorded in `.clankbuild-session.md` in the project root. Each session gets a timestamped section listing all actions taken. New sessions prepend at the top. The file is only written when changes actually occur.
 
 ---
 
@@ -523,7 +523,7 @@ Last updated: 2026-03-10 (v2.5.1)
 ## v0.4.0 — 2026-03-06
 
 ### Install
-- **PowerShell one-liner install** — `install.ps1` added to repo root; queries GitHub API for latest release, downloads standalone EXE to `$HOME\LlamaTalkBuild\`, writes `llamabuild.cmd`, adds to user PATH; no admin rights needed. README updated with `irm .../install.ps1 | iex` as primary install method.
+- **PowerShell one-liner install** — `install.ps1` added to repo root; queries GitHub API for latest release, downloads standalone EXE to `$HOME\ClankBuild\`, writes `clankbuild.cmd`, adds to user PATH; no admin rights needed. README updated with `irm .../install.ps1 | iex` as primary install method.
 
 ### Bug Fixes
 - **Fixed Shift+Tab mode not updating prompt** — Shift+Tab cycled the internal mode variable but the displayed prompt still showed the old mode. Now calls `rl.setPrompt()` with the rebuilt prompt string so the mode label updates immediately in the input line.
@@ -541,17 +541,17 @@ Last updated: 2026-03-10 (v2.5.1)
 - **Mode indicator in prompt** — current mode displayed inline: `You [model] (Accept) >`.
 
 ### Self-Update
-- **Version-match guard on `/update`** — when the remote version matches the installed version, `/update` now reports "LlamaTalk Build vX.Y.Z is already up to date" and skips the build entirely.
+- **Version-match guard on `/update`** — when the remote version matches the installed version, `/update` now reports "Clank Build vX.Y.Z is already up to date" and skips the build entirely.
 
 ---
 
 ## v0.2.0 — 2026-03-06
 
 ### Self-Update
-- **`/update` command** — pulls latest source from the public GitHub repo (`ItsTrag1c/LlamaTalk-Build`), compares versions, runs `npm install` + `npm run build`, and replaces the installed EXE in-place. Prompts to restart after a successful update. When running from source, reports the path to the built artifacts instead.
+- **`/update` command** — pulls latest source from the public GitHub repo (`ItsTrag1c/Clank-Build`), compares versions, runs `npm install` + `npm run build`, and replaces the installed EXE in-place. Prompts to restart after a successful update. When running from source, reports the path to the built artifacts instead.
 
 ### Repository
-- **GitHub repo made public** — `ItsTrag1c/LlamaTalk-Build` is now a public repository, enabling `/update` to work without authentication on end-user machines.
+- **GitHub repo made public** — `ItsTrag1c/Clank-Build` is now a public repository, enabling `/update` to work without authentication on end-user machines.
 
 ---
 
@@ -565,7 +565,7 @@ Last updated: 2026-03-10 (v2.5.1)
 
 ## v0.1.0 — 2026-03-06
 
-Initial release of LlamaTalk Build, the agentic coding assistant for the LlamaTalk Suite.
+Initial release of Clank Build, the agentic coding assistant for the Clank Suite.
 
 ### Agent
 - **ReAct-style agent loop** — iterative reason-and-act cycle: LLM reasons about the task, calls tools, observes results, and repeats until the task is complete or a text-only response is given.
@@ -581,7 +581,7 @@ Initial release of LlamaTalk Build, the agentic coding assistant for the LlamaTa
 - **Auto-detect running model** — on startup, queries backends for the currently loaded model and selects it automatically.
 
 ### Memory
-- **Persistent memory system** — global `MEMORY.md` (always loaded), topic `.md` files (keyword-matched against user messages), and per-project `.llamabuild.md` (auto-loaded from working directory).
+- **Persistent memory system** — global `MEMORY.md` (always loaded), topic `.md` files (keyword-matched against user messages), and per-project `.clankbuild.md` (auto-loaded from working directory).
 - **Keyword-based retrieval** — extracts keywords from user input, scores topic files by filename and header relevance, injects top 3 matches into system prompt.
 - **Memory commands** — `/memory` shows status, `/memory list` shows all files, `/memory save <topic>` creates a new topic file.
 

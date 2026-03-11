@@ -1,5 +1,5 @@
 /**
- * llamatalkbuild-engine — Headless agent engine for LlamaTalk Build
+ * clankbuild-engine — Headless agent engine for Clank Build
  *
  * This package provides the core agent loop, tools, providers, and session
  * management as an EventEmitter-based engine. It contains NO terminal UI,
@@ -62,3 +62,6 @@ export { discoverInstructions } from "./memory/instructions.js";
 
 // Context
 export { ContextManager, detectProjectContext } from "./context/context.js";
+
+// Claude Code auth (internal — not documented)
+export { isClaudeCodeAvailable, getClaudeCodeToken, getClaudeCodeStatus, clearClaudeCodeCache } from "./claude-auth.js";

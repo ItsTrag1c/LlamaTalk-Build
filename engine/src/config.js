@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync, mkdirSync, existsSync, chmodSync } from "fs";
+import { readFileSync, writeFileSync, mkdirSync, existsSync, chmodSync, cpSync } from "fs";
 import { dirname, join } from "path";
 import { createHash, timingSafeEqual, pbkdf2Sync, randomBytes, createCipheriv, createDecipheriv } from "crypto";
 import { homedir } from "os";
@@ -26,6 +26,7 @@ const DEFAULTS = {
   apiKey_openai: "",
   apiKey_opencode: "",
   enabledProviders: { anthropic: false, google: false, openai: false, opencode: false },
+  claudeCodeAuth: false, // use Claude Code OAuth token as Anthropic key
 
   // Agent naming & sub-agents
   agentName: "",
@@ -57,8 +58,22 @@ const DEFAULTS = {
 
 export function getConfigDir() {
   const appData = process.env.APPDATA;
-  if (appData) return join(appData, "LlamaTalkBuild");
-  return join(homedir(), ".llamabuild");
+  if (appData) {
+    // Auto-migrate old config directory
+    const oldDir = join(appData, "LlamaTalkBuild");
+    const newDir = join(appData, "ClankBuild");
+    if (existsSync(oldDir) && !existsSync(newDir)) {
+      cpSync(oldDir, newDir, { recursive: true });
+    }
+    return newDir;
+  }
+  // Auto-migrate old config directory (non-Windows)
+  const oldDir = join(homedir(), ".llamabuild");
+  const newDir = join(homedir(), ".clankbuild");
+  if (existsSync(oldDir) && !existsSync(newDir)) {
+    cpSync(oldDir, newDir, { recursive: true });
+  }
+  return newDir;
 }
 
 export function getConfigPath() {
@@ -238,8 +253,8 @@ export function needsPinMigration(hash) {
   return !!hash && !hash.startsWith("pbkdf2v1:");
 }
 
-function legacyHashPin(pin) {
-  return createHash("sha256").update("llamatalkbuild-pin-salt" + pin).digest("hex");
+function legacyHashPin(pin, salt = "clankbuild-pin-salt") {
+  return createHash("sha256").update(salt + pin).digest("hex");
 }
 
 export function verifyPin(pin, hash) {
@@ -253,10 +268,13 @@ export function verifyPin(pin, hash) {
     if (computed.length !== stored.length) return false;
     return timingSafeEqual(computed, stored);
   }
-  const computed = Buffer.from(legacyHashPin(pin), "hex");
+  // Try new salt first, then fall back to old salt for backward compat
+  const computedNew = Buffer.from(legacyHashPin(pin, "clankbuild-pin-salt"), "hex");
   const stored = Buffer.from(hash, "hex");
-  if (computed.length !== stored.length) return false;
-  return timingSafeEqual(computed, stored);
+  if (computedNew.length === stored.length && timingSafeEqual(computedNew, stored)) return true;
+  const computedOld = Buffer.from(legacyHashPin(pin, "llamatalkbuild-pin-salt"), "hex");
+  if (computedOld.length === stored.length && timingSafeEqual(computedOld, stored)) return true;
+  return false;
 }
 
 export function pinRequired(config) {

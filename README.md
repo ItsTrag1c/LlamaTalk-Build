@@ -1,31 +1,31 @@
-# LlamaTalk Build — CLI & Desktop
+# Clank Build — CLI & Desktop
 
-> Agentic coding assistant — terminal and GUI — part of the LlamaTalk Suite.
+> Agentic coding assistant — terminal and GUI — part of the Clank Suite.
 
-LlamaTalk Build is an agentic coding assistant — available as a standalone terminal app (CLI) and a desktop GUI. Both versions share the same engine, config, memory, and sessions. It uses a ReAct-style agent loop to help you with coding tasks: it reasons about what to do, uses tools to read/edit files, run commands, and search code, then explains what it did. Works with local models via Ollama and cloud providers.
+Clank Build is an agentic coding assistant — available as a standalone terminal app (CLI) and a desktop GUI. Both versions share the same engine, config, memory, and sessions. It uses a ReAct-style agent loop to help you with coding tasks: it reasons about what to do, uses tools to read/edit files, run commands, and search code, then explains what it did. Works with local models via Ollama and cloud providers.
 
-> **Warning:** LlamaTalk Build can read, write, and delete files, execute shell commands, and modify your system. Review agent actions carefully. We recommend using MEDIUM or HIGH safety levels.
+> **Warning:** Clank Build can read, write, and delete files, execute shell commands, and modify your system. Review agent actions carefully. We recommend using MEDIUM or HIGH safety levels.
 
 ---
 
 ## Install
 
 ```powershell
-irm https://raw.githubusercontent.com/ItsTrag1c/LlamaTalk-Build/cli/install.ps1 | iex
+irm https://raw.githubusercontent.com/ItsTrag1c/Clank-Build/cli/install.ps1 | iex
 ```
 
-Run this in PowerShell to download and install the latest release. Open a new terminal and type `llamabuild`.
+Run this in PowerShell to download and install the latest release. Open a new terminal and type `clankbuild`.
 
 ---
 
 ## Download
 
-**[→ Latest Release](https://github.com/ItsTrag1c/LlamaTalk-Build/releases/latest)**
+**[→ Latest Release](https://github.com/ItsTrag1c/Clank-Build/releases/latest)**
 
 | File | Description |
 |------|-------------|
-| `LlamaTalk Build_x.y.z_setup.exe` | Windows installer — installs to Program Files, adds `llamabuild` to PATH |
-| `LlamaTalkBuild_x.y.z.exe` | Standalone EXE — run anywhere, no admin rights needed |
+| `Clank Build_x.y.z_setup.exe` | Windows installer — installs to Program Files, adds `clankbuild` to PATH |
+| `ClankBuild_x.y.z.exe` | Standalone EXE — run anywhere, no admin rights needed |
 | `checksums.txt` | SHA-256 checksums for verification |
 
 ---
@@ -34,13 +34,13 @@ Run this in PowerShell to download and install the latest release. Open a new te
 
 The desktop version provides the same agentic engine in a windowed interface. Available on Windows and macOS.
 
-**[→ Latest Desktop Release](https://github.com/ItsTrag1c/LlamaTalk-Build/releases/latest)**
+**[→ Latest Desktop Release](https://github.com/ItsTrag1c/Clank-Build/releases/latest)**
 
 | File | Description |
 |------|-------------|
-| `LlamaTalk Build Desktop_x.y.z_x64-setup.exe` | Windows installer |
-| `LlamaTalk Build Desktop_x.y.z_aarch64.dmg` | macOS Apple Silicon |
-| `LlamaTalk Build Desktop_x.y.z_x64_en-US.msi` | Windows MSI |
+| `Clank Build Desktop_x.y.z_x64-setup.exe` | Windows installer |
+| `Clank Build Desktop_x.y.z_aarch64.dmg` | macOS Apple Silicon |
+| `Clank Build Desktop_x.y.z_x64_en-US.msi` | Windows MSI |
 
 ---
 
@@ -54,7 +54,7 @@ The desktop version provides the same agentic engine in a windowed interface. Av
 - **Cloud models** — Anthropic Claude, Google Gemini, OpenAI GPT, OpenCode (API key required)
 - **Native tool-calling** — each provider uses its own tool-call protocol; XML fallback for models without native support
 - **Multi-server support** — connect to multiple local servers simultaneously; models auto-discovered and routed
-- **Persistent memory** — global + topic-based memory files, plus per-project `.llamabuild.md`
+- **Persistent memory** — global + topic-based memory files, plus per-project `.clankbuild.md`
 - **3-tier safety system** — tools classified as Low, Medium, or High risk with confirmation prompts
 - **PIN protection** — optional, PBKDF2-hashed; API keys encrypted at rest (AES-256-GCM)
 - **Session tracking** — `/undo` to restore last file change, `/diff` to see all changes
@@ -64,7 +64,7 @@ The desktop version provides the same agentic engine in a windowed interface. Av
 ## Usage
 
 ```
-llamabuild [options]
+clankbuild [options]
 ```
 
 | Flag | Description |
@@ -123,7 +123,7 @@ Chat with the Build agent from your phone via Telegram. The agent runs locally �
 1. Get a bot token from [@BotFather](https://t.me/BotFather) on Telegram
 2. Set the token: `/telegram token <token>` (in the CLI) or via Desktop Settings
 3. Generate an access code: `/telegram code`
-4. Start the bot: `llamabuild --telegram`
+4. Start the bot: `clankbuild --telegram`
 5. Send the access code to the bot on Telegram to authenticate
 
 ### Telegram Commands
@@ -143,15 +143,15 @@ Chat with the Build agent from your phone via Telegram. The agent runs locally �
 | `/trust` | Toggle auto-approve |
 | `/cancel` | Cancel current operation |
 
-See the [Telegram Setup Guide](https://github.com/ItsTrag1c/LlamaTalk-Build/wiki/Telegram-Setup) for detailed instructions.
+See the [Telegram Setup Guide](https://github.com/ItsTrag1c/Clank-Build/wiki/Telegram-Setup) for detailed instructions.
 
 ---
 
 ## Privacy
 
-All data is stored locally on your device at `%APPDATA%\LlamaTalkBuild\`. When a PIN is set, API keys are encrypted at rest using AES-256-GCM. Nothing is collected, tracked, or synced to any server.
+All data is stored locally on your device at `%APPDATA%\ClankBuild\`. When a PIN is set, API keys are encrypted at rest using AES-256-GCM. Nothing is collected, tracked, or synced to any server.
 
-See our [Privacy Policy](https://llamatalksuite.dev/privacy) for full details.
+See our [Privacy Policy](https://clanksuite.dev/privacy) for full details.
 
 ---
 
@@ -159,4 +159,4 @@ See our [Privacy Policy](https://llamatalksuite.dev/privacy) for full details.
 
 [MIT](LICENSE)
 
-Part of the [LlamaTalk Suite](https://llamatalksuite.dev) — CLI & Desktop — Created by [ItsTrag1c](https://github.com/ItsTrag1c).
+Part of the [Clank Suite](https://clanksuite.dev) — CLI & Desktop — Created by [ItsTrag1c](https://github.com/ItsTrag1c).

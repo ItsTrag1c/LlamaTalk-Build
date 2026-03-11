@@ -89,7 +89,7 @@ export function printBanner(version = "", { model, mode, provider, cwd, sessions
 }
 
 function printMinimal(version, model, provider, mode, w, tasks) {
-  const titleText = `LlamaTalk Build${version ? ` v${version}` : ""}`;
+  const titleText = `Clank Build${version ? ` v${version}` : ""}`;
   // Box fills available width minus 2 for margin
   const boxW = Math.max(titleText.length + 5, Math.min(w - 2, 38));
   const inner = boxW - 4;
@@ -122,7 +122,7 @@ function printCompact(version, greeting, model, provider, mode, cwd, hasSessions
   const boxW = Math.min(w - 2, 60);
   const inner = boxW - 4;
 
-  const titleText = `LlamaTalk Build${version ? ` v${version}` : ""}`;
+  const titleText = `Clank Build${version ? ` v${version}` : ""}`;
   const topFill = Math.max(0, boxW - titleText.length - 5);
   const top = `${T.border}${box.tl}${box.h} ${T.accent}${titleText}${T.reset} ${T.border}${box.h.repeat(topFill)}${box.tr}${T.reset}`;
   const bot = `${T.border}${box.bl}${box.h.repeat(boxW - 2)}${box.br}${T.reset}`;
@@ -175,7 +175,7 @@ function printFull(version, greeting, model, provider, mode, cwd, hasSessions, s
   const leftInner = dividerCol - 3;
   const rightInner = boxW - dividerCol - 4;
 
-  const titleText = `LlamaTalk Build${version ? ` v${version}` : ""}`;
+  const titleText = `Clank Build${version ? ` v${version}` : ""}`;
   const topFill = Math.max(0, boxW - titleText.length - 5);
   const top = `${T.border}${box.tl}${box.h} ${T.accent}${titleText}${T.reset} ${T.border}${box.h.repeat(topFill)}${box.tr}${T.reset}`;
   const bot = `${T.border}${box.bl}${box.h.repeat(boxW - 2)}${box.br}${T.reset}`;

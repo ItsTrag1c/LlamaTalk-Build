@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync, mkdirSync, existsSync, chmodSync } from "fs";
+import { readFileSync, writeFileSync, mkdirSync, existsSync, chmodSync, cpSync } from "fs";
 import { dirname, join } from "path";
 import { createHash, timingSafeEqual, pbkdf2Sync, randomBytes, createCipheriv, createDecipheriv } from "crypto";
 import { homedir } from "os";
@@ -42,8 +42,15 @@ const DEFAULTS = {
 
 export function getConfigDir() {
   const appData = process.env.APPDATA;
-  if (appData) return join(appData, "LlamaTalkBuild");
-  return join(homedir(), ".llamabuild");
+  if (appData) {
+    const oldDir = join(appData, "LlamaTalkBuild");
+    const newDir = join(appData, "ClankBuild");
+    if (existsSync(oldDir) && !existsSync(newDir)) {
+      cpSync(oldDir, newDir, { recursive: true });
+    }
+    return newDir;
+  }
+  return join(homedir(), ".clankbuild");
 }
 
 export function getConfigPath() {
@@ -224,7 +231,7 @@ export function needsPinMigration(hash) {
 }
 
 function legacyHashPin(pin) {
-  return createHash("sha256").update("llamatalkbuild-pin-salt" + pin).digest("hex");
+  return createHash("sha256").update("clankbuild-pin-salt" + pin).digest("hex");
 }
 
 export function verifyPin(pin, hash) {
@@ -238,10 +245,13 @@ export function verifyPin(pin, hash) {
     if (computed.length !== stored.length) return false;
     return timingSafeEqual(computed, stored);
   }
+  // Check new salt first, then legacy salt for backward compatibility
   const computed = Buffer.from(legacyHashPin(pin), "hex");
   const stored = Buffer.from(hash, "hex");
-  if (computed.length !== stored.length) return false;
-  return timingSafeEqual(computed, stored);
+  if (computed.length === stored.length && timingSafeEqual(computed, stored)) return true;
+  const legacyOld = Buffer.from(createHash("sha256").update("llamatalkbuild-pin-salt" + pin).digest("hex"), "hex");
+  if (legacyOld.length === stored.length && timingSafeEqual(legacyOld, stored)) return true;
+  return false;
 }
 
 export function pinRequired(config) {

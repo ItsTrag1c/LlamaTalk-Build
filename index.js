@@ -27,9 +27,9 @@ function startupCleanup() {
     if (!isPackaged) return;
     const installDir = dirname(process.execPath);
     for (const f of readdirSync(installDir)) {
-      const isOldExe = f === "LlamaTalkBuild.old.exe";
-      const isOldStandalone = f.startsWith("LlamaTalkBuild_") && f.endsWith(".exe") && !f.includes(VERSION);
-      const isOldSetup = f.startsWith("LlamaTalk Build_") && f.endsWith("_setup.exe") && !f.includes(VERSION);
+      const isOldExe = f === "ClankBuild.old.exe" || f === "LlamaTalkBuild.old.exe";
+      const isOldStandalone = (f.startsWith("ClankBuild_") || f.startsWith("LlamaTalkBuild_")) && f.endsWith(".exe") && !f.includes(VERSION);
+      const isOldSetup = (f.startsWith("Clank Build_") || f.startsWith("LlamaTalk Build_")) && f.endsWith("_setup.exe") && !f.includes(VERSION);
       if (isOldExe || isOldStandalone || isOldSetup) {
         try { unlinkSync(join(installDir, f)); } catch { /* still locked */ }
       }
@@ -84,10 +84,10 @@ function parseArgs(argv) {
 
 function printHelp() {
   console.log(`
-${ORANGE}${BOLD}LlamaTalk Build${RESET} v${VERSION}  —  Agentic coding from the terminal
+${ORANGE}${BOLD}Clank Build${RESET} v${VERSION}  —  Agentic coding from the terminal
 
 ${BOLD}Usage${RESET}
-  llamabuild [options]
+  clankbuild [options]
 
 ${BOLD}Options${RESET}
   ${ORANGE}-v, --version${RESET}             Print version and exit
@@ -168,7 +168,7 @@ function loadDashboardData(config) {
 async function authenticate(config) {
   if (!pinRequired(config)) return null;
 
-  console.log(ORANGE + "\nLlamaTalk Build" + DIM + `  v${VERSION}` + RESET);
+  console.log(ORANGE + "\nClank Build" + DIM + `  v${VERSION}` + RESET);
 
   let attempts = 0;
   const maxAttempts = 5;
@@ -340,7 +340,7 @@ async function main() {
 
     // First launch liability notice (condensed)
     if (config.onboardingComplete === false) {
-      console.log(YELLOW + "\n  ⚠ LlamaTalk Build can read, write, delete files and execute commands." + RESET);
+      console.log(YELLOW + "\n  ⚠ Clank Build can read, write, delete files and execute commands." + RESET);
       console.log(DIM + "  Review agent actions carefully. Use MEDIUM/HIGH safety levels.\n" + RESET);
     }
 

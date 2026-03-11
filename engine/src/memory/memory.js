@@ -76,9 +76,13 @@ export class MemoryManager {
     return this._read(join(this.globalDir, "MEMORY.md"));
   }
 
-  /** Load project-local .llamabuild.md */
+  /** Load project-local .clankbuild.md (falls back to .llamabuild.md) */
   loadProject(projectRoot) {
-    return this._read(join(projectRoot, ".llamabuild.md"));
+    const newPath = join(projectRoot, ".clankbuild.md");
+    if (existsSync(newPath)) return this._read(newPath);
+    const oldPath = join(projectRoot, ".llamabuild.md");
+    if (existsSync(oldPath)) return this._read(oldPath);
+    return null;
   }
 
   /** List all topic memory files (excluding MEMORY.md) */
@@ -193,7 +197,7 @@ export class MemoryManager {
   buildMemoryBlock(userMessage, projectRoot) {
     const sections = [];
 
-    // Agent instructions (AGENTS.md, .llamabuild/agent/*.md)
+    // Agent instructions (AGENTS.md, .clankbuild/agent/*.md)
     const instructions = this._getInstructions(projectRoot);
     if (instructions) {
       sections.push(instructions);

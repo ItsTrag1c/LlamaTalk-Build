@@ -1,7 +1,7 @@
 {
-  "name": "llamatalkbuild-engine",
+  "name": "clankbuild-engine",
   "version": "1.0.0",
-  "description": "Headless agent engine for LlamaTalk Build — shared by CLI and Desktop",
+  "description": "Headless agent engine for Clank Build — shared by CLI and Desktop",
   "author": "ItsTrag1c",
   "type": "module",
   "main": "src/index.js",

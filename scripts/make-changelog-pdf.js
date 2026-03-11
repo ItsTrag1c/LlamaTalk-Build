@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Generates a PDF from the LlamaTalk Build changelog markdown file.
+// Generates a PDF from the Clank Build changelog markdown file.
 // Uses local date to determine the filename.
 // Run: node scripts/make-changelog-pdf.js
 
@@ -18,8 +18,8 @@ function getLocalDateString() {
 }
 
 const dateStr = getLocalDateString();
-const mdPath = join(OUTPUT_DIR, `Changelog LlamaTalk Build ${dateStr}.md`);
-const pdfPath = join(OUTPUT_DIR, `Changelog LlamaTalk Build ${dateStr}.pdf`);
+const mdPath = join(OUTPUT_DIR, `Changelog Clank Build ${dateStr}.md`);
+const pdfPath = join(OUTPUT_DIR, `Changelog Clank Build ${dateStr}.pdf`);
 
 if (!existsSync(mdPath)) {
   console.error(`Markdown file not found: ${mdPath}`);

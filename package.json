@@ -1,10 +1,10 @@
 {
-  "name": "llamatalkbuild",
+  "name": "clankbuild",
   "version": "2.5.1",
   "author": "ItsTrag1c",
   "type": "module",
   "bin": {
-    "llamabuild": "./index.js"
+    "clankbuild": "./index.js"
   },
   "scripts": {
     "start": "node index.js",
@@ -15,7 +15,7 @@
   },
   "dependencies": {
     "grammy": "^1.35.0",
-    "llamatalkbuild-engine": "file:./engine"
+    "clankbuild-engine": "file:./engine"
   },
   "devDependencies": {
     "esbuild": "^0.25.0",

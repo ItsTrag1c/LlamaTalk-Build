@@ -61,7 +61,7 @@ export const webFetchTool = {
       for (let i = 0; i <= MAX_REDIRECTS; i++) {
         res = await fetch(currentUrl, {
           signal: controller.signal,
-          headers: { "User-Agent": "LlamaTalk-Build/0.1.0" },
+          headers: { "User-Agent": "Clank-Build/0.1.0" },
           redirect: "manual",
         });
 

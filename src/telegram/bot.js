@@ -1,5 +1,5 @@
 /**
- * LlamaTalk Build — Telegram Bot
+ * Clank Build — Telegram Bot
  *
  * Connects the AgentEngine to Telegram as an I/O layer.
  * Each allowed user gets their own AgentEngine instance.
@@ -9,7 +9,7 @@ import { Bot, InlineKeyboard } from "grammy";
 import { ThrottledEditor, toTelegramHtml, splitMessage, formatToolStart, formatToolResult } from "./renderer.js";
 
 // Import from the engine package (linked via file: dependency)
-import { AgentEngine, SessionManager, getAllLocalModels, CLOUD_MODELS } from "llamatalkbuild-engine";
+import { AgentEngine, SessionManager, getAllLocalModels, CLOUD_MODELS } from "clankbuild-engine";
 import { loadConfig, saveConfig as _saveConfig } from "../config.js";
 
 // Escape HTML entities to prevent injection in Telegram HTML messages
@@ -43,7 +43,7 @@ export async function startTelegramBot(config, encKey) {
   const token = config.telegramBotToken;
   if (!token) {
     console.error("Error: No Telegram bot token configured.");
-    console.error("Set one with: llamabuild /telegram token <token>");
+    console.error("Set one with: clankbuild /telegram token <token>");
     process.exit(1);
   }
 
@@ -213,7 +213,7 @@ export async function startTelegramBot(config, encKey) {
   // --- Commands ---
 
   bot.command("start", async (ctx) => {
-    const agentName = esc(config.agentName || "LlamaTalk Build");
+    const agentName = esc(config.agentName || "Clank Build");
     const name = esc(config.profileName || "there");
     await ctx.reply(
       `👋 Hey ${name}! I'm <b>${agentName}</b>, your coding agent.\n\n` +
@@ -1006,7 +1006,7 @@ export async function startTelegramBot(config, encKey) {
 
   // --- Start bot ---
 
-  console.log("🤖 LlamaTalk Build Telegram bot starting...");
+  console.log("🤖 Clank Build Telegram bot starting...");
   console.log(`   Allowed users: ${allowedUsers.size > 0 ? [...allowedUsers].join(", ") : "none yet"}`);
   console.log(`   Access code: ${accessCode || "none (first user auto-registers)"}`);
   console.log(`   Model: ${config.selectedModel || "none"}`);

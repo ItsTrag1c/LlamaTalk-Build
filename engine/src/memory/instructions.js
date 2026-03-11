@@ -6,8 +6,8 @@ import { homedir } from "os";
  * Instruction discovery system (inspired by OpenCode's AGENTS.md).
  *
  * Discovers and loads instruction files from multiple levels:
- *   1. Global: ~/.llamabuild/agent/*.md
- *   2. Project: .llamabuild/agent/*.md, .llamabuild.md, AGENTS.md
+ *   1. Global: ~/.clankbuild/agent/*.md (falls back to ~/.llamabuild/agent/)
+ *   2. Project: .clankbuild/agent/*.md, .clankbuild.md, AGENTS.md (falls back to .llamabuild variants)
  *   3. Directory walk: AGENTS.md files up the directory tree
  *
  * Instruction files can have YAML-style frontmatter:
@@ -17,7 +17,8 @@ import { homedir } from "os";
  *   [instruction body]
  */
 
-const INSTRUCTION_FILENAMES = [".llamabuild.md", "AGENTS.md"];
+const INSTRUCTION_FILENAMES = [".clankbuild.md", "AGENTS.md"];
+const LEGACY_INSTRUCTION_FILENAMES = [".llamabuild.md"];
 
 /**
  * Parse frontmatter from a markdown file.
@@ -43,8 +44,12 @@ export function discoverInstructions(projectRoot) {
   const instructions = [];
   const seen = new Set();
 
-  // 1. Global instructions: ~/.llamabuild/agent/*.md
-  const globalAgentDir = join(homedir(), ".llamabuild", "agent");
+  // 1. Global instructions: ~/.clankbuild/agent/*.md (fallback: ~/.llamabuild/agent/)
+  let globalAgentDir = join(homedir(), ".clankbuild", "agent");
+  if (!existsSync(globalAgentDir)) {
+    const legacyDir = join(homedir(), ".llamabuild", "agent");
+    if (existsSync(legacyDir)) globalAgentDir = legacyDir;
+  }
   if (existsSync(globalAgentDir)) {
     try {
       for (const f of readdirSync(globalAgentDir)) {
@@ -69,8 +74,12 @@ export function discoverInstructions(projectRoot) {
     } catch { /* dir not readable */ }
   }
 
-  // Global AGENTS.md
-  const globalAgentsMd = join(homedir(), ".llamabuild", "AGENTS.md");
+  // Global AGENTS.md (new path first, then legacy fallback)
+  let globalAgentsMd = join(homedir(), ".clankbuild", "AGENTS.md");
+  if (!existsSync(globalAgentsMd)) {
+    const legacyPath = join(homedir(), ".llamabuild", "AGENTS.md");
+    if (existsSync(legacyPath)) globalAgentsMd = legacyPath;
+  }
   if (existsSync(globalAgentsMd) && !seen.has(globalAgentsMd)) {
     seen.add(globalAgentsMd);
     try {
@@ -82,8 +91,12 @@ export function discoverInstructions(projectRoot) {
     } catch { /* skip */ }
   }
 
-  // 2. Project-level: .llamabuild/agent/*.md
-  const projectAgentDir = join(projectRoot, ".llamabuild", "agent");
+  // 2. Project-level: .clankbuild/agent/*.md (fallback: .llamabuild/agent/)
+  let projectAgentDir = join(projectRoot, ".clankbuild", "agent");
+  if (!existsSync(projectAgentDir)) {
+    const legacyDir = join(projectRoot, ".llamabuild", "agent");
+    if (existsSync(legacyDir)) projectAgentDir = legacyDir;
+  }
   if (existsSync(projectAgentDir)) {
     try {
       for (const f of readdirSync(projectAgentDir)) {
@@ -108,8 +121,28 @@ export function discoverInstructions(projectRoot) {
     } catch { /* dir not readable */ }
   }
 
-  // 3. Project root instruction files: .llamabuild.md, AGENTS.md
+  // 3. Project root instruction files: .clankbuild.md, AGENTS.md (+ legacy .llamabuild.md fallback)
   for (const name of INSTRUCTION_FILENAMES) {
+    const fullPath = join(projectRoot, name);
+    if (existsSync(fullPath) && !seen.has(fullPath)) {
+      seen.add(fullPath);
+      try {
+        const raw = readFileSync(fullPath, "utf8");
+        const { meta, content } = parseFrontmatter(raw);
+        if (content) {
+          instructions.push({
+            source: "project",
+            path: fullPath,
+            name: name.replace(/\.md$/, ""),
+            meta,
+            content,
+          });
+        }
+      } catch { /* skip */ }
+    }
+  }
+  // Legacy fallback: check .llamabuild.md if .clankbuild.md wasn't found
+  for (const name of LEGACY_INSTRUCTION_FILENAMES) {
     const fullPath = join(projectRoot, name);
     if (existsSync(fullPath) && !seen.has(fullPath)) {
       seen.add(fullPath);

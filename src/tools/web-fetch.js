@@ -44,7 +44,7 @@ export const webFetchTool = {
 
       const res = await fetch(args.url, {
         signal: controller.signal,
-        headers: { "User-Agent": "LlamaTalk-Build/0.1.0" },
+        headers: { "User-Agent": "Clank-Build/0.1.0" },
       });
       clearTimeout(timer);
 

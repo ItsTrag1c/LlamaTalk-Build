@@ -1,5 +1,6 @@
 import { BaseProvider } from "./base.js";
 import { streamRequest, streamLines } from "./stream.js";
+import { getClaudeCodeToken } from "../claude-auth.js";
 
 const CONTEXT_WINDOWS = {
   "claude-opus-4-5": 200000,
@@ -21,7 +22,12 @@ export class AnthropicProvider extends BaseProvider {
   }
 
   async *stream(messages, systemPrompt, tools, signal) {
-    const apiKey = this.config.apiKey_anthropic;
+    let apiKey = this.config.apiKey_anthropic;
+    // Fall back to Claude Code OAuth token if no API key is set
+    if (!apiKey && this.config.claudeCodeAuth) {
+      const cc = getClaudeCodeToken();
+      if (cc?.token) apiKey = cc.token;
+    }
     if (!apiKey) throw new Error("Anthropic API key not set. Use /set api-key anthropic <key>");
 
     const model = this.config.selectedModel;
