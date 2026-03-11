@@ -4050,11 +4050,13 @@ function getTaskManager() {
   }
   return _taskManager;
 }
-var _taskManager, delegateAgentTool;
+var _taskManager, _subEngineCache, delegateAgentTool;
 var init_delegate_agent = __esm({
   "../../llamatalkbuild-engine/src/tools/delegate-agent.js"() {
     init_tasks();
+    init_config();
     _taskManager = null;
+    _subEngineCache = /* @__PURE__ */ new Map();
     delegateAgentTool = {
       definition: {
         name: "delegate_to_agent",
@@ -4100,33 +4102,54 @@ var init_delegate_agent = __esm({
           return `Error: Sub-agent "${def.name}" is currently disabled. Enable it with /agent enable ${def.name}`;
         }
         const { AgentEngine: AgentEngine2 } = await Promise.resolve().then(() => (init_agent(), agent_exports));
-        const subConfig = { ...config2 };
-        if (def.model) {
-          subConfig.selectedModel = def.model;
-        }
-        const subEngine = new AgentEngine2(subConfig, {
-          projectRoot,
-          encKey: parentEngine.encKey,
-          noMemory: false,
-          subAgentDef: def
-        });
-        subEngine.sessionChanges = sessionChanges;
-        subEngine.conversationId = `sub-${def.id}-${Date.now()}`;
-        subEngine.messages = [];
-        subEngine.firstMessageSent = true;
-        if (!onDelegation) {
-          subEngine.on("confirm-needed", (data) => {
-            parentEngine.emit("confirm-needed", data);
+        const cacheKey = `${parentEngine.conversationId}:${def.id}`;
+        let subEngine = _subEngineCache.get(cacheKey);
+        let isNewEngine = false;
+        if (!subEngine) {
+          isNewEngine = true;
+          const subConfig = { ...config2 };
+          if (def.model) {
+            subConfig.selectedModel = def.model;
+          }
+          subEngine = new AgentEngine2(subConfig, {
+            projectRoot,
+            encKey: parentEngine.encKey,
+            noMemory: false,
+            subAgentDef: def
           });
+          subEngine.sessionChanges = sessionChanges;
+          subEngine.conversationId = `sub-${def.id}-${Date.now()}`;
+          subEngine.messages = [];
+          subEngine.firstMessageSent = true;
+          try {
+            saveConversation(subEngine.conversationId, subEngine.messages, parentEngine.encKey);
+          } catch {
+          }
+          if (!onDelegation) {
+            subEngine.on("confirm-needed", (data) => {
+              parentEngine.emit("confirm-needed", data);
+            });
+          }
+          _subEngineCache.set(cacheKey, subEngine);
+        } else {
+          subEngine.messages = [];
+          try {
+            saveConversation(subEngine.conversationId, subEngine.messages, parentEngine.encKey);
+          } catch {
+          }
         }
         let finalResponse = "";
         let lastIterationCount = 0;
-        subEngine.on("response-end", ({ text }) => {
+        const onResponseEnd = ({ text }) => {
           finalResponse = text || "";
-        });
-        subEngine.on("usage", ({ iterationCount }) => {
+        };
+        const onUsage = ({ iterationCount }) => {
           lastIterationCount = iterationCount || 0;
-        });
+        };
+        subEngine.removeAllListeners("response-end");
+        subEngine.removeAllListeners("usage");
+        subEngine.on("response-end", onResponseEnd);
+        subEngine.on("usage", onUsage);
         if (signal) {
           signal.addEventListener("abort", () => subEngine.cancel(), { once: true });
         }

@@ -1,6 +1,14 @@
 # Changelog — Clank Build Desktop
 
-Last updated: 2026-03-11 (v2.4.6)
+Last updated: 2026-03-11 (v2.4.7)
+
+---
+
+## v2.4.7 (2026-03-11)
+
+### Bug Fixes
+- **Sub-agent conversation file now created on delegation** — engine update: conversation file is written to disk immediately when the sub-agent is initialized, preventing tasks from failing due to a missing backing file.
+- **Sub-agent engine reused across consecutive delegations** — engine update: engines are cached per session so repeated delegations to the same agent don't orphan conversation files.
 
 ---
 
