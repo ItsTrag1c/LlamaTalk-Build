@@ -1,6 +1,6 @@
 # Clank Build — CLI & Desktop
 
-> Agentic coding assistant — terminal and GUI — part of the Clank Suite.
+> Agentic coding assistant — terminal and GUI — part of the Clank Suite. **v2.5.5**
 
 Clank Build is an agentic coding assistant — available as a standalone terminal app (CLI) and a desktop GUI. Both versions share the same engine, config, memory, and sessions. It uses a ReAct-style agent loop to help you with coding tasks: it reasons about what to do, uses tools to read/edit files, run commands, and search code, then explains what it did. Works with local models via Ollama and cloud providers.
 
@@ -56,7 +56,8 @@ The desktop version provides the same agentic engine in a windowed interface. Av
 - **Multi-server support** — connect to multiple local servers simultaneously; models auto-discovered and routed
 - **Persistent memory** — global + topic-based memory files, plus per-project `.clankbuild.md`
 - **3-tier safety system** — tools classified as Low, Medium, or High risk with confirmation prompts
-- **PIN protection** — optional, PBKDF2-hashed; API keys encrypted at rest (AES-256-GCM)
+- **PIN protection** — optional, PBKDF2-hashed; API keys encrypted at rest (AES-256-GCM); `CLANKBUILD_PIN` env var for headless/CI usage
+- **Hardened tool execution** — spawnSync with argument arrays for all shell calls (no string interpolation), HTML sanitization in generate-file, comprehensive destructive command blocking, regex safety limits in search-files
 - **Session tracking** — `/undo` to restore last file change, `/diff` to see all changes
 
 ---

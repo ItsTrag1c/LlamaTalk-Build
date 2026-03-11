@@ -1,7 +1,7 @@
 # Clank — Privacy Policy
 
 **Effective Date:** March 2, 2026
-**Last Updated:** March 8, 2026 (rev. 8)
+**Last Updated:** March 10, 2026 (rev. 9)
 
 ---
 
@@ -178,7 +178,10 @@ GitHub will log the IP address of the request as with any public API call — th
 - **API Key Exclusion from Exports** — Cloud API keys are stripped from all exported profile files in both apps.
 - **Import Validation** — Imported profiles are validated for type, format, and value constraints before being applied. The CLI restricts imports to `.json` files only.
 - **Path Traversal Protection (Build)** — All file operations validate paths to prevent directory traversal attacks. Symbolic link resolution and `..` path segments are checked before any read or write.
-- **Destructive Command Detection (Build)** — The bash tool detects destructive commands (`rm -rf`, `format`, `del /s`, etc.) and elevates them to high-risk confirmation regardless of the tool's base safety level.
+- **Destructive Command Detection (Build)** — The bash tool detects destructive commands (`rm -rf`, `format`, `del /s`, `net user`, `reg delete`, `certutil`, `diskpart`, pipe-to-shell patterns, etc.) and elevates them to high-risk confirmation regardless of the tool's base safety level.
+- **Shell Execution Hardening (Build)** — All tool shell calls use `spawnSync` with argument arrays instead of string interpolation, preventing shell injection. Shell mode is disabled for package install operations.
+- **HTML Sanitization (Build)** — The generate-file tool sanitizes `<script>` tags and `on*` event handlers in HTML output to prevent XSS in generated files.
+- **Regex Safety (Build)** — Search patterns are limited to 500 characters with error handling for malformed expressions, preventing ReDoS attacks.
 - **Tool Safety Levels (Build)** — Every tool is classified as Low, Medium, or High risk. Low-risk tools (read-only) auto-approve by default. Medium-risk tools (file mutations) prompt for confirmation. High-risk tools (bash, system commands) always require explicit approval. Users can adjust these thresholds in settings.
 - **File Operation Tracking (Build)** — All file changes made during a session are tracked with before/after snapshots. The `/undo` command restores the last file change, and `/diff` shows all changes made in the current session.
 
@@ -277,6 +280,7 @@ Clank is designed with privacy-by-default principles consistent with:
 - **2026-03-06 (rev. 6)** — Desktop v0.15.0 security hardening. Cloud API keys moved from localStorage to OS credential store (Windows Credential Manager / macOS Keychain). Added credential key allowlist. Added PIN rate limiting with progressive lockout. Added cloud URL domain allowlist and disabled HTTP redirects. Updated integrity verification to fail-closed model with GitHub URL validation. Google API keys now sent via header instead of URL parameter. Added macOS Keychain references throughout.
 - **2026-03-07 (rev. 7)** — Added Clank Build as third application. Documented Build data storage (config, memory, session logs), data retention, deletion, and encryption. Updated overview to cover all apps. Added OpenCode cloud provider support (Desktop v0.16.0). Website launched at clanksuite.dev.
 - **2026-03-08 (rev. 8)** — Expanded to four applications (Build CLI + Build Desktop). Added Build-specific security: path traversal protection, destructive command detection, tool safety levels (low/medium/high), file operation tracking. Added Build Desktop to third-party dependencies. Fixed update check URLs to current repo names. Added OpenCode to all cloud provider references.
+- **2026-03-10 (rev. 9)** — Build v2.5.5 security hardening. Added shell execution hardening (spawnSync argument arrays), HTML sanitization for generated files, regex safety limits, expanded destructive command patterns. Website hosted on GitHub Pages at clanksuite.dev.
 
 ---
 

@@ -1,6 +1,20 @@
 # Changelog — Clank Build
 
-Last updated: 2026-03-10 (v2.5.1)
+Last updated: 2026-03-10 (v2.5.5)
+
+---
+
+## v2.5.5 (2026-03-10)
+
+### Security
+- **install-tool.js:** spawnSync with argument arrays replaces execSync string interpolation
+- **git.js:** spawnSync with parsed argument arrays replaces execSync concatenation
+- **generate-file.js:** sanitize `<script>` tags and `on*` event handlers in HTML output
+- **safety.js:** added destructive patterns (net user, reg delete, certutil, diskpart, pipe-to-shell)
+- **npm-install/pip-install:** removed `shell: true` from spawnSync calls
+- **search-files.js:** 500-char regex length limit + error handling for malformed patterns
+- Added `CLANKBUILD_PIN` environment variable as secure alternative to `--pin` CLI flag
+- Stripped internal claude-auth code from engine permanently
 
 ---
 
