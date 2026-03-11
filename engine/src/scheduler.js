@@ -146,6 +146,9 @@ export class Scheduler extends EventEmitter {
     this._timer = setInterval(() => this._tick(), CHECK_INTERVAL_MS);
     // Don't keep the process alive just for the scheduler
     if (this._timer.unref) this._timer.unref();
+    // Run an initial tick after a short delay so newly-added schedules
+    // don't have to wait up to 60s for the first check.
+    setTimeout(() => this._tick(), 5000);
     this.emit("started");
   }
 
@@ -191,6 +194,12 @@ export class Scheduler extends EventEmitter {
     schedules.push(schedule);
     this._save(schedules);
     this.emit("schedule-added", schedule);
+
+    // Trigger a check soon so the schedule doesn't wait up to 60s
+    if (this._timer) {
+      setTimeout(() => this._tick(), 3000);
+    }
+
     return schedule;
   }
 
@@ -281,10 +290,18 @@ export class Scheduler extends EventEmitter {
       schedule.runCount = (schedule.runCount || 0) + 1;
       dirty = true;
 
-      // Execute in background — don't block the tick loop
-      this._executeSchedule(schedule).catch((err) => {
-        console.error(`   Scheduler error [${schedule.agentName}]:`, err.message || err);
-      });
+      // Execute in background — don't block the tick loop.
+      // Always clean up _running on completion/error so the schedule isn't
+      // permanently stuck if _executeSchedule throws outside its try-catch.
+      this._executeSchedule(schedule)
+        .catch((err) => {
+          this._finishSchedule(schedule.id, "error", err.message || String(err));
+          this.emit("schedule-error", {
+            scheduleId: schedule.id,
+            agentName: schedule.agentName,
+            error: err.message || String(err),
+          });
+        });
     }
 
     if (dirty) this._save(schedules);

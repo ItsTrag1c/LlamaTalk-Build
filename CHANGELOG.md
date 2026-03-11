@@ -1,6 +1,16 @@
 # Changelog — Clank Build
 
-Last updated: 2026-03-11 (v2.5.15)
+Last updated: 2026-03-11 (v2.5.16)
+
+---
+
+## v2.5.16 (2026-03-11)
+
+### Bug Fixes
+- **Scheduler now triggers agents** — three issues prevented scheduled jobs from firing:
+  1. No initial tick — `setInterval` waits 60s before the first check. Now runs an immediate tick 5s after start, and another 3s after any schedule is added.
+  2. `_running` set leaked on error — if engine creation failed, the schedule ID stayed in `_running` permanently, blocking all future executions. The outer `.catch()` now calls `_finishSchedule` to clean up.
+  3. Errors during execution were silent — now properly emitted as `schedule-error` events so CLI/Telegram/Desktop can display them.
 
 ---
 
