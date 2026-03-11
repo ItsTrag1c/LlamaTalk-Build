@@ -301,9 +301,11 @@ export async function startTelegramBot(config, encKey) {
       await ctx.reply(`Current model: <code>${esc(engine.getModel() || "none")}</code>`, { parse_mode: "HTML" });
     } else {
       // /model <name> — switch model
-      const cfg = engine.getConfig();
-      cfg.selectedModel = args;
       engine.setModel(args);
+      // Persist to disk so the change survives bot restarts
+      const diskConfig = loadConfig();
+      diskConfig.selectedModel = args;
+      _saveConfig(diskConfig);
       await ctx.reply(`Model set to: <code>${esc(args)}</code>`, { parse_mode: "HTML" });
     }
   });
