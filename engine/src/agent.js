@@ -280,6 +280,11 @@ export class AgentEngine extends EventEmitter {
     this.subAgentDef = options.subAgentDef || null;
     this.isSubAgent = !!this.subAgentDef;
 
+    // Optional async delegation callback — when set, delegate_to_agent hands
+    // off the sub-agent to this callback and returns immediately instead of
+    // blocking. Signature: onDelegation({ subEngine, task, agentDef, completeTask })
+    this.onDelegation = null;
+
     // Build tool registry — filtered for sub-agents, full + delegate for main agent
     if (this.isSubAgent && this.subAgentDef.tools) {
       this.toolRegistry = createToolRegistry(this.subAgentDef.tools);
@@ -749,6 +754,7 @@ export class AgentEngine extends EventEmitter {
               signal: this.controller.signal,
               sessionChanges: this.sessionChanges,
               parentEngine: this,
+              onDelegation: this.onDelegation,
             });
 
             // Check cancellation after tool finishes — the tool may have

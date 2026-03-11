@@ -981,6 +981,42 @@ export async function startTelegramBot(config, encKey) {
     const editor = getEditor(chatId);
     editor.reset();
 
+    // Async delegation — when the main agent delegates to a sub-agent,
+    // run the sub-agent in the background so the main agent isn't blocked.
+    engine.onDelegation = ({ subEngine, task, agentDef, completeTask }) => {
+      const agentId = agentDef.id;
+      setAgentBusy(userId, agentId);
+
+      // Wire confirmations for the sub-agent
+      const ownedPromptIds = [];
+      const confirmHandler = async ({ actions, resolve }) => {
+        const promptId = `p${++globalPromptCounter}`;
+        ownedPromptIds.push(promptId);
+        pendingConfirms.set(promptId, resolve);
+        const actionText = actions.map((a) => `• ${a}`).join("\n");
+        const keyboard = new InlineKeyboard()
+          .text("✅ Approve", `confirm:${promptId}:approve`)
+          .text("❌ Deny", `confirm:${promptId}:deny`)
+          .text("✅ Always", `confirm:${promptId}:always`);
+        try {
+          await bot.api.sendMessage(chatId,
+            `⚠️ <b>${esc(agentDef.name)}</b> needs approval:\n\n${toTelegramHtml(actionText)}`,
+            { parse_mode: "HTML", reply_markup: keyboard });
+        } catch { /* */ }
+      };
+      subEngine.on("confirm-needed", confirmHandler);
+
+      bot.api.sendMessage(chatId, `🤖 <b>${esc(agentDef.name)}</b> is working in the background...`, { parse_mode: "HTML" }).catch(() => {});
+
+      // Fire and forget — runs in the background
+      runSubAgentDetached(subEngine, task, userId, chatId, agentDef.name, bot, () => {
+        subEngine.removeListener("confirm-needed", confirmHandler);
+        for (const id of ownedPromptIds) pendingConfirms.delete(id);
+        clearAgentBusy(userId, agentId);
+        completeTask();
+      });
+    };
+
     const modeLabel = MODE_LABELS[engine.getMode()] || "🔨 Build";
     const thinkingMsg = await ctx.reply(`${modeLabel} — Thinking...`);
     editor.setMessageId(thinkingMsg.message_id);
@@ -989,7 +1025,10 @@ export async function startTelegramBot(config, encKey) {
 
     // Run the engine in a detached async context so grammy's polling loop
     // stays free to process callback queries (confirmations, plan actions).
-    runEngineDetached(engine, text, userId, chatId, editor, cleanup, bot, null, () => clearAgentBusy(userId, "main"));
+    runEngineDetached(engine, text, userId, chatId, editor, cleanup, bot, null, () => {
+      engine.onDelegation = null; // clean up callback
+      clearAgentBusy(userId, "main");
+    });
   });
 
   // --- Global error handler (prevents unhandled errors from crashing the process) ---

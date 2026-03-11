@@ -55,7 +55,7 @@ export const delegateAgentTool = {
   },
 
   async execute(args, context) {
-    const { config, projectRoot, signal, sessionChanges, parentEngine } = context;
+    const { config, projectRoot, signal, sessionChanges, parentEngine, onDelegation } = context;
 
     if (!parentEngine) {
       return "Error: delegate_to_agent can only be used by the manager agent.";
@@ -101,15 +101,18 @@ export const delegateAgentTool = {
     subEngine.messages = [];
     subEngine.firstMessageSent = true; // skip auto-title
 
-    // Forward confirmation events to the parent engine so the user can approve
-    subEngine.on("confirm-needed", (data) => {
-      parentEngine.emit("confirm-needed", data);
-    });
+    // Forward confirmation events to the parent engine so the user can approve.
+    // Skip this in async mode — the caller handles confirmations directly.
+    if (!onDelegation) {
+      subEngine.on("confirm-needed", (data) => {
+        parentEngine.emit("confirm-needed", data);
+      });
+    }
 
     // Sub-agents run fully in the background — no events forwarded to chat.
     // The manager receives the final result as a tool return value.
 
-    // Collect the final response
+    // Collect the final response (only needed in synchronous mode)
     let finalResponse = "";
     subEngine.on("response-end", ({ text }) => {
       finalResponse = text || "";
@@ -135,6 +138,14 @@ export const delegateAgentTool = {
       } catch { /* non-critical */ }
     };
 
+    // Async delegation mode — hand off to the caller (e.g. Telegram bot) and
+    // return immediately so the main agent isn't blocked while the sub-agent works.
+    if (onDelegation) {
+      onDelegation({ subEngine, task: args.task, agentDef: def, completeTask });
+      return `Delegated task to ${def.name}. They're working on it in the background — you'll receive their results when they finish. You can continue handling other requests in the meantime.`;
+    }
+
+    // Synchronous mode (CLI / Desktop) — block until the sub-agent finishes
     try {
       await subEngine.sendMessage(args.task);
     } catch (err) {
