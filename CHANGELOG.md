@@ -1,6 +1,13 @@
 # Changelog — Clank Build
 
-Last updated: 2026-03-11 (v2.5.13)
+Last updated: 2026-03-11 (v2.5.14)
+
+---
+
+## v2.5.14 (2026-03-11)
+
+### New Features
+- **Scheduler for autonomous sub-agent jobs** — new `schedule_task` tool lets the manager agent schedule recurring or one-shot tasks for sub-agents on a cron-like timer. Schedules persist to `schedules.json` and survive restarts. Built-in cron parser supports standard expressions plus shorthands (`@hourly`, `@daily`, `@every_30m`, `@every_2h`). The Telegram bot broadcasts job triggers, completions, and errors to all authorized users. One-shot schedules auto-disable after their first successful run.
 
 ---
 

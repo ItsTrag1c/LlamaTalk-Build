@@ -51,6 +51,10 @@ export {
 export { ToolRegistry } from "./tools/registry.js";
 export { isReadOnlyTool } from "./tools/base.js";
 export { delegateAgentTool } from "./tools/delegate-agent.js";
+export { scheduleTaskTool } from "./tools/schedule-task.js";
+
+// Scheduler
+export { Scheduler } from "./scheduler.js";
 
 // Safety
 export { validatePath, isDestructiveCommand, requireConfirmation, validatePackageName } from "./safety.js";

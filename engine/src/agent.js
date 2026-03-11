@@ -30,6 +30,7 @@ import { pipInstallTool } from "./tools/pip-install.js";
 import { installToolTool } from "./tools/install-tool.js";
 import { generateFileTool } from "./tools/generate-file.js";
 import { delegateAgentTool } from "./tools/delegate-agent.js";
+import { scheduleTaskTool } from "./tools/schedule-task.js";
 
 // Pre-compiled ANSI escape sequence regex
 const ANSI_RE = /\x1B(?:\[[0-9;]*[A-Za-z]|\(.|#.|].*?(?:\x07|\x1B\\))/g;
@@ -375,14 +376,19 @@ export class AgentEngine extends EventEmitter {
     // blocking. Signature: onDelegation({ subEngine, task, agentDef, completeTask })
     this.onDelegation = null;
 
+    // Optional scheduler instance — set by the consumer (CLI/Desktop/Telegram)
+    // so the schedule_task tool can access it via parentEngine.scheduler.
+    this.scheduler = options.scheduler || null;
+
     // Build tool registry — filtered for sub-agents, full + delegate for main agent
     if (this.isSubAgent && this.subAgentDef.tools) {
       this.toolRegistry = createToolRegistry(this.subAgentDef.tools);
     } else {
       this.toolRegistry = createToolRegistry();
-      // Main agent gets the delegate tool if sub-agents are configured
+      // Main agent gets delegation and scheduling tools if sub-agents are configured
       if (!this.isSubAgent && config.subAgents?.length > 0) {
         this.toolRegistry.register(delegateAgentTool);
+        this.toolRegistry.register(scheduleTaskTool);
       }
     }
 
@@ -496,9 +502,10 @@ export class AgentEngine extends EventEmitter {
     const tools = def.tools ? resolveToolNames(def.tools) : null;
     const agent = { id, name: def.name, role: def.role, model: def.model || null, tools, enabled: true };
     this.config.subAgents.push(agent);
-    // Re-register delegate tool if this is the first sub-agent
+    // Re-register delegate + schedule tools if this is the first sub-agent
     if (this.config.subAgents.length === 1 && !this.toolRegistry.get("delegate_to_agent")) {
       this.toolRegistry.register(delegateAgentTool);
+      this.toolRegistry.register(scheduleTaskTool);
     }
     return agent;
   }
@@ -608,6 +615,13 @@ export class AgentEngine extends EventEmitter {
     const taskBlock = this.taskManager.buildTaskBlock();
     if (taskBlock) {
       memoryBlock = memoryBlock ? `${memoryBlock}\n\n${taskBlock}` : taskBlock;
+    }
+    // Append schedule block (if scheduler is available)
+    if (this.scheduler) {
+      const schedBlock = this.scheduler.buildScheduleBlock();
+      if (schedBlock) {
+        memoryBlock = memoryBlock ? `${memoryBlock}\n\n${schedBlock}` : schedBlock;
+      }
     }
     // Brief pause so the UI can render the brain icon before we clear it
     await new Promise((r) => setTimeout(r, 150));

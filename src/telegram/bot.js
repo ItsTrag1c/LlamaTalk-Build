@@ -9,7 +9,7 @@ import { Bot, InlineKeyboard } from "grammy";
 import { ThrottledEditor, toTelegramHtml, splitMessage, formatToolStart, formatToolResult } from "./renderer.js";
 
 // Import from the engine package (linked via file: dependency)
-import { AgentEngine, SessionManager, getAllLocalModels, CLOUD_MODELS } from "clankbuild-engine";
+import { AgentEngine, SessionManager, Scheduler, getAllLocalModels, CLOUD_MODELS } from "clankbuild-engine";
 import { loadConfig, saveConfig as _saveConfig } from "../config.js";
 
 // Escape HTML entities to prevent injection in Telegram HTML messages
@@ -77,6 +77,13 @@ export async function startTelegramBot(config, encKey) {
   // Global prompt counter — never resets, so IDs are unique across all requests
   let globalPromptCounter = 0;
 
+  // Scheduler — runs cron-based jobs for sub-agents in the background.
+  // Created once and shared across all user engines.
+  const scheduler = new Scheduler(config, {
+    projectRoot: process.cwd(),
+    encKey,
+  });
+
   function isAgentBusy(userId, agentId = "main") {
     return busyAgents.get(userId)?.has(agentId) || false;
   }
@@ -96,6 +103,7 @@ export async function startTelegramBot(config, encKey) {
     const engine = new AgentEngine(config, {
       encKey,
       projectRoot: process.cwd(),
+      scheduler,
     });
 
     // Create initial session
@@ -1045,6 +1053,48 @@ export async function startTelegramBot(config, encKey) {
     }
   });
 
+  // --- Start scheduler and wire events to Telegram ---
+
+  // Send scheduler notifications to ALL allowed users
+  const broadcastToAllUsers = async (html) => {
+    for (const userId of allowedUsers) {
+      try {
+        await bot.api.sendMessage(userId, html, { parse_mode: "HTML" });
+      } catch { /* user may have blocked bot or chat not found */ }
+    }
+  };
+
+  scheduler.on("schedule-triggered", ({ agentName, task, cron }) => {
+    broadcastToAllUsers(`⏰ <b>Scheduled job running:</b>\n🤖 ${esc(agentName)}: "${esc(task.slice(0, 200))}"\nCron: <code>${esc(cron)}</code>`);
+  });
+
+  scheduler.on("schedule-completed", ({ agentName, task, result, response }) => {
+    const icon = result === "success" ? "✅" : "⚠️";
+    let msg = `${icon} <b>Scheduled job ${result === "success" ? "completed" : "finished (no tools used)"}:</b>\n🤖 ${esc(agentName)}: "${esc(task.slice(0, 100))}"`;
+    if (response) {
+      const html = toTelegramHtml(response);
+      const chunks = splitMessage(msg + "\n\n" + html);
+      // Send all chunks — broadcastToAllUsers only sends one message, so do it manually
+      for (const userId of allowedUsers) {
+        (async () => {
+          for (const chunk of chunks) {
+            try { await bot.api.sendMessage(userId, chunk, { parse_mode: "HTML" }); } catch { /* */ }
+          }
+        })();
+      }
+      return;
+    }
+    broadcastToAllUsers(msg);
+  });
+
+  scheduler.on("schedule-error", ({ agentName, error }) => {
+    broadcastToAllUsers(`❌ <b>Scheduled job failed:</b>\n🤖 ${esc(agentName)}: ${esc(error)}`);
+  });
+
+  // Start the scheduler timer
+  const scheduleCount = scheduler.list().filter((s) => s.enabled).length;
+  scheduler.start();
+
   // --- Start bot ---
 
   console.log("🤖 Clank Build Telegram bot starting...");
@@ -1052,6 +1102,7 @@ export async function startTelegramBot(config, encKey) {
   console.log(`   Access code: ${accessCode || "none (first user auto-registers)"}`);
   console.log(`   Model: ${config.selectedModel || "none"}`);
   console.log(`   Mode: build`);
+  console.log(`   Schedules: ${scheduleCount > 0 ? `${scheduleCount} active` : "none"}`);
   console.log(`   CWD: ${process.cwd()}`);
   console.log("");
   console.log("   Press Ctrl+C to stop.");
