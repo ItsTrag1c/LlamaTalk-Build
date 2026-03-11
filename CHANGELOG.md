@@ -1,6 +1,21 @@
 # Changelog — Clank Build Desktop
 
-Last updated: 2026-03-10 (v2.4.3)
+Last updated: 2026-03-11 (v2.4.5)
+
+---
+
+## v2.4.5 (2026-03-11)
+
+### Bug Fixes
+- **Qwen3.x models now recognized as tool-capable** — engine update: the Ollama provider only matched Qwen2/2.5 in its tool-capable patterns. Qwen3.5 and all Qwen3 variants were silently excluded, so sub-agents using these models couldn't execute tools.
+- **File-writing tools reject null/non-string content** — engine update: `write_file`, `edit_file`, and `generate_file` now require content to be a non-null string, preventing files from being blanked by malformed tool arguments.
+
+---
+
+## v2.4.4 (2026-03-11)
+
+### Bug Fixes
+- **Sub-agents with non-tool-name entries in tools config no longer get empty registries** — engine update: if a sub-agent's `tools` array contained documentation strings instead of actual tool names, the tool registry was empty. The filter now validates entries against real tool names and falls back to all tools if none match.
 
 ---
 
