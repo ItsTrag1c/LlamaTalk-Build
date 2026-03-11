@@ -443,12 +443,13 @@ dependencies = [
 
 [[package]]
 name = "clankbuilddesktop"
-version = "2.4.1"
+version = "2.4.2"
 dependencies = [
  "futures-util",
  "reqwest 0.12.28",
  "serde",
  "serde_json",
+ "sha2",
  "tauri",
  "tauri-build",
  "tauri-plugin-opener",

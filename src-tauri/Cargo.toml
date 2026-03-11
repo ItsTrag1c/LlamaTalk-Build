@@ -1,6 +1,6 @@
 [package]
 name = "clankbuilddesktop"
-version = "2.4.1"
+version = "2.4.2"
 description = "Clank Build Desktop — Agentic Coding Assistant"
 authors = ["ItsTrag1c"]
 edition = "2021"
@@ -22,3 +22,4 @@ serde_json = "1"
 reqwest = { version = "0.12", features = ["json", "stream"] }
 tokio = { version = "1", features = ["fs"] }
 futures-util = "0.3"
+sha2 = "0.10"

@@ -311,18 +311,28 @@ async fn check_for_desktop_update(
             break;
         }
 
-        // Find the NSIS installer asset
+        // Find the NSIS installer asset and checksum file
         if let Some(assets) = release["assets"].as_array() {
+            let mut installer_asset = None;
+            let mut checksum_url = "";
             for asset in assets {
                 let name = asset["name"].as_str().unwrap_or("");
                 if name.contains("x64-setup") && name.ends_with(".exe") {
-                    return Ok(serde_json::json!({
-                        "available": true,
-                        "version": remote_version,
-                        "download_url": asset["browser_download_url"],
-                        "asset_name": name,
-                    }));
+                    installer_asset = Some(asset);
                 }
+                if name == "SHA256SUMS.txt" {
+                    checksum_url = asset["browser_download_url"].as_str().unwrap_or("");
+                }
+            }
+            if let Some(asset) = installer_asset {
+                let name = asset["name"].as_str().unwrap_or("");
+                return Ok(serde_json::json!({
+                    "available": true,
+                    "version": remote_version,
+                    "download_url": asset["browser_download_url"],
+                    "asset_name": name,
+                    "checksum_url": checksum_url,
+                }));
             }
         }
         break;
@@ -346,11 +356,19 @@ fn semver_newer(remote: &str, current: &str) -> bool {
     parse(remote) > parse(current)
 }
 
+fn sha256_hex(data: &[u8]) -> String {
+    use sha2::{Sha256, Digest};
+    let mut hasher = Sha256::new();
+    hasher.update(data);
+    hasher.finalize().iter().map(|b| format!("{:02x}", b)).collect()
+}
+
 #[tauri::command]
 async fn download_and_install_update(
     app: AppHandle,
     download_url: String,
     asset_name: String,
+    checksum_url: Option<String>,
 ) -> Result<(), String> {
     use futures_util::StreamExt;
     use tokio::io::AsyncWriteExt;
@@ -409,6 +427,42 @@ async fn download_and_install_update(
 
     file.flush().await.map_err(|e| e.to_string())?;
     drop(file);
+
+    // Verify checksum — fail-closed: reject download if checksum cannot be verified
+    if let Some(ref cs_url) = checksum_url {
+        if !cs_url.is_empty() {
+            let cs_res = client
+                .get(cs_url)
+                .send()
+                .await
+                .map_err(|_| "Could not fetch checksum file. Update aborted for safety.".to_string())?;
+            if !cs_res.status().is_success() {
+                let _ = tokio::fs::remove_file(&temp_path).await;
+                return Err("Checksum file download failed. Update aborted for safety.".to_string());
+            }
+            let cs_text = cs_res.text().await
+                .map_err(|_| "Could not read checksum file. Update aborted for safety.".to_string())?;
+            let file_bytes = std::fs::read(&temp_path)
+                .map_err(|e| format!("Failed to read downloaded file for checksum: {}", e))?;
+            let actual_hash = sha256_hex(&file_bytes);
+            let expected = cs_text
+                .lines()
+                .find(|line| line.contains(&asset_name))
+                .and_then(|line| line.split_whitespace().next())
+                .map(|s| s.to_string());
+            match expected {
+                Some(expected_hash) if actual_hash == expected_hash => { /* checksum verified */ }
+                Some(_) => {
+                    let _ = tokio::fs::remove_file(&temp_path).await;
+                    return Err("Checksum mismatch — the download may be corrupted. Please try again.".to_string());
+                }
+                None => {
+                    let _ = tokio::fs::remove_file(&temp_path).await;
+                    return Err("No matching checksum found for this installer. Update aborted for safety.".to_string());
+                }
+            }
+        }
+    }
 
     // Launch the NSIS installer
     let mut cmd = Command::new(&temp_path);

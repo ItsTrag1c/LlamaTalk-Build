@@ -202,6 +202,10 @@ function readCredentials() {
     return null;
   }
 }
+function isClaudeCodeAvailable() {
+  const creds = readCredentials();
+  return !!creds?.accessToken;
+}
 function getClaudeCodeToken() {
   if (_cached && _cached.expiresAt > Date.now() + 6e4) {
     return _cached;
@@ -3685,12 +3689,12 @@ var init_npm_install = __esm({
           const description = data.description || "No description";
           const npmArgs = ["install", args.package];
           if (args.dev) npmArgs.push("--save-dev");
-          const result = (0, import_child_process5.spawnSync)("npm", npmArgs, {
+          const npmCmd = process.platform === "win32" ? "npm.cmd" : "npm";
+          const result = (0, import_child_process5.spawnSync)(npmCmd, npmArgs, {
             cwd: context.projectRoot,
             timeout: 12e4,
             encoding: "utf8",
-            stdio: ["pipe", "pipe", "pipe"],
-            shell: true
+            stdio: ["pipe", "pipe", "pipe"]
           });
           if (result.status !== 0) throw new Error(result.stderr || "npm install failed");
           const output = result.stdout;
@@ -3747,8 +3751,7 @@ var init_pip_install = __esm({
             cwd: context.projectRoot,
             timeout: 12e4,
             encoding: "utf8",
-            stdio: ["pipe", "pipe", "pipe"],
-            shell: true
+            stdio: ["pipe", "pipe", "pipe"]
           });
           if (result.status !== 0) throw new Error(result.stderr || "pip install failed");
           const output = result.stdout;
@@ -3769,26 +3772,28 @@ ${output}`;
 function isBlockedPackage(name) {
   return BLOCKED_PACKAGES.some((p) => p.test(name));
 }
-function sanitizeName(name) {
-  return /^[@a-z0-9._\-\/]+$/i.test(name);
+function sanitizeName(name, manager) {
+  if (manager === "npm") return /^(@[a-z0-9._-]+\/)?[a-z0-9._-]+$/i.test(name);
+  if (manager === "winget") return /^[a-z0-9._-]+$/i.test(name);
+  return /^[a-z0-9._-]+$/i.test(name);
 }
-var import_child_process7, ALLOWED_MANAGERS, MANAGER_INSTALL_CMD, MANAGER_CHECK_CMD, BLOCKED_PACKAGES, installToolTool;
+var import_child_process7, ALLOWED_MANAGERS, MANAGER_INSTALL_ARGS, MANAGER_CHECK_ARGS, BLOCKED_PACKAGES, installToolTool;
 var init_install_tool = __esm({
   "../../llamatalkbuild-engine/src/tools/install-tool.js"() {
     import_child_process7 = require("child_process");
     init_base2();
     ALLOWED_MANAGERS = ["npm", "pip", "winget", "choco"];
-    MANAGER_INSTALL_CMD = {
-      npm: (pkg) => `npm install -g ${pkg}`,
-      pip: (pkg) => `pip install ${pkg}`,
-      winget: (pkg) => `winget install --accept-package-agreements --accept-source-agreements -e --id ${pkg}`,
-      choco: (pkg) => `choco install ${pkg} -y`
+    MANAGER_INSTALL_ARGS = {
+      npm: (pkg) => ({ cmd: "npm", args: ["install", "-g", pkg] }),
+      pip: (pkg) => ({ cmd: "pip", args: ["install", pkg] }),
+      winget: (pkg) => ({ cmd: "winget", args: ["install", "--accept-package-agreements", "--accept-source-agreements", "-e", "--id", pkg] }),
+      choco: (pkg) => ({ cmd: "choco", args: ["install", pkg, "-y"] })
     };
-    MANAGER_CHECK_CMD = {
-      npm: (pkg) => `npm list -g ${pkg.split("@")[0]} --depth=0`,
-      pip: (pkg) => `pip show ${pkg}`,
-      winget: (pkg) => `winget list --id ${pkg}`,
-      choco: (pkg) => `choco list --local-only ${pkg}`
+    MANAGER_CHECK_ARGS = {
+      npm: (pkg) => ({ cmd: "npm", args: ["list", "-g", pkg.split("@")[0], "--depth=0"] }),
+      pip: (pkg) => ({ cmd: "pip", args: ["show", pkg] }),
+      winget: (pkg) => ({ cmd: "winget", args: ["list", "--id", pkg] }),
+      choco: (pkg) => ({ cmd: "choco", args: ["list", "--local-only", pkg] })
     };
     BLOCKED_PACKAGES = [
       /^(sudo|su|doas)$/i,
@@ -3826,7 +3831,7 @@ var init_install_tool = __esm({
         if (!ALLOWED_MANAGERS.includes(args.manager)) {
           return { ok: false, error: `Invalid manager: ${args.manager}. Use: ${ALLOWED_MANAGERS.join(", ")}` };
         }
-        if (!sanitizeName(args.package)) {
+        if (!sanitizeName(args.package, args.manager)) {
           return { ok: false, error: `Invalid package name: ${args.package}` };
         }
         if (isBlockedPackage(args.package)) {
@@ -3836,43 +3841,42 @@ var init_install_tool = __esm({
       },
       async execute(args) {
         const { package: pkg, manager } = args;
-        const checkCmd = MANAGER_CHECK_CMD[manager](pkg);
+        const check = MANAGER_CHECK_ARGS[manager](pkg);
         try {
-          const checkOutput = (0, import_child_process7.execSync)(checkCmd, {
+          const result = (0, import_child_process7.spawnSync)(check.cmd, check.args, {
             timeout: 3e4,
             encoding: "utf8",
-            stdio: ["pipe", "pipe", "pipe"],
-            shell: true
+            stdio: ["pipe", "pipe", "pipe"]
           });
-          if (checkOutput && !checkOutput.includes("No installed package")) {
+          if (result.status === 0 && result.stdout && !result.stdout.includes("No installed package")) {
             return `Already installed: ${pkg}
-${checkOutput.trim()}`;
+${result.stdout.trim()}`;
           }
         } catch {
         }
-        const installCmd = MANAGER_INSTALL_CMD[manager](pkg);
+        const install = MANAGER_INSTALL_ARGS[manager](pkg);
         try {
-          const output = (0, import_child_process7.execSync)(installCmd, {
+          const result = (0, import_child_process7.spawnSync)(install.cmd, install.args, {
             timeout: 3e5,
             // 5 min for large installs
             encoding: "utf8",
             maxBuffer: 10 * 1024 * 1024,
-            stdio: ["pipe", "pipe", "pipe"],
-            shell: true
+            stdio: ["pipe", "pipe", "pipe"]
           });
-          let result = output || "(no output)";
-          if (result.length > 3e4) {
-            result = result.slice(0, 3e4) + "\n... [truncated]";
+          if (result.status !== 0) {
+            const errOut = (result.stderr || result.stdout || "Unknown error").slice(0, 1e4);
+            return `Error installing ${pkg} via ${manager}:
+${errOut}`;
+          }
+          let output = result.stdout || "(no output)";
+          if (output.length > 3e4) {
+            output = output.slice(0, 3e4) + "\n... [truncated]";
           }
           return `Installed ${pkg} via ${manager}
-${result}`;
+${output}`;
         } catch (err) {
-          let output = "";
-          if (err.stdout) output += err.stdout;
-          if (err.stderr) output += (output ? "\n" : "") + err.stderr;
-          if (!output) output = err.message;
           return `Error installing ${pkg} via ${manager}:
-${output.slice(0, 1e4)}`;
+${err.message.slice(0, 1e4)}`;
         }
       },
       formatConfirmation(args) {
@@ -3899,7 +3903,7 @@ code { background: #f0f0f0; padding: 2px 6px; border-radius: 3px; }
 </style>
 </head>
 <body>
-${content}
+${content.replace(/<script[\s\S]*?<\/script>/gi, "<!-- script removed for safety -->")}
 </body>
 </html>`;
 }
@@ -5431,14 +5435,14 @@ var methods = {
     saveConfig(e.config);
     return { ok: true, agent };
   },
-  // --- Claude Code auth (hidden) ---
-  claudeAuthStatus() {
+  // --- Claude Code auth (internal) ---
+  getClaudeCodeStatus() {
     return getClaudeCodeStatus();
   },
-  claudeAuthEnable() {
-    const status = getClaudeCodeStatus();
-    if (!status.available) return { ok: false, error: status.reason };
-    if (status.expired) return { ok: false, error: "Token expired \u2014 open Claude Code to refresh" };
+  isClaudeCodeAvailable() {
+    return { available: isClaudeCodeAvailable() };
+  },
+  enableClaudeCodeAuth() {
     const cfg = loadConfig();
     cfg.claudeCodeAuth = true;
     if (!cfg.enabledProviders) cfg.enabledProviders = {};
@@ -5446,9 +5450,9 @@ var methods = {
     saveConfig(cfg);
     if (engine) engine.config = cfg;
     config = cfg;
-    return { ok: true, ...status };
+    return { ok: true };
   },
-  claudeAuthDisable() {
+  disableClaudeCodeAuth() {
     const cfg = loadConfig();
     cfg.claudeCodeAuth = false;
     saveConfig(cfg);
