@@ -1,7 +1,7 @@
 # Clank — Privacy Policy
 
 **Effective Date:** March 2, 2026
-**Last Updated:** March 8, 2026 (rev. 8)
+**Last Updated:** March 10, 2026 (rev. 9)
 
 ---
 
@@ -277,6 +277,7 @@ Clank is designed with privacy-by-default principles consistent with:
 - **2026-03-06 (rev. 6)** — Desktop v0.15.0 security hardening. Cloud API keys moved from localStorage to OS credential store (Windows Credential Manager / macOS Keychain). Added credential key allowlist. Added PIN rate limiting with progressive lockout. Added cloud URL domain allowlist and disabled HTTP redirects. Updated integrity verification to fail-closed model with GitHub URL validation. Google API keys now sent via header instead of URL parameter. Added macOS Keychain references throughout.
 - **2026-03-07 (rev. 7)** — Added Clank Build as third application. Documented Build data storage (config, memory, session logs), data retention, deletion, and encryption. Updated overview to cover all apps. Added OpenCode cloud provider support (Desktop v0.16.0). Website launched at clanksuite.dev.
 - **2026-03-08 (rev. 8)** — Expanded to four applications (Build CLI + Build Desktop). Added Build-specific security: path traversal protection, destructive command detection, tool safety levels (low/medium/high), file operation tracking. Added Build Desktop to third-party dependencies. Fixed update check URLs to current repo names. Added OpenCode to all cloud provider references.
+- **2026-03-10 (rev. 9)** — Build Desktop v2.4.3: auto-updater now performs SHA-256 checksum verification on downloaded installers via the Rust backend (previously the checksum URL was not passed through). No change to what data is collected or stored.
 
 ---
 

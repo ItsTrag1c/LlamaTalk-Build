@@ -1,6 +1,15 @@
 # Changelog — Clank Build Desktop
 
-Last updated: 2026-03-10 (v2.4.0)
+Last updated: 2026-03-10 (v2.4.3)
+
+---
+
+## v2.4.3 (2026-03-10)
+
+### Security
+- Auto-updater: frontend now passes checksum_url to Rust backend, activating SHA-256 verification on downloads
+- Sidecar version bumped to 2.4.2 (fixes onboarding re-trigger logic)
+- Rebuilt sidecar bundle: removed all internal claude-auth code permanently
 
 ---
 
