@@ -1,4 +1,4 @@
-# Changelog — LlamaTalk Build Desktop
+# Changelog — Clank Build Desktop
 
 Last updated: 2026-03-10 (v2.4.0)
 
@@ -134,10 +134,10 @@ All engine improvements from CLI v2.5.0 are included: sub-agent auto-approve, ta
 
 ## v0.1.0 — 2026-03-08
 
-Initial release of LlamaTalk Build Desktop, the desktop GUI for LlamaTalk Build.
+Initial release of Clank Build Desktop, the desktop GUI for Clank Build.
 
 ### Core Features
-- **Sidecar architecture** — Node.js process wrapping `llamatalkbuild-engine` via JSON-RPC over stdin/stdout
+- **Sidecar architecture** — Node.js process wrapping `clankbuild-engine` via JSON-RPC over stdin/stdout
 - **Frameless window** — custom titlebar with minimize, maximize, and close buttons (1200x800)
 - **Single-instance enforcement** — prevents duplicate app launches
 - **React 19 + Vite 7 + Tailwind CSS 4 + Tauri 2** frontend stack

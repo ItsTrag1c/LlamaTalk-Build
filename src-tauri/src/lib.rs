@@ -57,15 +57,15 @@ struct SidecarMessage {
 fn get_sidecar_name() -> &'static str {
     #[cfg(target_os = "windows")]
     {
-        "llamabuild-sidecar.exe"
+        "clankbuild-sidecar.exe"
     }
     #[cfg(target_os = "macos")]
     {
-        "llamabuild-sidecar"
+        "clankbuild-sidecar"
     }
     #[cfg(not(any(target_os = "windows", target_os = "macos")))]
     {
-        "llamabuild-sidecar"
+        "clankbuild-sidecar"
     }
 }
 
@@ -284,13 +284,13 @@ async fn check_for_desktop_update(
     let current = app.package_info().version.to_string();
 
     let client = reqwest::Client::builder()
-        .user_agent("LlamaTalk-Build-Desktop")
+        .user_agent("Clank-Build-Desktop")
         .build()
         .map_err(|e| e.to_string())?;
 
     // Fetch releases and find the latest desktop release (tag: desktop-vX.Y.Z)
     let releases: Vec<serde_json::Value> = client
-        .get("https://api.github.com/repos/ItsTrag1c/LlamaTalk-Build/releases")
+        .get("https://api.github.com/repos/ItsTrag1c/Clank-Build/releases")
         .send()
         .await
         .map_err(|e| e.to_string())?
@@ -356,7 +356,7 @@ async fn download_and_install_update(
     use tokio::io::AsyncWriteExt;
 
     // Security: Validate download URL is from our GitHub releases only
-    if !download_url.starts_with("https://github.com/ItsTrag1c/LlamaTalk-Build/releases/download/") {
+    if !download_url.starts_with("https://github.com/ItsTrag1c/Clank-Build/releases/download/") {
         return Err("Invalid download URL: must be from official GitHub releases".to_string());
     }
 
@@ -370,7 +370,7 @@ async fn download_and_install_update(
     }
 
     let client = reqwest::Client::builder()
-        .user_agent("LlamaTalk-Build-Desktop")
+        .user_agent("Clank-Build-Desktop")
         .build()
         .map_err(|e| e.to_string())?;
 

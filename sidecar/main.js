@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * LlamaTalk Build Desktop — Sidecar Process
+ * Clank Build Desktop — Sidecar Process
  *
  * Wraps AgentEngine with a newline-delimited JSON protocol over stdin/stdout.
  * The Tauri Rust backend spawns this process and communicates via stdio.
@@ -16,7 +16,8 @@ import { createInterface } from "readline";
 import {
   AgentEngine, loadConfig, saveConfig, SessionManager, getAllLocalModels,
   CLOUD_MODELS, detectBackend, TaskManager, MemoryManager,
-} from "llamatalkbuild-engine";
+  isClaudeCodeAvailable, getClaudeCodeStatus,
+} from "clankbuild-engine";
 
 // --- Protocol helpers ---
 
@@ -145,7 +146,7 @@ const methods = {
       "selectedModel", "ollamaUrl", "safetyLevel", "profileName", "backendType",
       "telegramBotToken", "telegramAccessCode", "onboardingComplete", "appVersion",
       "enabledProviders.anthropic", "enabledProviders.google", "enabledProviders.openai", "enabledProviders.opencode",
-      "autoApprove.medium", "autoApprove.high",
+      "autoApprove.medium", "autoApprove.high", "claudeCodeAuth",
     ];
     if (!ALLOWED_KEYS.includes(key)) {
       return { ok: false, error: `Setting "${key}" is not allowed` };
@@ -434,6 +435,35 @@ const methods = {
     if (!agent) return { error: `No agent named "${name}"` };
     saveConfig(e.config);
     return { ok: true, agent };
+  },
+
+  // --- Claude Code auth (hidden) ---
+
+  claudeAuthStatus() {
+    return getClaudeCodeStatus();
+  },
+
+  claudeAuthEnable() {
+    const status = getClaudeCodeStatus();
+    if (!status.available) return { ok: false, error: status.reason };
+    if (status.expired) return { ok: false, error: "Token expired — open Claude Code to refresh" };
+    const cfg = loadConfig();
+    cfg.claudeCodeAuth = true;
+    if (!cfg.enabledProviders) cfg.enabledProviders = {};
+    cfg.enabledProviders.anthropic = true;
+    saveConfig(cfg);
+    if (engine) engine.config = cfg;
+    config = cfg;
+    return { ok: true, ...status };
+  },
+
+  claudeAuthDisable() {
+    const cfg = loadConfig();
+    cfg.claudeCodeAuth = false;
+    saveConfig(cfg);
+    if (engine) engine.config = cfg;
+    config = cfg;
+    return { ok: true };
   },
 
   saveOnboarding({ lessons }) {

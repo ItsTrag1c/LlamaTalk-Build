@@ -32,7 +32,7 @@ export function TitleBar({ onNavigateHome, showHomeButton }: TitleBarProps) {
             </svg>
           </button>
         )}
-        <span className="text-[var(--accent)] font-bold text-lg">LlamaTalk Build</span>
+        <span className="text-[var(--accent)] font-bold text-lg">Clank Build</span>
         {version && <span className="text-[var(--text-dim)] text-sm">v{version}</span>}
       </div>
 

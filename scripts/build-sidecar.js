@@ -1,15 +1,15 @@
 /**
  * Build the sidecar Node.js process into a standalone binary.
  *
- * 1. esbuild bundles sidecar/main.js + llamatalkbuild-engine into a single CJS file
+ * 1. esbuild bundles sidecar/main.js + clankbuild-engine into a single CJS file
  * 2. pkg compiles that bundle into a standalone binary (no Node.js required)
  * 3. The binary is placed in src-tauri/binaries/ with Tauri's naming convention
  *
  * The naming convention for Tauri externalBin is:
  *   {name}-{target-triple}
- * For macOS arm64: llamabuild-sidecar-aarch64-apple-darwin
- * For macOS x64: llamabuild-sidecar-x86_64-apple-darwin
- * For Windows x64: llamabuild-sidecar-x86_64-pc-windows-msvc.exe
+ * For macOS arm64: clankbuild-sidecar-aarch64-apple-darwin
+ * For macOS x64: clankbuild-sidecar-x86_64-apple-darwin
+ * For Windows x64: clankbuild-sidecar-x86_64-pc-windows-msvc.exe
  */
 import { execSync } from "child_process";
 import { mkdirSync, existsSync } from "fs";
@@ -29,7 +29,7 @@ let triple, outName, pkgTarget;
 
 if (platform === "win32") {
   triple = "x86_64-pc-windows-msvc";
-  outName = `llamabuild-sidecar-${triple}.exe`;
+  outName = `clankbuild-sidecar-${triple}.exe`;
   pkgTarget = "node18-win-x64";
 } else if (platform === "darwin") {
   if (arch === "arm64") {
@@ -37,11 +37,11 @@ if (platform === "win32") {
   } else {
     triple = "x86_64-apple-darwin";
   }
-  outName = `llamabuild-sidecar-${triple}`;
+  outName = `clankbuild-sidecar-${triple}`;
   pkgTarget = `node18-macos-${arch === "arm64" ? "arm64" : "x64"}`;
 } else {
   triple = `${arch}-unknown-linux-gnu`;
-  outName = `llamabuild-sidecar-${triple}`;
+  outName = `clankbuild-sidecar-${triple}`;
   pkgTarget = `node18-linux-${arch === "arm64" ? "arm64" : "x64"}`;
 }
 

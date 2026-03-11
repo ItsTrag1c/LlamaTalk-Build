@@ -109,7 +109,7 @@ export function OnboardingPage({ config, onComplete }: OnboardingPageProps) {
         {/* Safety notice — only on first step */}
         {step === 0 && (
           <div className="mb-6 p-4 rounded-xl bg-[var(--warning)]/8 border border-[var(--warning)]/15 text-sm text-[var(--text-muted)]">
-            LlamaTalk Build can read, write, and delete files, and execute commands.
+            Clank Build can read, write, and delete files, and execute commands.
             Review agent actions carefully, especially at low safety level.
           </div>
         )}
@@ -161,7 +161,7 @@ export function OnboardingPage({ config, onComplete }: OnboardingPageProps) {
                   className="w-full px-4 py-2.5 text-sm rounded-xl bg-[var(--bg-surface)] border border-[var(--border)] text-[var(--text)] placeholder-[var(--text-dim)] focus:outline-none focus:border-[var(--accent)]"
                 />
                 <p className="text-xs text-[var(--text-dim)]">
-                  Start the bot with <code className="px-1.5 py-0.5 rounded bg-[var(--bg-elevated)] text-[var(--text-muted)]">llamabuild --telegram</code>
+                  Start the bot with <code className="px-1.5 py-0.5 rounded bg-[var(--bg-elevated)] text-[var(--text-muted)]">clankbuild --telegram</code>
                 </p>
               </div>
             )}

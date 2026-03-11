@@ -1,12 +1,12 @@
 [package]
-name = "llamabuilddesktop"
+name = "clankbuilddesktop"
 version = "2.4.0"
-description = "LlamaTalk Build Desktop — Agentic Coding Assistant"
+description = "Clank Build Desktop — Agentic Coding Assistant"
 authors = ["ItsTrag1c"]
 edition = "2021"
 
 [lib]
-name = "llamabuilddesktop_lib"
+name = "clankbuilddesktop_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
