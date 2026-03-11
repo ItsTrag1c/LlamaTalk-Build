@@ -1,6 +1,13 @@
 # Changelog — Clank Build Desktop
 
-Last updated: 2026-03-11 (v2.4.9)
+Last updated: 2026-03-11 (v2.4.10)
+
+---
+
+## v2.4.10 (2026-03-11)
+
+### Bug Fixes
+- **Ollama provider preserves tool_calls in conversation history** — engine update: assistant messages were stripped of `tool_calls` when sent to the Ollama API, breaking the tool-use cycle after one round. Sub-agents now correctly continue multi-step tool sequences.
 
 ---
 

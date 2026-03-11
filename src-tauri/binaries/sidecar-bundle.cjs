@@ -561,6 +561,8 @@ var init_ollama = __esm({
         for (const m of messages) {
           if (m.role === "tool_result") {
             msgs.push({ role: "tool", content: typeof m.content === "string" ? m.content : JSON.stringify(m.content) });
+          } else if (m.role === "assistant" && m.tool_calls) {
+            msgs.push(m);
           } else {
             msgs.push({ role: m.role, content: m.content });
           }
