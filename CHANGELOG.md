@@ -1,6 +1,14 @@
 # Changelog — Clank Build
 
-Last updated: 2026-03-11 (v2.5.16)
+Last updated: 2026-03-11 (v2.5.17)
+
+---
+
+## v2.5.17 (2026-03-11)
+
+### Bug Fixes
+- **Scheduled tasks now actually trigger** — fixed `_running` set never being cleaned up in the `.catch()` handler, causing schedules to get permanently stuck after any engine-creation error.
+- **Multi-step scheduled tasks now complete** — scheduled task execution now has the same continuation logic as `delegate_to_agent`: detects incomplete responses ("next I will...", "remaining steps...", etc.) and re-prompts up to 3 times so multi-step tasks run to completion.
 
 ---
 
