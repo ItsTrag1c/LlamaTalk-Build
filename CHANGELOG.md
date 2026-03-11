@@ -1,6 +1,13 @@
 # Changelog — Clank Build Desktop
 
-Last updated: 2026-03-11 (v2.4.11)
+Last updated: 2026-03-11 (v2.4.12)
+
+---
+
+## v2.4.12 (2026-03-11)
+
+### Bug Fixes
+- **Delegation tasks no longer auto-completed** — engine update: tasks created by `delegate_to_agent` were prematurely marked "completed" when any tool was used. Now removed as transient tracking entries — the manager decides actual completion.
 
 ---
 
