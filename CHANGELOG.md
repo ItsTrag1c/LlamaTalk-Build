@@ -1,6 +1,14 @@
 # Changelog — Clank Build Desktop
 
-Last updated: 2026-03-11 (v2.4.7)
+Last updated: 2026-03-11 (v2.4.8)
+
+---
+
+## v2.4.8 (2026-03-11)
+
+### Improvements
+- **Fuzzy tool name matching for sub-agents** — engine update: tool names resolve via aliases, partial matches, and common shortcuts when creating or loading sub-agents.
+- **Sub-agents auto-approve all tool calls** — engine update: delegation approval covers all sub-agent tool usage, removing individual confirmation prompts that blocked the cycle.
 
 ---
 

@@ -4102,7 +4102,7 @@ var init_delegate_agent = __esm({
           return `Error: Sub-agent "${def.name}" is currently disabled. Enable it with /agent enable ${def.name}`;
         }
         const { AgentEngine: AgentEngine2 } = await Promise.resolve().then(() => (init_agent(), agent_exports));
-        const cacheKey = `${parentEngine.conversationId}:${def.id}`;
+        const cacheKey = `${parentEngine.conversationId || "cli"}:${def.id}`;
         let subEngine = _subEngineCache.get(cacheKey);
         let isNewEngine = false;
         if (!subEngine) {
@@ -4218,7 +4218,9 @@ var init_delegate_agent = __esm({
 // ../../llamatalkbuild-engine/src/agent.js
 var agent_exports = {};
 __export(agent_exports, {
-  AgentEngine: () => AgentEngine
+  AgentEngine: () => AgentEngine,
+  VALID_TOOL_NAMES: () => VALID_TOOL_NAMES,
+  resolveToolNames: () => resolveToolNames
 });
 function buildSystemPrompt(config2, projectRoot, memoryBlock, projectContext, agentMode, options = {}) {
   const agentName = options.agentName || config2.agentName || "a coding assistant";
@@ -4333,16 +4335,80 @@ ${projectContext}`;
 - Date: ${(/* @__PURE__ */ new Date()).toISOString().split("T")[0]}`;
   return prompt;
 }
-function createToolRegistry(allowedTools = null) {
-  const registry = new ToolRegistry();
-  const validToolNames = new Set(ALL_TOOLS.map((t) => t.definition.name));
-  let filter = allowedTools ? new Set(allowedTools) : null;
-  if (filter) {
-    const hasAnyValid = [...filter].some((name) => validToolNames.has(name));
-    if (!hasAnyValid) {
-      filter = null;
+function resolveToolNames(input) {
+  if (!input || !Array.isArray(input) || input.length === 0) return null;
+  const ALIASES = {
+    read: "read_file",
+    file: "read_file",
+    cat: "read_file",
+    write: "write_file",
+    create: "write_file",
+    edit: "edit_file",
+    modify: "edit_file",
+    replace: "edit_file",
+    ls: "list_directory",
+    dir: "list_directory",
+    list: "list_directory",
+    search: "search_files",
+    find: "search_files",
+    grep: "search_files",
+    glob: "glob_files",
+    pattern: "glob_files",
+    shell: "bash",
+    cmd: "bash",
+    command: "bash",
+    exec: "bash",
+    terminal: "bash",
+    npm: "npm_install",
+    pip: "pip_install",
+    install: "install_tool",
+    fetch: "web_fetch",
+    curl: "web_fetch",
+    http: "web_fetch",
+    websearch: "web_search",
+    google: "web_search",
+    generate: "generate_file",
+    pdf: "generate_file"
+  };
+  const validSet = new Set(VALID_TOOL_NAMES);
+  const matched = /* @__PURE__ */ new Set();
+  for (const raw of input) {
+    const t = raw.trim().toLowerCase();
+    if (!t) continue;
+    if (validSet.has(t)) {
+      matched.add(t);
+      continue;
+    }
+    if (ALIASES[t]) {
+      matched.add(ALIASES[t]);
+      continue;
+    }
+    const noUnder = VALID_TOOL_NAMES.find((n) => n.replace(/_/g, "") === t.replace(/[\s_-]/g, ""));
+    if (noUnder) {
+      matched.add(noUnder);
+      continue;
+    }
+    const sub = VALID_TOOL_NAMES.find((n) => n.includes(t) || t.includes(n.replace(/_/g, "")));
+    if (sub) {
+      matched.add(sub);
+      continue;
+    }
+    const words = t.split(/[\s_-]+/);
+    const wordMatch = VALID_TOOL_NAMES.find((n) => {
+      const toolWords = n.split("_");
+      return words.some((w) => toolWords.some((tw) => tw.startsWith(w) || w.startsWith(tw)));
+    });
+    if (wordMatch) {
+      matched.add(wordMatch);
+      continue;
     }
   }
+  return matched.size > 0 ? [...matched] : null;
+}
+function createToolRegistry(allowedTools = null) {
+  const registry = new ToolRegistry();
+  const resolved = resolveToolNames(allowedTools);
+  const filter = resolved ? new Set(resolved) : null;
   for (const tool of ALL_TOOLS) {
     if (!filter || filter.has(tool.definition.name)) {
       registry.register(tool);
@@ -4354,7 +4420,7 @@ function compressMessages(messages) {
   const result = compactMessages(messages);
   return result.messages;
 }
-var import_events, import_path17, import_fs17, ANSI_RE, MODES, BASE_SYSTEM_PROMPT, ALL_TOOLS, AgentEngine;
+var import_events, import_path17, import_fs17, ANSI_RE, MODES, BASE_SYSTEM_PROMPT, ALL_TOOLS, VALID_TOOL_NAMES, AgentEngine;
 var init_agent = __esm({
   "../../llamatalkbuild-engine/src/agent.js"() {
     import_events = require("events");
@@ -4483,6 +4549,7 @@ generate_file(path, content, format, title) \u2014 Generate a document file (md,
       installToolTool,
       generateFileTool
     ];
+    VALID_TOOL_NAMES = ALL_TOOLS.map((t) => t.definition.name);
     AgentEngine = class extends import_events.EventEmitter {
       constructor(config2, options = {}) {
         super();
@@ -4591,7 +4658,8 @@ generate_file(path, content, format, title) \u2014 Generate a document file (md,
       addSubAgent(def) {
         if (!this.config.subAgents) this.config.subAgents = [];
         const id = def.id || def.name.toLowerCase().replace(/[^a-z0-9]+/g, "-");
-        const agent = { id, name: def.name, role: def.role, model: def.model || null, tools: def.tools || null, enabled: true };
+        const tools = def.tools ? resolveToolNames(def.tools) : null;
+        const agent = { id, name: def.name, role: def.role, model: def.model || null, tools, enabled: true };
         this.config.subAgents.push(agent);
         if (this.config.subAgents.length === 1 && !this.toolRegistry.get("delegate_to_agent")) {
           this.toolRegistry.register(delegateAgentTool);
@@ -4837,8 +4905,7 @@ ${taskBlock}` : taskBlock;
                 continue;
               }
               validated.push({ tc, tool });
-              const isSubAgentAssignedTool = this.isSubAgent && this.subAgentDef?.tools?.includes(tc.name);
-              if (!isSubAgentAssignedTool && requireConfirmation(tool, tc.arguments, this.config, this.agentMode)) {
+              if (!this.isSubAgent && requireConfirmation(tool, tc.arguments, this.config, this.agentMode)) {
                 const desc = tool.formatConfirmation ? tool.formatConfirmation(tc.arguments) : `${tc.name}`;
                 needsConfirm.push({ tc, tool, desc });
               }
