@@ -1,6 +1,13 @@
 # Changelog — Clank Build
 
-Last updated: 2026-03-11 (v2.5.11)
+Last updated: 2026-03-11 (v2.5.12)
+
+---
+
+## v2.5.12 (2026-03-11)
+
+### Bug Fixes
+- **Ollama provider preserves tool_calls in conversation history** — assistant messages sent to the Ollama API were stripped of their `tool_calls` property, so the model couldn't see its own prior tool calls. Tool results appeared disconnected and the model stopped the tool-use cycle after one round. Now `tool_calls` are preserved, matching the OpenAI provider behavior.
 
 ---
 
