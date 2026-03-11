@@ -32,6 +32,10 @@ export const searchFilesTool = {
 
   validate(args, context) {
     if (!args.pattern) return { ok: false, error: "pattern is required" };
+    // Reject excessively long patterns that could cause ReDoS
+    if (args.pattern.length > 500) {
+      return { ok: false, error: "Pattern too long (max 500 characters)" };
+    }
     try {
       new RegExp(args.pattern);
     } catch (e) {
@@ -45,7 +49,12 @@ export const searchFilesTool = {
       ? validatePath(args.path, context.projectRoot, { allowExternal: true }).resolved
       : context.projectRoot;
 
-    const regex = new RegExp(args.pattern, "i");
+    let regex;
+    try {
+      regex = new RegExp(args.pattern, "i");
+    } catch (e) {
+      return `Invalid regex pattern: ${e.message}`;
+    }
     const maxResults = args.max_results || 50;
     const results = [];
 

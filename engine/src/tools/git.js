@@ -1,4 +1,4 @@
-import { execSync } from "child_process";
+import { spawnSync } from "child_process";
 import { SafetyLevel } from "./base.js";
 
 const SAFE_SUBCOMMANDS = new Set(["status", "diff", "log", "branch", "show", "remote", "tag", "rev-parse", "shortlog", "blame"]);
@@ -6,6 +6,19 @@ const DANGEROUS_SUBCOMMANDS = new Set(["commit", "push", "merge", "rebase", "res
 
 function getSubcommand(args) {
   return (args.subcommand || "").split(/\s+/)[0].toLowerCase();
+}
+
+// Parse a subcommand + args string into an array, respecting quoted strings
+function parseGitArgs(subcommand, extra) {
+  const combined = extra ? `${subcommand} ${extra}` : subcommand;
+  const args = [];
+  // Match quoted strings or non-whitespace sequences
+  const regex = /(?:"([^"]*)")|(?:'([^']*)')|(\S+)/g;
+  let match;
+  while ((match = regex.exec(combined)) !== null) {
+    args.push(match[1] ?? match[2] ?? match[3]);
+  }
+  return args;
 }
 
 export const gitTool = {
@@ -48,10 +61,11 @@ export const gitTool = {
   },
 
   async execute(args, context) {
-    const fullCmd = `git ${args.subcommand}${args.args ? " " + args.args : ""}`;
+    // Use spawnSync with argument array (shell: false) to prevent shell injection
+    const gitArgs = parseGitArgs(args.subcommand, args.args);
 
     try {
-      const output = execSync(fullCmd, {
+      const result = spawnSync("git", gitArgs, {
         cwd: context.projectRoot,
         timeout: 30000,
         encoding: "utf8",
@@ -59,16 +73,20 @@ export const gitTool = {
         stdio: ["pipe", "pipe", "pipe"],
       });
 
-      let result = output || "(no output)";
-      if (result.length > 30000) {
-        result = result.slice(0, 30000) + `\n... [truncated]`;
+      if (result.status !== 0) {
+        let output = "";
+        if (result.stdout) output += result.stdout;
+        if (result.stderr) output += (output ? "\n" : "") + result.stderr;
+        return output || `Git error (exit code ${result.status})`;
       }
-      return result;
+
+      let output = result.stdout || "(no output)";
+      if (output.length > 30000) {
+        output = output.slice(0, 30000) + `\n... [truncated]`;
+      }
+      return output;
     } catch (err) {
-      let output = "";
-      if (err.stdout) output += err.stdout;
-      if (err.stderr) output += (output ? "\n" : "") + err.stderr;
-      return output || `Git error: ${err.message}`;
+      return `Git error: ${err.message}`;
     }
   },
 

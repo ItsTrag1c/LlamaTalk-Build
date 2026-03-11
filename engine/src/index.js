@@ -62,3 +62,4 @@ export { discoverInstructions } from "./memory/instructions.js";
 
 // Context
 export { ContextManager, detectProjectContext } from "./context/context.js";
+

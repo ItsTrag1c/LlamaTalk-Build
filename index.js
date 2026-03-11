@@ -18,7 +18,7 @@ import { TaskManager } from "./src/memory/tasks.js";
 import { existsSync, readdirSync, unlinkSync, readFileSync } from "fs";
 import { dirname, join } from "path";
 
-const VERSION = "2.5.4";
+const VERSION = "2.5.5";
 
 // Clean up leftover files from previous /update (old EXEs that couldn't be deleted while running)
 function startupCleanup() {
@@ -168,6 +168,20 @@ function loadDashboardData(config) {
 async function authenticate(config) {
   if (!pinRequired(config)) return null;
 
+  // Support CLANKBUILD_PIN env var for non-interactive authentication (e.g., CI/scripts)
+  const envPin = process.env.CLANKBUILD_PIN;
+  if (envPin) {
+    if (verifyPin(envPin, config.pinHash)) {
+      if (needsPinMigration(config.pinHash)) {
+        config.pinHash = hashPin(envPin);
+      }
+      config.lastUnlockTime = new Date().toISOString();
+      saveConfig(config);
+      return envPin;
+    }
+    console.log(RED + "  CLANKBUILD_PIN env var incorrect. Falling back to interactive prompt." + RESET);
+  }
+
   console.log(ORANGE + "\nClank Build" + DIM + `  v${VERSION}` + RESET);
 
   let attempts = 0;
@@ -241,14 +255,18 @@ async function main() {
     // PIN handling for bot mode (non-interactive)
     let encKey = null;
     if (pinRequired(config)) {
-      if (!args.pin) {
-        console.error("Error: PIN is required. Use --pin <pin> with --telegram.");
+      // Support --pin flag or CLANKBUILD_PIN env var for non-interactive PIN
+      const pin = args.pin || process.env.CLANKBUILD_PIN;
+      if (!pin) {
+        console.error("Error: PIN is required. Use --pin <pin> or set CLANKBUILD_PIN env var with --telegram.");
         process.exit(1);
       }
-      if (!verifyPin(args.pin, config.pinHash)) {
+      if (!verifyPin(pin, config.pinHash)) {
         console.error("Error: Incorrect PIN.");
         process.exit(1);
       }
+      // Use the resolved pin for the rest of this block
+      args.pin = pin;
       if (!config.encKeySalt) {
         config.encKeySalt = generateEncKeySalt();
         saveConfig(config);

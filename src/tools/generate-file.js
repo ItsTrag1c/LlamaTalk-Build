@@ -114,8 +114,17 @@ export const generateFileTool = {
   },
 };
 
+function sanitizeHtmlBody(html) {
+  // Strip <script> tags and their contents
+  let safe = html.replace(/<script[\s\S]*?<\/script>/gi, "<!-- script removed for safety -->");
+  // Strip on* event handler attributes (e.g., onclick=, onerror=, onload=)
+  safe = safe.replace(/\s+on[a-z]+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, "");
+  return safe;
+}
+
 function wrapHtml(content, title) {
   const safeTitle = (title || "Document").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const safeContent = sanitizeHtmlBody(content);
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -130,7 +139,7 @@ code { background: #f0f0f0; padding: 2px 6px; border-radius: 3px; }
 </style>
 </head>
 <body>
-${content}
+${safeContent}
 </body>
 </html>`;
 }

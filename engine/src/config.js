@@ -26,7 +26,6 @@ const DEFAULTS = {
   apiKey_openai: "",
   apiKey_opencode: "",
   enabledProviders: { anthropic: false, google: false, openai: false, opencode: false },
-  claudeCodeAuth: false, // use Claude Code OAuth token as Anthropic key
 
   // Agent naming & sub-agents
   agentName: "",

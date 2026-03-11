@@ -42,7 +42,6 @@ export const pipInstallTool = {
         timeout: 120000,
         encoding: "utf8",
         stdio: ["pipe", "pipe", "pipe"],
-        shell: true,
       });
       if (result.status !== 0) throw new Error(result.stderr || "pip install failed");
       const output = result.stdout;
