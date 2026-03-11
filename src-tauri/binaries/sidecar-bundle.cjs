@@ -4174,14 +4174,17 @@ var init_delegate_agent = __esm({
         }
         const MAX_RETRIES = 1;
         let retries = 0;
+        const wrappedTask = `TASK: ${args.task}
+
+Execute this task now using your tools. Start your response with a tool call \u2014 do not reply with text first.`;
         try {
-          await subEngine.sendMessage(args.task);
+          await subEngine.sendMessage(wrappedTask);
           while (lastIterationCount === 0 && retries < MAX_RETRIES) {
             retries++;
             finalResponse = "";
             lastIterationCount = 0;
             await subEngine.sendMessage(
-              "You did not execute any tools. You MUST use your tools (read_file, write_file, edit_file, search_files, web_search, bash, etc.) to complete this task. Do not just describe what you would do \u2014 actually do it now."
+              "You did not execute any tools. You MUST respond with a tool call right now. If the task says to search, call web_search. If it says to read, call read_file. If it says to write, call write_file. Do NOT reply with text \u2014 reply with a tool call."
             );
           }
         } catch (err) {
@@ -4270,6 +4273,19 @@ You are in Manage Mode. You are the **manager** \u2014 your entire purpose is to
 
 ## Your Role
 ${agentRole}`;
+  }
+  if (options.isSubAgent) {
+    prompt += `
+
+## Sub-Agent Execution Rules
+You are a sub-agent receiving delegated tasks from a manager. You MUST act immediately using tool calls \u2014 never respond with just text. Your FIRST response must include at least one tool call. Do not describe what you plan to do, do not ask for clarification, do not say "I will" \u2014 just call the appropriate tool right away.
+
+If the task involves searching: call web_search or search_files immediately.
+If the task involves reading: call read_file immediately.
+If the task involves writing or editing: read the file first, then write/edit.
+If the task involves running commands: call bash immediately.
+
+You are expected to complete the full task autonomously. Use multiple tool calls in sequence until the task is fully done. Only respond with a text summary AFTER you have finished all tool operations.`;
   }
   if (!options.isSubAgent && config2.subAgents?.length > 0) {
     const enabled = config2.subAgents.filter((a) => a.enabled !== false);

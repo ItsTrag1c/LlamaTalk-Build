@@ -1,6 +1,13 @@
 # Changelog — Clank Build Desktop
 
-Last updated: 2026-03-11 (v2.4.8)
+Last updated: 2026-03-11 (v2.4.9)
+
+---
+
+## v2.4.9 (2026-03-11)
+
+### Improvements
+- **Sub-agent execution directive** — engine update: sub-agents receive a stronger system prompt that forces immediate tool usage, and delegated tasks are wrapped with execution instructions.
 
 ---
 
