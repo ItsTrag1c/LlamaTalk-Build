@@ -112,10 +112,14 @@ export const delegateAgentTool = {
     // Sub-agents run fully in the background — no events forwarded to chat.
     // The manager receives the final result as a tool return value.
 
-    // Collect the final response (only needed in synchronous mode)
+    // Collect the final response and iteration count (tool executions)
     let finalResponse = "";
+    let lastIterationCount = 0;
     subEngine.on("response-end", ({ text }) => {
       finalResponse = text || "";
+    });
+    subEngine.on("usage", ({ iterationCount }) => {
+      lastIterationCount = iterationCount || 0;
     });
 
     // Handle cancellation
@@ -145,20 +149,53 @@ export const delegateAgentTool = {
       return `Delegated task to ${def.name}. They're working on it in the background — you'll receive their results when they finish. You can continue handling other requests in the meantime.`;
     }
 
-    // Synchronous mode (CLI / Desktop) — block until the sub-agent finishes
+    // Synchronous mode (CLI / Desktop) — block until the sub-agent finishes.
+    // If the sub-agent responds without using any tools (iterationCount === 0),
+    // it likely just acknowledged the task without acting. Re-prompt once with
+    // an explicit instruction to use tools, so small models don't just say
+    // "Sure, I'll do that" and stop.
+    const MAX_RETRIES = 1;
+    let retries = 0;
+
     try {
       await subEngine.sendMessage(args.task);
+
+      while (lastIterationCount === 0 && retries < MAX_RETRIES) {
+        retries++;
+        finalResponse = "";
+        lastIterationCount = 0;
+        await subEngine.sendMessage(
+          "You did not execute any tools. You MUST use your tools (read_file, write_file, edit_file, search_files, web_search, bash, etc.) to complete this task. Do not just describe what you would do — actually do it now."
+        );
+      }
     } catch (err) {
       completeTask();
       return `Sub-agent "${def.name}" encountered an error: ${err.message}`;
     }
 
-    completeTask();
+    // Only mark the task complete if the agent actually did work
+    if (lastIterationCount > 0) {
+      completeTask();
+    } else {
+      // Remove the task from active (it wasn't completed, just abandoned)
+      try {
+        if (tm) {
+          const tasks = tm.list();
+          const idx = tasks.active.findIndex((t) => t.description === taskDesc);
+          if (idx >= 0) tm.remove(idx + 1);
+        }
+      } catch { /* non-critical */ }
+    }
 
     // Truncate very long responses to avoid bloating the parent's context
     const MAX_RESPONSE = 8000;
     if (finalResponse.length > MAX_RESPONSE) {
       finalResponse = finalResponse.slice(0, MAX_RESPONSE) + `\n\n[Response truncated — ${finalResponse.length - MAX_RESPONSE} chars omitted]`;
+    }
+
+    // Tell the manager if the sub-agent failed to act
+    if (lastIterationCount === 0) {
+      return `Sub-agent "${def.name}" acknowledged the task but did not use any tools to complete it. The task was NOT completed. You may need to re-delegate with more specific instructions, or handle it yourself.`;
     }
 
     return finalResponse || `Sub-agent "${def.name}" completed the task but produced no text response.`;

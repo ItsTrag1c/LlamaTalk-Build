@@ -1,6 +1,13 @@
 # Changelog — Clank Build
 
-Last updated: 2026-03-11 (v2.5.7)
+Last updated: 2026-03-11 (v2.5.8)
+
+---
+
+## v2.5.8 (2026-03-11)
+
+### Bug Fixes
+- **Sub-agent tasks no longer marked complete without actual work** — when a sub-agent responded with text only (no tool calls), the delegation tool unconditionally marked the task as complete. Now the delegation tool tracks tool execution count: if the sub-agent uses zero tools, it gets one automatic retry with explicit instructions to act. If it still doesn't use tools, the task is removed (not completed) and the manager is told the sub-agent failed to act, so it can re-delegate or handle the task itself.
 
 ---
 
