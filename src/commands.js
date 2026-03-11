@@ -842,7 +842,9 @@ ${BOLD}Settings${RESET}
           tools,
         });
         saveConfig(config);
+        const toolsDisplay = newAgent.tools ? newAgent.tools.join(", ") : "all";
         console.log(GREEN + `  Created sub-agent "${newAgent.name}" (${newAgent.id})` + RESET);
+        console.log(DIM + `  Tools: ${toolsDisplay}` + RESET);
         return { handled: true };
       }
 

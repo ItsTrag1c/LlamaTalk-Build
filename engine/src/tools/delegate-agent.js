@@ -88,7 +88,7 @@ export const delegateAgentTool = {
     // so consecutive delegations retain conversation context. On new delegation
     // the messages are cleared to start a fresh task, but the engine (and its
     // underlying conversation file) is already initialized.
-    const cacheKey = `${parentEngine.conversationId}:${def.id}`;
+    const cacheKey = `${parentEngine.conversationId || "cli"}:${def.id}`;
     let subEngine = _subEngineCache.get(cacheKey);
     let isNewEngine = false;
 

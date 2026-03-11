@@ -225,24 +225,76 @@ const ALL_TOOLS = [
   installToolTool, generateFileTool,
 ];
 
+const VALID_TOOL_NAMES = ALL_TOOLS.map((t) => t.definition.name);
+
+/**
+ * Resolve user-provided tool names to actual tool names via fuzzy matching.
+ * Accepts exact names, names without underscores, partial matches, and common aliases.
+ * Returns an array of matched real tool names (deduped), or null if no input.
+ */
+function resolveToolNames(input) {
+  if (!input || !Array.isArray(input) || input.length === 0) return null;
+
+  // Common aliases → real tool names
+  const ALIASES = {
+    read: "read_file", file: "read_file", cat: "read_file",
+    write: "write_file", create: "write_file",
+    edit: "edit_file", modify: "edit_file", replace: "edit_file",
+    ls: "list_directory", dir: "list_directory", list: "list_directory",
+    search: "search_files", find: "search_files", grep: "search_files",
+    glob: "glob_files", pattern: "glob_files",
+    shell: "bash", cmd: "bash", command: "bash", exec: "bash", terminal: "bash",
+    npm: "npm_install", pip: "pip_install", install: "install_tool",
+    fetch: "web_fetch", curl: "web_fetch", http: "web_fetch",
+    websearch: "web_search", google: "web_search",
+    generate: "generate_file", pdf: "generate_file",
+  };
+
+  const validSet = new Set(VALID_TOOL_NAMES);
+  const matched = new Set();
+
+  for (const raw of input) {
+    const t = raw.trim().toLowerCase();
+    if (!t) continue;
+
+    // 1. Exact match
+    if (validSet.has(t)) { matched.add(t); continue; }
+
+    // 2. Alias match
+    if (ALIASES[t]) { matched.add(ALIASES[t]); continue; }
+
+    // 3. Match with underscores removed (e.g. "readfile" → "read_file")
+    const noUnder = VALID_TOOL_NAMES.find((n) => n.replace(/_/g, "") === t.replace(/[\s_-]/g, ""));
+    if (noUnder) { matched.add(noUnder); continue; }
+
+    // 4. Substring match — tool name contains the input or input contains tool name
+    const sub = VALID_TOOL_NAMES.find((n) => n.includes(t) || t.includes(n.replace(/_/g, "")));
+    if (sub) { matched.add(sub); continue; }
+
+    // 5. Word match — any word in the input matches a word in a tool name
+    const words = t.split(/[\s_-]+/);
+    const wordMatch = VALID_TOOL_NAMES.find((n) => {
+      const toolWords = n.split("_");
+      return words.some((w) => toolWords.some((tw) => tw.startsWith(w) || w.startsWith(tw)));
+    });
+    if (wordMatch) { matched.add(wordMatch); continue; }
+
+    // No match — skip (non-tool-name entries like "See prompt" are silently dropped)
+  }
+
+  return matched.size > 0 ? [...matched] : null;
+}
+
 /**
  * Create a tool registry, optionally filtered to only include specific tools.
  * @param {Set<string>|string[]|null} allowedTools - tool names to include (null = all)
  */
 function createToolRegistry(allowedTools = null) {
   const registry = new ToolRegistry();
-  const validToolNames = new Set(ALL_TOOLS.map((t) => t.definition.name));
 
-  // Validate the filter — if none of the entries match real tool names,
-  // the list is probably documentation (e.g. ["See prompt"]), not a filter.
-  // In that case, fall back to registering all tools.
-  let filter = allowedTools ? new Set(allowedTools) : null;
-  if (filter) {
-    const hasAnyValid = [...filter].some((name) => validToolNames.has(name));
-    if (!hasAnyValid) {
-      filter = null; // no valid tool names in the list — give all tools
-    }
-  }
+  // Resolve fuzzy names to real tool names
+  const resolved = resolveToolNames(allowedTools);
+  const filter = resolved ? new Set(resolved) : null;
 
   for (const tool of ALL_TOOLS) {
     if (!filter || filter.has(tool.definition.name)) {
@@ -279,6 +331,8 @@ function compressMessages(messages) {
  *   response-end           { text }
  *   cancelled              {}
  */
+export { resolveToolNames, VALID_TOOL_NAMES };
+
 export class AgentEngine extends EventEmitter {
   constructor(config, options = {}) {
     super();
@@ -414,7 +468,9 @@ export class AgentEngine extends EventEmitter {
     if (!this.config.subAgents) this.config.subAgents = [];
     // Generate a stable ID from the name
     const id = def.id || def.name.toLowerCase().replace(/[^a-z0-9]+/g, "-");
-    const agent = { id, name: def.name, role: def.role, model: def.model || null, tools: def.tools || null, enabled: true };
+    // Normalize tool names — fuzzy match user input to real tool names
+    const tools = def.tools ? resolveToolNames(def.tools) : null;
+    const agent = { id, name: def.name, role: def.role, model: def.model || null, tools, enabled: true };
     this.config.subAgents.push(agent);
     // Re-register delegate tool if this is the first sub-agent
     if (this.config.subAgents.length === 1 && !this.toolRegistry.get("delegate_to_agent")) {
@@ -687,13 +743,10 @@ export class AgentEngine extends EventEmitter {
             continue;
           }
           validated.push({ tc, tool });
-          // Sub-agents auto-approve tools in their assigned tool list.
-          // If a sub-agent was given specific tools, those are pre-authorized
-          // by the user when they created the agent — no need to confirm again.
-          const isSubAgentAssignedTool = this.isSubAgent && this.subAgentDef?.tools?.includes(tc.name);
-          // Sub-agents with no tool restriction (tools: null = all tools) still
-          // require confirmation per normal safety rules — only explicit assignments auto-approve.
-          if (!isSubAgentAssignedTool && requireConfirmation(tool, tc.arguments, this.config, this.agentMode)) {
+          // Sub-agents auto-approve all tools — the user authorized the delegation,
+          // which covers the sub-agent's tool usage. Without this, every tool call
+          // would need individual confirmation, blocking the delegation cycle.
+          if (!this.isSubAgent && requireConfirmation(tool, tc.arguments, this.config, this.agentMode)) {
             const desc = tool.formatConfirmation ? tool.formatConfirmation(tc.arguments) : `${tc.name}`;
             needsConfirm.push({ tc, tool, desc });
           }

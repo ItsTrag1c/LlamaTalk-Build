@@ -1,6 +1,14 @@
 # Changelog — Clank Build
 
-Last updated: 2026-03-11 (v2.5.9)
+Last updated: 2026-03-11 (v2.5.10)
+
+---
+
+## v2.5.10 (2026-03-11)
+
+### Improvements
+- **Fuzzy tool name matching for sub-agents** — when creating a sub-agent, tool names no longer need to match exactly. Accepts aliases (`read`, `shell`, `grep`, `fetch`), names without underscores (`readfile`, `websearch`), partial matches, and common shortcuts. Resolved names are shown on creation so you know what matched.
+- **Sub-agents auto-approve all tool calls** — sub-agent tool execution no longer requires individual user confirmation. The user's approval of the delegation is the authorization; individual prompts were blocking the delegation cycle.
 
 ---
 
