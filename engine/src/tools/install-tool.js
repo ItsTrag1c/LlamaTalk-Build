@@ -1,20 +1,21 @@
-import { execSync } from "child_process";
+import { spawnSync } from "child_process";
 import { SafetyLevel } from "./base.js";
 
 const ALLOWED_MANAGERS = ["npm", "pip", "winget", "choco"];
 
-const MANAGER_INSTALL_CMD = {
-  npm: (pkg) => `npm install -g ${pkg}`,
-  pip: (pkg) => `pip install ${pkg}`,
-  winget: (pkg) => `winget install --accept-package-agreements --accept-source-agreements -e --id ${pkg}`,
-  choco: (pkg) => `choco install ${pkg} -y`,
+// Argument arrays — prevents shell injection by avoiding string interpolation
+const MANAGER_INSTALL_ARGS = {
+  npm: (pkg) => ({ cmd: "npm", args: ["install", "-g", pkg] }),
+  pip: (pkg) => ({ cmd: "pip", args: ["install", pkg] }),
+  winget: (pkg) => ({ cmd: "winget", args: ["install", "--accept-package-agreements", "--accept-source-agreements", "-e", "--id", pkg] }),
+  choco: (pkg) => ({ cmd: "choco", args: ["install", pkg, "-y"] }),
 };
 
-const MANAGER_CHECK_CMD = {
-  npm: (pkg) => `npm list -g ${pkg.split("@")[0]} --depth=0`,
-  pip: (pkg) => `pip show ${pkg}`,
-  winget: (pkg) => `winget list --id ${pkg}`,
-  choco: (pkg) => `choco list --local-only ${pkg}`,
+const MANAGER_CHECK_ARGS = {
+  npm: (pkg) => ({ cmd: "npm", args: ["list", "-g", pkg.split("@")[0], "--depth=0"] }),
+  pip: (pkg) => ({ cmd: "pip", args: ["show", pkg] }),
+  winget: (pkg) => ({ cmd: "winget", args: ["list", "--id", pkg] }),
+  choco: (pkg) => ({ cmd: "choco", args: ["list", "--local-only", pkg] }),
 };
 
 const BLOCKED_PACKAGES = [
@@ -26,9 +27,12 @@ function isBlockedPackage(name) {
   return BLOCKED_PACKAGES.some((p) => p.test(name));
 }
 
-function sanitizeName(name) {
-  // Allow alphanumeric, dots, hyphens, underscores, slashes (for scoped/winget), @
-  return /^[@a-z0-9._\-\/]+$/i.test(name);
+function sanitizeName(name, manager) {
+  // Base: alphanumeric, dots, hyphens, underscores, @
+  // Slashes only allowed for scoped npm packages (@scope/pkg) and winget IDs (Publisher.Package)
+  if (manager === "npm") return /^(@[a-z0-9._-]+\/)?[a-z0-9._-]+$/i.test(name);
+  if (manager === "winget") return /^[a-z0-9._-]+$/i.test(name);
+  return /^[a-z0-9._-]+$/i.test(name);
 }
 
 export const installToolTool = {
@@ -66,7 +70,7 @@ export const installToolTool = {
     if (!ALLOWED_MANAGERS.includes(args.manager)) {
       return { ok: false, error: `Invalid manager: ${args.manager}. Use: ${ALLOWED_MANAGERS.join(", ")}` };
     }
-    if (!sanitizeName(args.package)) {
+    if (!sanitizeName(args.package, args.manager)) {
       return { ok: false, error: `Invalid package name: ${args.package}` };
     }
     if (isBlockedPackage(args.package)) {
@@ -79,43 +83,42 @@ export const installToolTool = {
     const { package: pkg, manager } = args;
 
     // Check if already installed
-    const checkCmd = MANAGER_CHECK_CMD[manager](pkg);
+    const check = MANAGER_CHECK_ARGS[manager](pkg);
     try {
-      const checkOutput = execSync(checkCmd, {
+      const result = spawnSync(check.cmd, check.args, {
         timeout: 30000,
         encoding: "utf8",
         stdio: ["pipe", "pipe", "pipe"],
-        shell: true,
       });
-      if (checkOutput && !checkOutput.includes("No installed package")) {
-        return `Already installed: ${pkg}\n${checkOutput.trim()}`;
+      if (result.status === 0 && result.stdout && !result.stdout.includes("No installed package")) {
+        return `Already installed: ${pkg}\n${result.stdout.trim()}`;
       }
     } catch {
       // Not installed — proceed
     }
 
     // Install
-    const installCmd = MANAGER_INSTALL_CMD[manager](pkg);
+    const install = MANAGER_INSTALL_ARGS[manager](pkg);
     try {
-      const output = execSync(installCmd, {
+      const result = spawnSync(install.cmd, install.args, {
         timeout: 300000, // 5 min for large installs
         encoding: "utf8",
         maxBuffer: 10 * 1024 * 1024,
         stdio: ["pipe", "pipe", "pipe"],
-        shell: true,
       });
 
-      let result = output || "(no output)";
-      if (result.length > 30000) {
-        result = result.slice(0, 30000) + "\n... [truncated]";
+      if (result.status !== 0) {
+        const errOut = (result.stderr || result.stdout || "Unknown error").slice(0, 10000);
+        return `Error installing ${pkg} via ${manager}:\n${errOut}`;
       }
-      return `Installed ${pkg} via ${manager}\n${result}`;
+
+      let output = result.stdout || "(no output)";
+      if (output.length > 30000) {
+        output = output.slice(0, 30000) + "\n... [truncated]";
+      }
+      return `Installed ${pkg} via ${manager}\n${output}`;
     } catch (err) {
-      let output = "";
-      if (err.stdout) output += err.stdout;
-      if (err.stderr) output += (output ? "\n" : "") + err.stderr;
-      if (!output) output = err.message;
-      return `Error installing ${pkg} via ${manager}:\n${output.slice(0, 10000)}`;
+      return `Error installing ${pkg} via ${manager}:\n${err.message.slice(0, 10000)}`;
     }
   },
 

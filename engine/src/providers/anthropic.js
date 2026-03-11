@@ -21,7 +21,7 @@ export class AnthropicProvider extends BaseProvider {
   }
 
   async *stream(messages, systemPrompt, tools, signal) {
-    let apiKey = this.config.apiKey_anthropic;
+    const apiKey = this.config.apiKey_anthropic;
     if (!apiKey) throw new Error("Anthropic API key not set. Use /set api-key anthropic <key>");
 
     const model = this.config.selectedModel;

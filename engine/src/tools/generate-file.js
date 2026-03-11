@@ -130,7 +130,7 @@ code { background: #f0f0f0; padding: 2px 6px; border-radius: 3px; }
 </style>
 </head>
 <body>
-${content}
+${content.replace(/<script[\s\S]*?<\/script>/gi, "<!-- script removed for safety -->")}
 </body>
 </html>`;
 }

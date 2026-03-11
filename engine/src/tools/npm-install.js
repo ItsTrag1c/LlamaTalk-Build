@@ -45,12 +45,13 @@ export const npmInstallTool = {
       // Now install — uses argument array to prevent shell injection via package names
       const npmArgs = ["install", args.package];
       if (args.dev) npmArgs.push("--save-dev");
-      const result = spawnSync("npm", npmArgs, {
+      // On Windows, npm is a .cmd file that requires shell; use npm.cmd directly
+      const npmCmd = process.platform === "win32" ? "npm.cmd" : "npm";
+      const result = spawnSync(npmCmd, npmArgs, {
         cwd: context.projectRoot,
         timeout: 120000,
         encoding: "utf8",
         stdio: ["pipe", "pipe", "pipe"],
-        shell: true,
       });
       if (result.status !== 0) throw new Error(result.stderr || "npm install failed");
       const output = result.stdout;
