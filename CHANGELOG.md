@@ -1,6 +1,14 @@
 # Changelog — Clank Build
 
-Last updated: 2026-03-11 (v2.5.10)
+Last updated: 2026-03-11 (v2.5.11)
+
+---
+
+## v2.5.11 (2026-03-11)
+
+### Improvements
+- **Sub-agent execution directive** — sub-agents now receive a dedicated system prompt section (`Sub-Agent Execution Rules`) that forces immediate tool usage. Small models no longer respond with conversational text instead of tool calls.
+- **Task message wrapping** — delegated tasks are wrapped with an explicit execution directive, and the retry prompt is more specific about requiring a tool call response.
 
 ---
 

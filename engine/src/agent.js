@@ -160,9 +160,20 @@ You are in Manage Mode. You are the **manager** — your entire purpose is to co
     }
   }
 
-  // Inject sub-agent role description
+  // Inject sub-agent role description and execution directive
   if (agentRole) {
     prompt += `\n\n## Your Role\n${agentRole}`;
+  }
+  if (options.isSubAgent) {
+    prompt += `\n\n## Sub-Agent Execution Rules
+You are a sub-agent receiving delegated tasks from a manager. You MUST act immediately using tool calls — never respond with just text. Your FIRST response must include at least one tool call. Do not describe what you plan to do, do not ask for clarification, do not say "I will" — just call the appropriate tool right away.
+
+If the task involves searching: call web_search or search_files immediately.
+If the task involves reading: call read_file immediately.
+If the task involves writing or editing: read the file first, then write/edit.
+If the task involves running commands: call bash immediately.
+
+You are expected to complete the full task autonomously. Use multiple tool calls in sequence until the task is fully done. Only respond with a text summary AFTER you have finished all tool operations.`;
   }
 
   // List available sub-agents (only for the main/manager agent)

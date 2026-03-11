@@ -192,15 +192,19 @@ export const delegateAgentTool = {
     const MAX_RETRIES = 1;
     let retries = 0;
 
+    // Wrap the task with an execution directive so small models generate
+    // tool calls instead of conversational text.
+    const wrappedTask = `TASK: ${args.task}\n\nExecute this task now using your tools. Start your response with a tool call — do not reply with text first.`;
+
     try {
-      await subEngine.sendMessage(args.task);
+      await subEngine.sendMessage(wrappedTask);
 
       while (lastIterationCount === 0 && retries < MAX_RETRIES) {
         retries++;
         finalResponse = "";
         lastIterationCount = 0;
         await subEngine.sendMessage(
-          "You did not execute any tools. You MUST use your tools (read_file, write_file, edit_file, search_files, web_search, bash, etc.) to complete this task. Do not just describe what you would do — actually do it now."
+          "You did not execute any tools. You MUST respond with a tool call right now. If the task says to search, call web_search. If it says to read, call read_file. If it says to write, call write_file. Do NOT reply with text — reply with a tool call."
         );
       }
     } catch (err) {
