@@ -1,6 +1,13 @@
 # Changelog — Clank Build Desktop
 
-Last updated: 2026-03-11 (v2.4.12)
+Last updated: 2026-03-11 (v2.4.13)
+
+---
+
+## v2.4.13 (2026-03-11)
+
+### Bug Fixes
+- **Scheduler now triggers agents** — engine update: immediate tick on start, tick after schedule add, `_running` cleanup on errors, and proper error event emission.
 
 ---
 
