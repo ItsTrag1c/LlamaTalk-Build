@@ -1,6 +1,14 @@
 # Changelog — Clank Build Desktop
 
-Last updated: 2026-03-11 (v2.4.13)
+Last updated: 2026-03-11 (v2.4.14)
+
+---
+
+## v2.4.14 (2026-03-11)
+
+### Bug Fixes
+- **Scheduled tasks now actually trigger** — engine update: fixed `_running` cleanup in error handler so schedules don't get permanently stuck.
+- **Multi-step scheduled tasks now complete** — engine update: scheduled execution now has continuation logic matching `delegate_to_agent`, re-prompting up to 3 times when responses suggest incomplete work.
 
 ---
 

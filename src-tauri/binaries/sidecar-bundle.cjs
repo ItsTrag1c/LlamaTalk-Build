@@ -5433,6 +5433,8 @@ var Scheduler = class extends import_events2.EventEmitter {
     if (this._timer) return;
     this._timer = setInterval(() => this._tick(), CHECK_INTERVAL_MS);
     if (this._timer.unref) this._timer.unref();
+    const initial = setTimeout(() => this._tick(), 5e3);
+    if (initial.unref) initial.unref();
     this.emit("started");
   }
   /** Stop the scheduler timer. */
@@ -5543,6 +5545,7 @@ var Scheduler = class extends import_events2.EventEmitter {
       schedule.runCount = (schedule.runCount || 0) + 1;
       dirty = true;
       this._executeSchedule(schedule).catch((err) => {
+        this._running.delete(schedule.id);
         console.error(`   Scheduler error [${schedule.agentName}]:`, err.message || err);
       });
     }
@@ -5609,6 +5612,19 @@ Execute this task NOW using your tools. Start with a tool call \u2014 do not rep
         iterCount = 0;
         await subEngine.sendMessage(
           "You did not execute any tools. You MUST respond with a tool call right now. Do NOT reply with text \u2014 reply with a tool call."
+        );
+      }
+      const MAX_CONTINUATIONS = 3;
+      let continuations = 0;
+      while (continuations < MAX_CONTINUATIONS && iterCount > 0) {
+        const lower = (finalResponse || "").toLowerCase();
+        const incomplete = /\b(next[,:]?\s+i\s+(will|would|can|need|should|'ll))\b/.test(lower) || /\b(remaining\s+(steps?|tasks?|items?|parts?))\b/.test(lower) || /\b(still\s+need\s+to)\b/.test(lower) || /\b(have\s+not\s+(yet|completed|finished))\b/.test(lower) || /\b(haven'?t\s+(yet|completed|finished))\b/.test(lower) || /\b(todo|to\s+do\s+next)\b/.test(lower) || /\b(now\s+(i\s+)?(will|need|should|let\s+me))\b/.test(lower);
+        if (!incomplete) break;
+        continuations++;
+        finalResponse = "";
+        iterCount = 0;
+        await subEngine.sendMessage(
+          "You stopped before completing the full task. Continue executing the remaining steps NOW \u2014 start with a tool call, not text. Do not repeat work you already did."
         );
       }
     } catch (err) {
