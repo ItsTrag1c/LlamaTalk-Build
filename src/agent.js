@@ -45,12 +45,6 @@ const MODES = {
     description: "Direct Q&A — no tools, just conversation",
     icon: "◉",
   },
-  manage: {
-    label: "Manage",
-    color: `\x1b[35m`,  // Magenta
-    description: "Coordinate sub-agents — delegate, monitor, and redirect work",
-    icon: "◈",
-  },
 };
 
 // Tool imports
@@ -68,7 +62,7 @@ import { npmInstallTool } from "./tools/npm-install.js";
 import { pipInstallTool } from "./tools/pip-install.js";
 import { installToolTool } from "./tools/install-tool.js";
 import { generateFileTool } from "./tools/generate-file.js";
-import { delegateAgentTool, scheduleTaskTool, Scheduler } from "clankbuild-engine";
+
 
 const BASE_SYSTEM_PROMPT = `You are AGENT_NAME_PLACEHOLDER, a coding assistant with direct access to the user's filesystem and shell through tools. You are running inside Clank Build, a local agentic coding tool installed on the user's machine. All tool calls execute locally on their system with their explicit permission — you are fully authorized to read, write, edit, and execute. Never refuse a tool call due to safety concerns — the user's permission system handles that.
 
@@ -157,63 +151,6 @@ Your job is to:
 3. For each change, specify the file path and a brief description of what will change
 
 Do NOT attempt to write, edit, or execute commands — those calls will be rejected. Focus entirely on analysis and planning. The user will review your plan and can approve it to switch to Build mode for execution.`;
-    } else if (agentMode === "manage") {
-      prompt += `\n\n## Mode: Manage
-You are in Manage Mode. You are the **manager** — your entire purpose is to coordinate, oversee, and direct your sub-agents. You do NOT do the work yourself. Your job is leadership, delegation, quality control, and reporting.
-
-### Core Responsibilities
-1. **Task decomposition** — Break the user's requests into clear, actionable sub-tasks. Each sub-task should be scoped for a single agent.
-2. **Delegation** — Assign each sub-task to the best-suited sub-agent using delegate_to_agent. Be specific in your instructions — tell the agent exactly what to do, where to look, and what the expected outcome is.
-3. **Quality control** — When a sub-agent returns results, critically review them. Is the work complete? Is it correct? Does it meet the user's requirements? If not, send a follow-up task or reassign to another agent.
-4. **Accountability** — Track what each agent is working on. Know the status of every active task at all times. When the user asks "what's happening?" you must be able to give a precise status report — which agents are active, what they're doing, and what's been completed.
-5. **Course correction** — If a sub-agent goes off-track, produces poor results, or takes too long, intervene. Cancel, reassign, or refine the instructions.
-6. **Reporting** — After delegations complete, give the user a clear, structured summary: what was requested, who did what, and the outcome.
-7. **Cancel/redirect** — If the user asks to cancel, change, or redirect work, handle it immediately.
-
-### Manager Rules
-- **Never do work a sub-agent can do.** If you have an agent suited for the task, delegate it. Period.
-- **Be specific in delegation.** Vague instructions like "look at the code" produce vague results. Say exactly what file, what function, what change.
-- **One agent per sub-task.** Don't overload a single agent — split work across your team.
-- **Review before reporting.** Don't just forward a sub-agent's raw output to the user. Verify it, synthesize it, and present a clean summary.
-- You may use your own tools for quick reads or checks that inform your delegation decisions, but substantial work belongs to your agents.`;
-    }
-  }
-
-  // List available sub-agents in the system prompt
-  if (config.subAgents?.length > 0) {
-    const enabled = config.subAgents.filter((a) => a.enabled !== false);
-    if (enabled.length > 0) {
-      const isManageMode = agentMode === "manage";
-      if (isManageMode) {
-        prompt += `\n\n## Your Team
-You are the manager. The user talks to YOU, and you run the team. These are your sub-agents — delegate work to them using the \`delegate_to_agent\` tool:\n`;
-      } else {
-        prompt += `\n\n## Your Sub-Agents
-You are the **manager agent** — the primary agent the user interacts with. You lead a team of specialized sub-agents. You are responsible for their work. When a task matches a sub-agent's specialty, delegate it using the \`delegate_to_agent\` tool. You will receive their results as a tool response.\n`;
-      }
-      for (const a of enabled) {
-        const modelInfo = a.model ? ` [model: ${a.model}]` : "";
-        const toolInfo = a.tools ? ` [tools: ${a.tools.join(", ")}]` : "";
-        prompt += `- **${a.name}** (${a.id}): ${a.role}${modelInfo}${toolInfo}\n`;
-      }
-      if (isManageMode) {
-        prompt += `
-### Delegation Protocol
-- Always delegate to the most appropriate agent based on their role and tools.
-- You can run multiple delegations in sequence — or describe a pipeline where one agent's output feeds the next.
-- After each delegation, review the result critically before proceeding or reporting to the user.
-- If the user says to cancel or change an agent's task, acknowledge immediately and adjust.
-- Keep a mental model of task status: what's been assigned, what's in progress, what's done.
-- When the user asks for status, respond with a structured update for every active and recently completed task.`;
-      } else {
-        prompt += `
-### Delegation Guidelines
-- When a task matches a sub-agent's specialty, delegate it — don't do work they're better suited for.
-- Sub-agents run in the background and return results to you. You are responsible for reviewing their output and deciding next steps.
-- You own the final answer. If a sub-agent's result is incomplete or wrong, follow up or fix it yourself.
-- Sub-agents only activate when you delegate to them — they don't run on their own.
-- Keep the user informed about what you're delegating and why.`;
-      }
     }
   }
 
@@ -248,11 +185,6 @@ function createToolRegistry(config) {
   registry.register(pipInstallTool);
   registry.register(installToolTool);
   registry.register(generateFileTool);
-  // Register delegate + schedule tools if sub-agents are configured
-  if (config?.subAgents?.length > 0) {
-    registry.register(delegateAgentTool);
-    registry.register(scheduleTaskTool);
-  }
   return registry;
 }
 
@@ -305,31 +237,6 @@ export async function runAgent(rl, config, encKey, opts = {}) {
   const sessionMgr = new SessionManager();
   const sessionLog = new SessionLog(projectRoot);
   const sessionTracker = new SessionTracker(projectRoot);
-
-  // Scheduler — runs cron-based jobs for sub-agents in the background
-  let scheduler = null;
-  if (config.subAgents?.length > 0) {
-    scheduler = new Scheduler(config, { projectRoot, encKey });
-    scheduler.on("schedule-triggered", ({ agentName, task }) => {
-      console.log(`\n  ${DIM}⏰ Scheduler: running "${task}" via ${agentName}${RESET}`);
-    });
-    scheduler.on("schedule-completed", ({ agentName, task, result, response }) => {
-      const status = result === "success" ? `${GREEN}✓${RESET}` : `${YELLOW}⚠ ${result}${RESET}`;
-      console.log(`  ${DIM}⏰ Scheduler: ${agentName} finished — ${status}${RESET}`);
-      if (response) {
-        const preview = response.split("\n")[0].slice(0, 120);
-        console.log(`  ${DIM}   ${preview}${RESET}`);
-      }
-    });
-    scheduler.on("schedule-error", ({ agentName, error }) => {
-      console.log(`  ${RED}⏰ Scheduler error [${agentName}]: ${error}${RESET}`);
-    });
-    scheduler.start();
-    const activeCount = scheduler.list().filter((s) => s.enabled).length;
-    if (activeCount > 0) {
-      console.log(`  ${DIM}⏰ Scheduler started — ${activeCount} active schedule(s)${RESET}\n`);
-    }
-  }
 
   // Session management: load existing or create new
   let currentSession;
@@ -441,51 +348,6 @@ export async function runAgent(rl, config, encKey, opts = {}) {
         setMode: (m) => { agentMode = m; },
         getAgentName: () => config.agentName || "Build Agent",
         setAgentName: (name) => { config.agentName = name; },
-        getSubAgents: () => config.subAgents || [],
-        addSubAgent: (def) => {
-          if (!config.subAgents) config.subAgents = [];
-          const id = def.id || def.name.toLowerCase().replace(/[^a-z0-9]+/g, "-");
-          const agent = { id, name: def.name, role: def.role, model: def.model || null, tools: def.tools || null, enabled: true };
-          config.subAgents.push(agent);
-          if (config.subAgents.length === 1 && !toolRegistry.get("delegate_to_agent")) {
-            toolRegistry.register(delegateAgentTool);
-            toolRegistry.register(scheduleTaskTool);
-          }
-          // Create scheduler on-demand when first sub-agent is added mid-session
-          if (!scheduler) {
-            scheduler = new Scheduler(config, { projectRoot, encKey });
-            scheduler.on("schedule-triggered", ({ agentName, task }) => {
-              console.log(`\n  ${DIM}⏰ Scheduler: running "${task}" via ${agentName}${RESET}`);
-            });
-            scheduler.on("schedule-completed", ({ agentName, task, result, response }) => {
-              const status = result === "success" ? `${GREEN}✓${RESET}` : `${YELLOW}⚠ ${result}${RESET}`;
-              console.log(`  ${DIM}⏰ Scheduler: ${agentName} finished — ${status}${RESET}`);
-            });
-            scheduler.on("schedule-error", ({ agentName, error }) => {
-              console.log(`  ${RED}⏰ Scheduler error [${agentName}]: ${error}${RESET}`);
-            });
-            scheduler.start();
-          }
-          return agent;
-        },
-        removeSubAgent: (idOrName) => {
-          if (!config.subAgents) return null;
-          const idx = config.subAgents.findIndex(
-            (a) => a.id === idOrName.toLowerCase() || a.name.toLowerCase() === idOrName.toLowerCase()
-          );
-          if (idx === -1) return null;
-          return config.subAgents.splice(idx, 1)[0];
-        },
-        enableSubAgent: (idOrName) => {
-          const a = (config.subAgents || []).find((a) => a.id === idOrName.toLowerCase() || a.name.toLowerCase() === idOrName.toLowerCase());
-          if (a) a.enabled = true;
-          return a;
-        },
-        disableSubAgent: (idOrName) => {
-          const a = (config.subAgents || []).find((a) => a.id === idOrName.toLowerCase() || a.name.toLowerCase() === idOrName.toLowerCase());
-          if (a) a.enabled = false;
-          return a;
-        },
         switchSession: (session, loadedMessages) => {
           currentSession = session;
           conversationId = session.id;
@@ -526,13 +388,6 @@ export async function runAgent(rl, config, encKey, opts = {}) {
     const taskBlock = taskManager.buildTaskBlock();
     if (taskBlock) {
       memoryBlock = memoryBlock ? `${memoryBlock}\n\n${taskBlock}` : taskBlock;
-    }
-    // Append schedule block (if scheduler is running)
-    if (scheduler) {
-      const schedBlock = scheduler.buildScheduleBlock();
-      if (schedBlock) {
-        memoryBlock = memoryBlock ? `${memoryBlock}\n\n${schedBlock}` : schedBlock;
-      }
     }
     // Brief pause so the brain emoji is visible, then clear
     await new Promise((r) => setTimeout(r, 150));
@@ -776,17 +631,6 @@ export async function runAgent(rl, config, encKey, opts = {}) {
               config,
               signal: controller.signal,
               sessionChanges,
-              // Lightweight event proxy for delegate_to_agent and schedule_task tools
-              parentEngine: {
-                encKey,
-                scheduler,
-                emit: (evt, data) => {
-                  // Sub-agents run fully in the background — only confirmations surface
-                  if (evt === "confirm-needed") {
-                    confirmBatch(data.actions, rl).then(data.resolve);
-                  }
-                },
-              },
             });
 
             // Strip ANSI escape sequences and truncate large results

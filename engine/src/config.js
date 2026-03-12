@@ -27,11 +27,8 @@ const DEFAULTS = {
   apiKey_opencode: "",
   enabledProviders: { anthropic: false, google: false, openai: false, opencode: false },
 
-  // Agent naming & sub-agents
+  // Agent naming
   agentName: "",
-  subAgents: [],
-  // subAgents schema:
-  // [{ id, name, role, model (null=inherit), tools (null=all), enabled }]
 
   // Agent-specific settings
   maxIterations: 50,

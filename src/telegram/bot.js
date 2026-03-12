@@ -9,7 +9,7 @@ import { Bot, InlineKeyboard } from "grammy";
 import { ThrottledEditor, toTelegramHtml, splitMessage, formatToolStart, formatToolResult } from "./renderer.js";
 
 // Import from the engine package (linked via file: dependency)
-import { AgentEngine, SessionManager, Scheduler, getAllLocalModels, CLOUD_MODELS } from "clankbuild-engine";
+import { AgentEngine, SessionManager, getAllLocalModels, CLOUD_MODELS } from "clankbuild-engine";
 import { loadConfig, saveConfig as _saveConfig } from "../config.js";
 
 // Escape HTML entities to prevent injection in Telegram HTML messages
@@ -31,7 +31,6 @@ const MODE_LABELS = {
   build: "🔨 Build",
   plan: "📋 Plan",
   qa: "💭 Q&A",
-  manage: "◈ Manage",
 };
 
 /**
@@ -65,24 +64,14 @@ export async function startTelegramBot(config, encKey) {
 
   // Per-user main engine instances
   const engines = new Map();
-  // Per-user sub-agent engine instances: Map<userId, Map<agentId, AgentEngine>>
-  const subEngines = new Map();
   // Pending confirmations — keyed by globally unique promptId
   const pendingConfirms = new Map();
   // Per-user throttled editors
   const editors = new Map();
-  // Per-user-per-agent busy lock: Map<userId, Set<agentId>>
-  // "main" is the key for the manager agent
+  // Per-user busy lock
   const busyAgents = new Map();
   // Global prompt counter — never resets, so IDs are unique across all requests
   let globalPromptCounter = 0;
-
-  // Scheduler — runs cron-based jobs for sub-agents in the background.
-  // Created once and shared across all user engines.
-  const scheduler = new Scheduler(config, {
-    projectRoot: process.cwd(),
-    encKey,
-  });
 
   function isAgentBusy(userId, agentId = "main") {
     return busyAgents.get(userId)?.has(agentId) || false;
@@ -103,36 +92,11 @@ export async function startTelegramBot(config, encKey) {
     const engine = new AgentEngine(config, {
       encKey,
       projectRoot: process.cwd(),
-      scheduler,
     });
 
     // Create initial session
     engine.createSession(process.cwd());
     engines.set(userId, engine);
-    return engine;
-  }
-
-  /** Get or create a dedicated engine instance for a sub-agent. */
-  function getSubEngine(userId, subAgentDef) {
-    if (!subEngines.has(userId)) subEngines.set(userId, new Map());
-    const userSubs = subEngines.get(userId);
-
-    if (userSubs.has(subAgentDef.id)) return userSubs.get(subAgentDef.id);
-
-    // Build config with model override if specified
-    const subConfig = { ...config };
-    if (subAgentDef.model) {
-      subConfig.selectedModel = subAgentDef.model;
-    }
-
-    const engine = new AgentEngine(subConfig, {
-      encKey,
-      projectRoot: process.cwd(),
-      subAgentDef,
-    });
-
-    engine.createSession(process.cwd());
-    userSubs.set(subAgentDef.id, engine);
     return engine;
   }
 
@@ -230,15 +194,11 @@ export async function startTelegramBot(config, encKey) {
       `/clear — Clear conversation history\n` +
       `/sessions — List recent sessions\n` +
       `/clearsessions — Delete all sessions\n` +
-      `/mode — Switch mode (Build/Plan/Q&A/Manage)\n` +
+      `/mode — Switch mode (Build/Plan/Q&A)\n` +
       `/model — Show or set model\n` +
       `/models — List all available models\n` +
-      `/agents — List & manage sub-agents\n` +
-      `/agent create|remove|rename — Manage agents\n` +
       `/status — Show agent status\n` +
-      `/cancel — Stop all agents\n` +
-      `/cancel &lt;name&gt; — Stop a specific agent\n\n` +
-      `Mention a sub-agent: <code>@AgentName task</code>\n` +
+      `/cancel — Stop the current operation\n\n` +
       `Just send me a message and I'll start working!`,
       { parse_mode: "HTML" }
     );
@@ -292,9 +252,7 @@ export async function startTelegramBot(config, encKey) {
     const keyboard = new InlineKeyboard()
       .text(current === "build" ? "🔨 Build ✓" : "🔨 Build", "set_mode:build")
       .text(current === "plan" ? "📋 Plan ✓" : "📋 Plan", "set_mode:plan")
-      .row()
-      .text(current === "qa" ? "💭 Q&A ✓" : "💭 Q&A", "set_mode:qa")
-      .text(current === "manage" ? "◈ Manage ✓" : "◈ Manage", "set_mode:manage");
+      .text(current === "qa" ? "💭 Q&A ✓" : "💭 Q&A", "set_mode:qa");
 
     await ctx.reply(`Current mode: ${MODE_LABELS[current]}`, { reply_markup: keyboard });
   });
@@ -373,56 +331,7 @@ export async function startTelegramBot(config, encKey) {
 
   bot.command("cancel", async (ctx) => {
     const userId = ctx.from.id;
-    const targetName = (ctx.match || "").trim();
 
-    // /cancel <agent name> — cancel a specific agent only
-    if (targetName) {
-      const mainEngine = engines.get(userId) || getEngine(userId);
-      const agentDef = mainEngine._findSubAgent(targetName);
-
-      if (agentDef && subEngines.has(userId) && subEngines.get(userId).has(agentDef.id)) {
-        const subEngine = subEngines.get(userId).get(agentDef.id);
-        subEngine.cancel();
-        const reverted = subEngine.revertCurrentTurn?.() || [];
-        clearAgentBusy(userId, agentDef.id);
-        subEngines.get(userId).delete(agentDef.id);
-
-        let msg = `⛔ <b>${esc(agentDef.name)}</b> cancelled.`;
-        if (reverted.length > 0) {
-          msg += `\n\n🔄 Reverted ${reverted.length} file(s):\n` +
-            reverted.map(f => `• <code>${esc(f.replace(/\\/g, "/").split("/").pop())}</code>`).join("\n");
-        }
-        await ctx.reply(msg, { parse_mode: "HTML" });
-        return;
-      }
-
-      // Check if they meant the main agent by name
-      const managerName = mainEngine.getAgentName?.() || "";
-      if (managerName.toLowerCase() === targetName.toLowerCase()) {
-        // Cancel main agent only (fall through to main cancel below, but not sub-agents)
-        for (const [id, resolver] of pendingConfirms) { resolver(false); pendingConfirms.delete(id); }
-        let revertedFiles = [];
-        if (engines.has(userId)) {
-          const engine = engines.get(userId);
-          engine.cancel();
-          revertedFiles = engine.revertCurrentTurn();
-          engines.delete(userId);
-        }
-        clearAgentBusy(userId, "main");
-        let msg = `⛔ <b>${esc(managerName)}</b> cancelled.`;
-        if (revertedFiles.length > 0) {
-          msg += `\n\n🔄 Reverted ${revertedFiles.length} file(s):\n` +
-            revertedFiles.map(f => `• <code>${esc(f.replace(/\\/g, "/").split("/").pop())}</code>`).join("\n");
-        }
-        await ctx.reply(msg, { parse_mode: "HTML" });
-        return;
-      }
-
-      await ctx.reply(`❌ No running agent named "${esc(targetName)}" found.`);
-      return;
-    }
-
-    // /cancel (no args) — full stop: cancel ALL agents
     // Resolve all pending confirms/plan actions with false so engines unblock
     for (const [id, resolver] of pendingConfirms) {
       resolver(false);
@@ -430,41 +339,17 @@ export async function startTelegramBot(config, encKey) {
     }
 
     let revertedFiles = [];
-    let cancelledAgents = [];
 
     // Cancel main agent
     if (engines.has(userId)) {
       const engine = engines.get(userId);
-      const name = engine.getAgentName?.() || "Main";
       engine.cancel();
       revertedFiles.push(...engine.revertCurrentTurn());
       engines.delete(userId);
-      if (isAgentBusy(userId, "main")) cancelledAgents.push(name);
     }
     clearAgentBusy(userId, "main");
 
-    // Cancel all sub-agents
-    if (subEngines.has(userId)) {
-      for (const [agentId, subEngine] of subEngines.get(userId)) {
-        const def = subEngine.subAgentDef;
-        const name = def?.name || agentId;
-        subEngine.cancel();
-        revertedFiles.push(...(subEngine.revertCurrentTurn?.() || []));
-        if (isAgentBusy(userId, agentId)) cancelledAgents.push(name);
-        clearAgentBusy(userId, agentId);
-      }
-      subEngines.delete(userId);
-    }
-
-    // Cancel any pending agent creation flow
-    if (pendingAgentCreate.has(userId)) {
-      pendingAgentCreate.delete(userId);
-    }
-
     let msg = "⛔ <b>All operations cancelled.</b>";
-    if (cancelledAgents.length > 0) {
-      msg += `\n\nStopped: ${cancelledAgents.map(n => `<b>${esc(n)}</b>`).join(", ")}`;
-    }
     if (revertedFiles.length > 0) {
       msg += `\n\n🔄 Reverted ${revertedFiles.length} file(s):\n` +
         revertedFiles.map(f => `• <code>${esc(f.replace(/\\/g, "/").split("/").pop())}</code>`).join("\n");
@@ -472,228 +357,12 @@ export async function startTelegramBot(config, encKey) {
     await ctx.reply(msg, { parse_mode: "HTML" });
   });
 
-  // --- Agent creation conversation state ---
-  // Multi-step flow: user sends /agent create <name>, then replies with role, model, tools
-  const pendingAgentCreate = new Map(); // Map<userId, { step, name, role, model }>
-
-  function buildAgentsMessage(engine) {
-    const name = engine.getAgentName();
-    const subs = engine.getSubAgents();
-    let msg = `<b>Agents</b>\n\n🤖 <b>${esc(name)}</b> <i>(manager)</i>`;
-    const keyboard = new InlineKeyboard();
-    if (subs.length === 0) {
-      msg += "\n\nNo sub-agents. Use <code>/agent create &lt;name&gt;</code> to add one.";
-    } else {
-      for (const a of subs) {
-        const status = a.enabled !== false ? "✅" : "❌";
-        const model = a.model ? ` <code>${esc(a.model)}</code>` : " <i>inherit</i>";
-        const tools = a.tools ? ` (${a.tools.length} tools)` : " (all tools)";
-        msg += `\n${status} <b>${esc(a.name)}</b> —${model}${tools}\n    <i>${esc(a.role)}</i>`;
-      }
-      msg += "\n\nMention a sub-agent: <code>@Name task</code>";
-      for (const a of subs) {
-        const label = a.enabled !== false ? `❌ ${a.name}` : `✅ ${a.name}`;
-        keyboard.text(label, `agent_toggle:${a.id}`);
-        keyboard.text(`🗑 ${a.name}`, `agent_remove:${a.id}`);
-        keyboard.row();
-      }
-    }
-    keyboard.text("➕ Create Agent", "agent_create_start");
-    keyboard.text("✏️ Rename Manager", "agent_rename_start");
-    return { msg, keyboard };
-  }
-
-  bot.command("agents", async (ctx) => {
-    const engine = getEngine(ctx.from.id);
-    const { msg, keyboard } = buildAgentsMessage(engine);
-    await ctx.reply(msg, { parse_mode: "HTML", reply_markup: keyboard });
-  });
-
-  bot.command("agent", async (ctx) => {
-    const userId = ctx.from.id;
-    const engine = getEngine(userId);
-    const argsText = (ctx.match || "").trim();
-    const parts = argsText.split(/\s+/);
-    const subCmd = parts[0]?.toLowerCase();
-    const nameArg = parts.slice(1).join(" ").trim();
-
-    if (!subCmd || subCmd === "list") {
-      const { msg, keyboard } = buildAgentsMessage(engine);
-      await ctx.reply(msg, { parse_mode: "HTML", reply_markup: keyboard });
-      return;
-    }
-
-    if (subCmd === "create") {
-      if (!nameArg) {
-        await ctx.reply("Usage: <code>/agent create &lt;name&gt;</code>", { parse_mode: "HTML" });
-        return;
-      }
-      const subs = engine.getSubAgents();
-      if (subs.find((a) => a.name.toLowerCase() === nameArg.toLowerCase())) {
-        await ctx.reply(`❌ An agent named "<b>${esc(nameArg)}</b>" already exists.`, { parse_mode: "HTML" });
-        return;
-      }
-      pendingAgentCreate.set(userId, { step: "role", name: nameArg });
-      await ctx.reply(
-        `Creating sub-agent "<b>${esc(nameArg)}</b>".\n\n` +
-        `<b>Step 1/3:</b> What is this agent's role?\n` +
-        `<i>Describe what it specializes in (e.g., "Search and explore codebases")</i>`,
-        { parse_mode: "HTML" }
-      );
-      return;
-    }
-
-    if (subCmd === "remove") {
-      if (!nameArg) {
-        await ctx.reply("Usage: <code>/agent remove &lt;name&gt;</code>", { parse_mode: "HTML" });
-        return;
-      }
-      const removed = engine.removeSubAgent(nameArg);
-      if (!removed) {
-        await ctx.reply(`❌ No agent named "${esc(nameArg)}" found.`);
-      } else {
-        const diskConfig = loadConfig();
-        diskConfig.subAgents = engine.getSubAgents();
-        _saveConfig(diskConfig);
-        await ctx.reply(`🗑 Removed sub-agent "<b>${esc(removed.name)}</b>".`, { parse_mode: "HTML" });
-      }
-      return;
-    }
-
-    if (subCmd === "rename") {
-      if (!nameArg) {
-        await ctx.reply(`Current name: <b>${esc(engine.getAgentName())}</b>\n\nUsage: <code>/agent rename &lt;new name&gt;</code>`, { parse_mode: "HTML" });
-        return;
-      }
-      engine.setAgentName(nameArg);
-      const diskConfig = loadConfig();
-      diskConfig.agentName = nameArg;
-      _saveConfig(diskConfig);
-      await ctx.reply(`✅ Manager agent renamed to "<b>${esc(nameArg)}</b>".`, { parse_mode: "HTML" });
-      return;
-    }
-
-    if (subCmd === "enable") {
-      if (!nameArg) { await ctx.reply("Usage: <code>/agent enable &lt;name&gt;</code>", { parse_mode: "HTML" }); return; }
-      const found = engine.enableSubAgent(nameArg);
-      if (!found) { await ctx.reply(`❌ No agent named "${esc(nameArg)}" found.`); return; }
-      const diskConfig = loadConfig(); diskConfig.subAgents = engine.getSubAgents(); _saveConfig(diskConfig);
-      await ctx.reply(`✅ "${esc(found.name)}" enabled.`);
-      return;
-    }
-
-    if (subCmd === "disable") {
-      if (!nameArg) { await ctx.reply("Usage: <code>/agent disable &lt;name&gt;</code>", { parse_mode: "HTML" }); return; }
-      const found = engine.disableSubAgent(nameArg);
-      if (!found) { await ctx.reply(`❌ No agent named "${esc(nameArg)}" found.`); return; }
-      const diskConfig = loadConfig(); diskConfig.subAgents = engine.getSubAgents(); _saveConfig(diskConfig);
-      await ctx.reply(`❌ "${esc(found.name)}" disabled.`);
-      return;
-    }
-
-    await ctx.reply(
-      `<b>Agent commands:</b>\n` +
-      `/agent create &lt;name&gt;\n` +
-      `/agent remove &lt;name&gt;\n` +
-      `/agent enable &lt;name&gt;\n` +
-      `/agent disable &lt;name&gt;\n` +
-      `/agent rename &lt;new name&gt;\n` +
-      `/agents — List all with buttons`,
-      { parse_mode: "HTML" }
-    );
-  });
-
   // --- Callback queries (inline keyboard) ---
-
-  bot.callbackQuery(/^agent_toggle:(.+)$/, async (ctx) => {
-    const userId = ctx.from.id;
-    const agentId = ctx.match[1];
-    const engine = getEngine(userId);
-    const agent = engine._findSubAgent(agentId);
-    if (!agent) return ctx.answerCallbackQuery("Agent not found");
-    if (agent.enabled !== false) {
-      engine.disableSubAgent(agentId);
-      await ctx.answerCallbackQuery(`${agent.name} disabled`);
-    } else {
-      engine.enableSubAgent(agentId);
-      await ctx.answerCallbackQuery(`${agent.name} enabled`);
-    }
-    const diskConfig = loadConfig();
-    diskConfig.subAgents = engine.getSubAgents();
-    _saveConfig(diskConfig);
-    // Refresh the agents list inline
-    try {
-      const { msg, keyboard } = buildAgentsMessage(engine);
-      await ctx.editMessageText(msg, { parse_mode: "HTML", reply_markup: keyboard });
-    } catch { /* edit may fail if message is too old */ }
-  });
-
-  bot.callbackQuery(/^agent_remove:(.+)$/, async (ctx) => {
-    const userId = ctx.from.id;
-    const agentId = ctx.match[1];
-    const engine = getEngine(userId);
-    const agent = engine._findSubAgent(agentId);
-    if (!agent) return ctx.answerCallbackQuery("Agent not found");
-    // Show confirmation
-    const keyboard = new InlineKeyboard()
-      .text(`✅ Yes, remove ${agent.name}`, `agent_remove_confirm:${agentId}`)
-      .text("❌ Cancel", `agent_remove_cancel`);
-    try {
-      await ctx.answerCallbackQuery();
-      await ctx.editMessageText(`⚠️ Remove sub-agent "<b>${esc(agent.name)}</b>"?\n\n<i>${esc(agent.role)}</i>`, { parse_mode: "HTML", reply_markup: keyboard });
-    } catch { /* */ }
-  });
-
-  bot.callbackQuery(/^agent_remove_confirm:(.+)$/, async (ctx) => {
-    const userId = ctx.from.id;
-    const agentId = ctx.match[1];
-    const engine = getEngine(userId);
-    const removed = engine.removeSubAgent(agentId);
-    if (!removed) return ctx.answerCallbackQuery("Agent not found");
-    const diskConfig = loadConfig();
-    diskConfig.subAgents = engine.getSubAgents();
-    _saveConfig(diskConfig);
-    // Also clean up any cached sub-engine
-    if (subEngines.has(userId)) subEngines.get(userId).delete(agentId);
-    await ctx.answerCallbackQuery(`${removed.name} removed`);
-    try {
-      const { msg, keyboard } = buildAgentsMessage(engine);
-      await ctx.editMessageText(msg, { parse_mode: "HTML", reply_markup: keyboard });
-    } catch { /* */ }
-  });
-
-  bot.callbackQuery("agent_remove_cancel", async (ctx) => {
-    const engine = getEngine(ctx.from.id);
-    try {
-      await ctx.answerCallbackQuery("Cancelled");
-      const { msg, keyboard } = buildAgentsMessage(engine);
-      await ctx.editMessageText(msg, { parse_mode: "HTML", reply_markup: keyboard });
-    } catch { /* */ }
-  });
-
-  bot.callbackQuery("agent_create_start", async (ctx) => {
-    await ctx.answerCallbackQuery();
-    await ctx.reply(
-      `To create a sub-agent, use:\n<code>/agent create &lt;name&gt;</code>\n\n` +
-      `Example: <code>/agent create Scout</code>`,
-      { parse_mode: "HTML" }
-    );
-  });
-
-  bot.callbackQuery("agent_rename_start", async (ctx) => {
-    const engine = getEngine(ctx.from.id);
-    await ctx.answerCallbackQuery();
-    await ctx.reply(
-      `Current name: <b>${esc(engine.getAgentName())}</b>\n\n` +
-      `To rename: <code>/agent rename &lt;new name&gt;</code>`,
-      { parse_mode: "HTML" }
-    );
-  });
 
   bot.callbackQuery(/^set_mode:(.+)$/, async (ctx) => {
     const userId = ctx.from.id;
     const newMode = ctx.match[1];
-    if (!["build", "plan", "qa", "manage"].includes(newMode)) return ctx.answerCallbackQuery("Invalid mode");
+    if (!["build", "plan", "qa"].includes(newMode)) return ctx.answerCallbackQuery("Invalid mode");
     const engine = getEngine(userId);
     engine.setMode(newMode);
     await ctx.answerCallbackQuery(`Switched to ${MODE_LABELS[newMode]}`);
@@ -842,71 +511,6 @@ export async function startTelegramBot(config, encKey) {
     const chatId = ctx.chat.id;
     const text = ctx.message.text;
 
-    // --- Multi-step agent creation flow ---
-    if (pendingAgentCreate.has(userId)) {
-      const state = pendingAgentCreate.get(userId);
-      const input = text.trim();
-
-      if (input.toLowerCase() === "/cancel") {
-        pendingAgentCreate.delete(userId);
-        await ctx.reply("❌ Agent creation cancelled.");
-        return;
-      }
-
-      if (state.step === "role") {
-        if (!input) { await ctx.reply("Role is required. Try again or /cancel."); return; }
-        state.role = input;
-        state.step = "model";
-        await ctx.reply(
-          `<b>Step 2/3:</b> Which model should <b>${esc(state.name)}</b> use?\n\n` +
-          `Send a model name, or <b>skip</b> to inherit the manager's model.`,
-          { parse_mode: "HTML" }
-        );
-        return;
-      }
-
-      if (state.step === "model") {
-        state.model = (input.toLowerCase() === "skip" || !input) ? null : input;
-        state.step = "tools";
-        await ctx.reply(
-          `<b>Step 3/3:</b> Which tools can <b>${esc(state.name)}</b> use?\n\n` +
-          `Send a comma-separated list (e.g., <code>read_file,search_files,bash</code>), or <b>skip</b> for all tools.`,
-          { parse_mode: "HTML" }
-        );
-        return;
-      }
-
-      if (state.step === "tools") {
-        let tools = null;
-        if (input.toLowerCase() !== "skip" && input) {
-          tools = input.split(",").map((t) => t.trim()).filter(Boolean);
-        }
-        const engine = getEngine(userId);
-        const newAgent = engine.addSubAgent({
-          name: state.name,
-          role: state.role,
-          model: state.model,
-          tools,
-        });
-        const diskConfig = loadConfig();
-        diskConfig.subAgents = engine.getSubAgents();
-        _saveConfig(diskConfig);
-        pendingAgentCreate.delete(userId);
-
-        const modelDisplay = newAgent.model || "inherit";
-        const toolsDisplay = newAgent.tools ? newAgent.tools.join(", ") : "all";
-        await ctx.reply(
-          `✅ Created sub-agent "<b>${esc(newAgent.name)}</b>"\n\n` +
-          `Role: <i>${esc(newAgent.role)}</i>\n` +
-          `Model: <code>${esc(modelDisplay)}</code>\n` +
-          `Tools: <code>${esc(toolsDisplay)}</code>\n\n` +
-          `Mention with <code>@${esc(newAgent.name)} task</code> or use Manage mode to delegate.`,
-          { parse_mode: "HTML" }
-        );
-        return;
-      }
-    }
-
     // Intercept CLI slash commands so they don't get sent to the LLM.
     const cmd = text.trim().split(/\s+/)[0].toLowerCase();
     if (cmd.startsWith("/")) {
@@ -917,65 +521,6 @@ export async function startTelegramBot(config, encKey) {
         await ctx.reply(`The <code>${esc(cmd)}</code> command isn't available on Telegram.\n\nUse /start to see available commands.`, { parse_mode: "HTML" });
       }
       return;
-    }
-
-    // Check for @SubAgent mention — route to a dedicated sub-agent engine
-    const atMatch = text.match(/^@(\S+)\s+([\s\S]+)/);
-    if (atMatch) {
-      const mainEngine = getEngine(userId);
-      const subAgentDef = mainEngine._findSubAgent(atMatch[1]);
-      if (subAgentDef && subAgentDef.enabled !== false) {
-        const agentId = subAgentDef.id;
-
-        // Per-agent busy check — allows concurrent agents
-        if (isAgentBusy(userId, agentId)) {
-          await ctx.reply(`⏳ <b>${esc(subAgentDef.name)}</b> is still working. Please wait.`, { parse_mode: "HTML" });
-          return;
-        }
-
-        const subTask = atMatch[2].trim();
-        console.log(`   [${userId}] → ${subAgentDef.name}: ${subTask.slice(0, 60)}${subTask.length > 60 ? "..." : ""}`);
-
-        setAgentBusy(userId, agentId);
-        const subEngine = getSubEngine(userId, subAgentDef);
-        const modelLabel = subAgentDef.model ? ` (${subAgentDef.model})` : "";
-        await ctx.reply(`🤖 <b>${esc(subAgentDef.name)}</b>${esc(modelLabel)} is working in the background...`, { parse_mode: "HTML" });
-
-        // Sub-agents run silently — no streaming. Wire only confirmations and milestones.
-        const ownedPromptIds = [];
-        const subHandlers = {
-          "confirm-needed": async ({ actions, resolve }) => {
-            const promptId = `p${++globalPromptCounter}`;
-            ownedPromptIds.push(promptId);
-            pendingConfirms.set(promptId, resolve);
-            const actionText = actions.map((a) => `• ${a}`).join("\n");
-            const keyboard = new InlineKeyboard()
-              .text("✅ Approve", `confirm:${promptId}:approve`)
-              .text("❌ Deny", `confirm:${promptId}:deny`)
-              .text("✅ Always", `confirm:${promptId}:always`);
-            try {
-              await bot.api.sendMessage(chatId,
-                `⚠️ <b>${esc(subAgentDef.name)}</b> needs approval:\n\n${toTelegramHtml(actionText)}`,
-                { parse_mode: "HTML", reply_markup: keyboard });
-            } catch { /* */ }
-          },
-          // Sub-agents run fully in the background — no tool-by-tool updates.
-          // Only confirmations surface. Final result sent on completion.
-        };
-        for (const [evt, handler] of Object.entries(subHandlers)) {
-          subEngine.on(evt, handler);
-        }
-
-        // Run silently in the background, send final result on completion
-        runSubAgentDetached(subEngine, subTask, userId, chatId, subAgentDef.name, bot, () => {
-          for (const [evt, handler] of Object.entries(subHandlers)) {
-            subEngine.removeListener(evt, handler);
-          }
-          for (const id of ownedPromptIds) pendingConfirms.delete(id);
-          clearAgentBusy(userId, agentId);
-        });
-        return;
-      }
     }
 
     // Main agent busy check
@@ -991,42 +536,6 @@ export async function startTelegramBot(config, encKey) {
     const editor = getEditor(chatId);
     editor.reset();
 
-    // Async delegation — when the main agent delegates to a sub-agent,
-    // run the sub-agent in the background so the main agent isn't blocked.
-    engine.onDelegation = ({ subEngine, task, agentDef, completeTask }) => {
-      const agentId = agentDef.id;
-      setAgentBusy(userId, agentId);
-
-      // Wire confirmations for the sub-agent
-      const ownedPromptIds = [];
-      const confirmHandler = async ({ actions, resolve }) => {
-        const promptId = `p${++globalPromptCounter}`;
-        ownedPromptIds.push(promptId);
-        pendingConfirms.set(promptId, resolve);
-        const actionText = actions.map((a) => `• ${a}`).join("\n");
-        const keyboard = new InlineKeyboard()
-          .text("✅ Approve", `confirm:${promptId}:approve`)
-          .text("❌ Deny", `confirm:${promptId}:deny`)
-          .text("✅ Always", `confirm:${promptId}:always`);
-        try {
-          await bot.api.sendMessage(chatId,
-            `⚠️ <b>${esc(agentDef.name)}</b> needs approval:\n\n${toTelegramHtml(actionText)}`,
-            { parse_mode: "HTML", reply_markup: keyboard });
-        } catch { /* */ }
-      };
-      subEngine.on("confirm-needed", confirmHandler);
-
-      bot.api.sendMessage(chatId, `🤖 <b>${esc(agentDef.name)}</b> is working in the background...`, { parse_mode: "HTML" }).catch(() => {});
-
-      // Fire and forget — runs in the background
-      runSubAgentDetached(subEngine, task, userId, chatId, agentDef.name, bot, () => {
-        subEngine.removeListener("confirm-needed", confirmHandler);
-        for (const id of ownedPromptIds) pendingConfirms.delete(id);
-        clearAgentBusy(userId, agentId);
-        completeTask();
-      });
-    };
-
     const modeLabel = MODE_LABELS[engine.getMode()] || "🔨 Build";
     const thinkingMsg = await ctx.reply(`${modeLabel} — Thinking...`);
     editor.setMessageId(thinkingMsg.message_id);
@@ -1036,7 +545,6 @@ export async function startTelegramBot(config, encKey) {
     // Run the engine in a detached async context so grammy's polling loop
     // stays free to process callback queries (confirmations, plan actions).
     runEngineDetached(engine, text, userId, chatId, editor, cleanup, bot, null, () => {
-      engine.onDelegation = null; // clean up callback
       clearAgentBusy(userId, "main");
     });
   });
@@ -1053,48 +561,6 @@ export async function startTelegramBot(config, encKey) {
     }
   });
 
-  // --- Start scheduler and wire events to Telegram ---
-
-  // Send scheduler notifications to ALL allowed users
-  const broadcastToAllUsers = async (html) => {
-    for (const userId of allowedUsers) {
-      try {
-        await bot.api.sendMessage(userId, html, { parse_mode: "HTML" });
-      } catch { /* user may have blocked bot or chat not found */ }
-    }
-  };
-
-  scheduler.on("schedule-triggered", ({ agentName, task, cron }) => {
-    broadcastToAllUsers(`⏰ <b>Scheduled job running:</b>\n🤖 ${esc(agentName)}: "${esc(task.slice(0, 200))}"\nCron: <code>${esc(cron)}</code>`);
-  });
-
-  scheduler.on("schedule-completed", ({ agentName, task, result, response }) => {
-    const icon = result === "success" ? "✅" : "⚠️";
-    let msg = `${icon} <b>Scheduled job ${result === "success" ? "completed" : "finished (no tools used)"}:</b>\n🤖 ${esc(agentName)}: "${esc(task.slice(0, 100))}"`;
-    if (response) {
-      const html = toTelegramHtml(response);
-      const chunks = splitMessage(msg + "\n\n" + html);
-      // Send all chunks — broadcastToAllUsers only sends one message, so do it manually
-      for (const userId of allowedUsers) {
-        (async () => {
-          for (const chunk of chunks) {
-            try { await bot.api.sendMessage(userId, chunk, { parse_mode: "HTML" }); } catch { /* */ }
-          }
-        })();
-      }
-      return;
-    }
-    broadcastToAllUsers(msg);
-  });
-
-  scheduler.on("schedule-error", ({ agentName, error }) => {
-    broadcastToAllUsers(`❌ <b>Scheduled job failed:</b>\n🤖 ${esc(agentName)}: ${esc(error)}`);
-  });
-
-  // Start the scheduler timer
-  const scheduleCount = scheduler.list().filter((s) => s.enabled).length;
-  scheduler.start();
-
   // --- Start bot ---
 
   console.log("🤖 Clank Build Telegram bot starting...");
@@ -1102,7 +568,6 @@ export async function startTelegramBot(config, encKey) {
   console.log(`   Access code: ${accessCode || "none (first user auto-registers)"}`);
   console.log(`   Model: ${config.selectedModel || "none"}`);
   console.log(`   Mode: build`);
-  console.log(`   Schedules: ${scheduleCount > 0 ? `${scheduleCount} active` : "none"}`);
   console.log(`   CWD: ${process.cwd()}`);
   console.log("");
   console.log("   Press Ctrl+C to stop.");
@@ -1159,49 +624,6 @@ async function runEngineDetached(engine, text, userId, chatId, editor, cleanup, 
   }
 
   cleanup();
-  if (onComplete) onComplete();
-}
-
-/**
- * Run a sub-agent silently in the background.
- * No live streaming — only sends the final result when done.
- */
-async function runSubAgentDetached(engine, text, userId, chatId, agentName, bot, onComplete) {
-  let finalResponse = "";
-
-  // Capture the final response
-  const onEnd = ({ text: t }) => { finalResponse = t || ""; };
-  engine.on("response-end", onEnd);
-
-  try {
-    await engine.sendMessage(text);
-  } catch (err) {
-    console.error(`   [${userId}] Sub-agent error:`, err.message || err);
-    try {
-      await bot.api.sendMessage(chatId, `❌ <b>${esc(agentName)}</b> error: ${esc(err.message || String(err))}`, { parse_mode: "HTML" });
-    } catch { /* */ }
-  }
-
-  engine.removeListener("response-end", onEnd);
-
-  // Send the final result as a single message
-  if (finalResponse) {
-    try {
-      const header = `✅ <b>${esc(agentName)}</b> finished:\n\n`;
-      const html = header + toTelegramHtml(finalResponse);
-      const chunks = splitMessage(html);
-      for (const chunk of chunks) {
-        await bot.api.sendMessage(chatId, chunk, { parse_mode: "HTML" });
-      }
-    } catch (err) {
-      console.error(`   [${userId}] Sub-agent send error:`, err.message || err);
-    }
-  } else {
-    try {
-      await bot.api.sendMessage(chatId, `✅ <b>${esc(agentName)}</b> completed the task.`, { parse_mode: "HTML" });
-    } catch { /* */ }
-  }
-
   if (onComplete) onComplete();
 }
 

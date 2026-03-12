@@ -47,9 +47,7 @@ The desktop version provides the same agentic engine in a windowed interface. Av
 ## Features
 
 - **ReAct agent loop** — iterative reason-and-act cycle with streaming + tool calling
-- **Manager/sub-agent architecture** — create specialized sub-agents with their own models and tool access. The main agent acts as a manager: delegates tasks, monitors progress, reviews results, and reports back. Agents run in the background and return results on completion.
-- **Autonomous job scheduler** — assign recurring or one-shot scheduled tasks to sub-agents using cron expressions or shorthands like `@hourly`, `@daily`, `@every_30m`. Schedules persist across restarts.
-- **4 agent modes** — Build (full agent), Plan (read-only exploration), Q&A (no tools, conversation only), Manage (agent coordination)
+- **3 agent modes** — Build (full agent), Plan (read-only exploration), Q&A (no tools, conversation only)
 - **14 built-in tools** — read_file, write_file, edit_file, list_directory, search_files, glob_files, bash, git, web_fetch, web_search, npm_install, pip_install, install_tool, generate_file
 - **Local models** — connects to [Ollama](https://ollama.com/), llama.cpp, LM Studio, vLLM, and other OpenAI-compatible backends
 - **Cloud models** — Anthropic Claude, Google Gemini, OpenAI GPT, OpenCode (API key required)
@@ -91,13 +89,8 @@ clankbuild [options]
 | `/help` | Full command reference |
 | `/model [name]` | Show or switch model |
 | `/models` | List available models |
-| `/mode [build\|plan\|qa\|manage]` | Toggle or set agent mode |
-| `/agent` | List sub-agents |
-| `/agent create` | Create a new sub-agent (interactive) |
-| `/agent remove <name>` | Delete a sub-agent |
-| `/agent enable <name>` | Enable a sub-agent |
-| `/agent disable <name>` | Disable a sub-agent |
-| `/agent rename <name>` | Rename the manager agent |
+| `/mode [build\|plan\|qa]` | Toggle or set agent mode |
+| `/agent rename <name>` | Rename the agent |
 | `/session` | Browse and resume past sessions |
 | `/memory` | Manage memories |
 | `/instructions` | Show project agent instructions |
@@ -137,8 +130,7 @@ Chat with the Build agent from your phone via Telegram. The agent runs locally �
 | `/clear` | Clear conversation history |
 | `/sessions` | List recent sessions (tap to load or delete) |
 | `/clearsessions` | Delete all sessions |
-| `/mode` | Switch between Build / Plan / Q&A / Manage |
-| `/agents` | List sub-agents with enable/disable buttons |
+| `/mode` | Switch between Build / Plan / Q&A |
 | `/model [name]` | Show or set model |
 | `/models` | List all available models |
 | `/status` | Show agent status |
