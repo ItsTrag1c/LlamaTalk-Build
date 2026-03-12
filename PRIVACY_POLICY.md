@@ -1,7 +1,7 @@
 # Clank — Privacy Policy
 
 **Effective Date:** March 2, 2026
-**Last Updated:** March 12, 2026 (rev. 10)
+**Last Updated:** March 12, 2026 (rev. 11)
 
 ---
 
@@ -160,8 +160,9 @@ GitHub will log the IP address of the request as with any public API call — th
 - **Import Validation** — Imported profiles are validated for type, format, and value constraints before being applied.
 - **Path Traversal Protection** — All file operations validate paths to prevent directory traversal attacks. Symbolic link resolution and `..` path segments are checked before any read or write.
 - **Destructive Command Detection** — The bash tool detects destructive commands (`rm -rf`, `format`, `del /s`, `net user`, `reg delete`, `certutil`, `diskpart`, pipe-to-shell patterns, etc.) and elevates them to high-risk confirmation regardless of the tool's base safety level.
-- **Shell Execution Hardening** — All tool shell calls use `spawnSync` with argument arrays instead of string interpolation, preventing shell injection. Shell mode is disabled for package install operations.
-- **HTML Sanitization** — The generate-file tool sanitizes `<script>` tags and `on*` event handlers in HTML output to prevent XSS in generated files.
+- **Shell Execution Hardening** — All tool shell calls use `spawnSync`/`execFileSync` with argument arrays instead of string interpolation, preventing shell injection. Shell mode is disabled for package install operations. Internal utilities like file permission enforcement also use argument arrays.
+- **HTML Sanitization** — HTML stripping in web_fetch, web_search, and generate_file uses loop-based replacement that runs until stable, preventing crafted nested tags (e.g., `<scr<script>ipt>`) from surviving. Closing tag patterns match arbitrary whitespace and attributes. Entity decoding orders `&amp;` last to prevent double-unescaping. Event handler attributes (`on*`) are also stripped.
+- **Glob-to-Regex Safety** — Glob patterns in glob_files and search_files are converted to regex via single-pass character-by-character conversion, preventing chained `.replace()` calls from interfering with each other.
 - **Regex Safety** — Search patterns are limited to 500 characters with error handling for malformed expressions, preventing ReDoS attacks.
 - **Tool Safety Levels** — Every tool is classified as Low, Medium, or High risk. Low-risk tools (read-only) auto-approve by default. Medium-risk tools (file mutations) prompt for confirmation. High-risk tools (bash, system commands) always require explicit approval. Users can adjust these thresholds in settings.
 - **File Operation Tracking** — All file changes made during a session are tracked with before/after snapshots. The `/undo` command restores the last file change, and `/diff` shows all changes made in the current session.
@@ -251,6 +252,7 @@ Clank is designed with privacy-by-default principles consistent with:
 - **2026-03-08 (rev. 8)** — Expanded to four applications (Build CLI + Build Desktop). Added Build-specific security: path traversal protection, destructive command detection, tool safety levels (low/medium/high), file operation tracking. Added Build Desktop to third-party dependencies. Fixed update check URLs to current repo names. Added OpenCode to all cloud provider references.
 - **2026-03-10 (rev. 9)** — Build v2.5.5 security hardening. Added shell execution hardening (spawnSync argument arrays), HTML sanitization for generated files, regex safety limits, expanded destructive command patterns. Website hosted on GitHub Pages at clanksuite.dev.
 - **2026-03-12 (rev. 10)** — Consolidated from four apps to two. Clank Chat (Desktop + CLI) archived. "Clank Build" renamed to "Clank". Updated all app names, config paths, and data storage references. Clank config dir changed from `%APPDATA%\ClankBuild\` to `%APPDATA%\Clank\`. Project memory file changed from `.clankbuild.md` to `.clank.md`. Removed Chat-specific sections (ClankCLI, Chat Desktop). Merged Desktop storage details under unified Clank Desktop section.
+- **2026-03-12 (rev. 11)** — Security hardening update (CLI v2.5.19, Desktop v2.4.16). HTML sanitization upgraded to loop-based stripping with closing tag attribute matching and safe entity decode ordering. Glob-to-regex conversion rewritten as single-pass to prevent chained replacement interference. File permission enforcement (`applyFilePermissions`) switched from `execSync` to `execFileSync` to prevent shell injection via crafted file paths. Added Glob-to-Regex Safety to security documentation.
 
 ---
 

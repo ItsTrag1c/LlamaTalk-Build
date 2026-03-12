@@ -1,6 +1,6 @@
 # Clank — CLI & Desktop
 
-> Agentic coding assistant — terminal and GUI — part of the Clank Suite. **v2.5.14**
+> Agentic coding assistant — terminal and GUI — part of the Clank Suite. **v2.5.19**
 
 Clank is an agentic coding assistant — available as a standalone terminal app (CLI) and a desktop GUI. Both versions share the same engine, config, memory, and sessions. It uses a ReAct-style agent loop to help you with coding tasks: it reasons about what to do, uses tools to read/edit files, run commands, and search code, then explains what it did. Works with local models via Ollama and cloud providers.
 
