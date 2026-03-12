@@ -121,10 +121,12 @@ function loadConfig() {
 function applyFilePermissions(filePath) {
   if (process.platform === "win32") {
     try {
-      (0, import_child_process.execSync)(
-        `icacls "${filePath}" /inheritance:r /grant:r "${process.env.USERNAME}:F"`,
-        { stdio: "ignore" }
-      );
+      (0, import_child_process.execFileSync)("icacls", [
+        filePath,
+        "/inheritance:r",
+        "/grant:r",
+        `${process.env.USERNAME}:F`
+      ], { stdio: "ignore" });
     } catch {
     }
   } else {
