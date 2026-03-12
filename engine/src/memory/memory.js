@@ -76,14 +76,14 @@ export class MemoryManager {
     return this._read(join(this.globalDir, "MEMORY.md"));
   }
 
-  /** Load project-local .clank.md (fallback chain: .clankbuild.md → .llamabuild.md) */
+  /** Load project-local .clank.md (falls back to .clankbuild.md, then .llamabuild.md) */
   loadProject(projectRoot) {
     const clankPath = join(projectRoot, ".clank.md");
     if (existsSync(clankPath)) return this._read(clankPath);
-    const clankbuildPath = join(projectRoot, ".clankbuild.md");
-    if (existsSync(clankbuildPath)) return this._read(clankbuildPath);
-    const oldPath = join(projectRoot, ".llamabuild.md");
-    if (existsSync(oldPath)) return this._read(oldPath);
+    const clankBuildPath = join(projectRoot, ".clankbuild.md");
+    if (existsSync(clankBuildPath)) return this._read(clankBuildPath);
+    const llamaPath = join(projectRoot, ".llamabuild.md");
+    if (existsSync(llamaPath)) return this._read(llamaPath);
     return null;
   }
 

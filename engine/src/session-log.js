@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, writeFileSync } from "fs";
+import { existsSync, readFileSync, writeFileSync, renameSync } from "fs";
 import { join } from "path";
 
 export class SessionLog {
@@ -7,6 +7,14 @@ export class SessionLog {
     this.filePath = join(projectRoot, ".clank-session.md");
     this.steps = [];
     this.sessionStart = new Date();
+
+    // Backward compat: migrate .clankbuild-session.md → .clank-session.md
+    if (!existsSync(this.filePath)) {
+      const legacyPath = join(projectRoot, ".clankbuild-session.md");
+      if (existsSync(legacyPath)) {
+        try { renameSync(legacyPath, this.filePath); } catch { /* non-fatal */ }
+      }
+    }
   }
 
   addStep(description) {

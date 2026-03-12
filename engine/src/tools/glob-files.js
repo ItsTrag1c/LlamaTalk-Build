@@ -6,14 +6,25 @@ import { validatePath } from "../safety.js";
 const IGNORED_DIRS = new Set(["node_modules", ".git", "dist", "build", "__pycache__", ".next", ".venv", "venv", "target", ".cache"]);
 
 function globToRegex(pattern) {
-  // Convert glob pattern to regex
-  let regex = pattern
-    .replace(/\\/g, "/")
-    .replace(/\./g, "\\.")
-    .replace(/\*\*/g, "<<<GLOBSTAR>>>")
-    .replace(/\*/g, "[^/]*")
-    .replace(/\?/g, "[^/]")
-    .replace(/<<<GLOBSTAR>>>/g, ".*");
+  // Single-pass glob-to-regex conversion (avoids chained replace interference)
+  const normalized = pattern.replace(/\\/g, "/");
+  let regex = "";
+  for (let i = 0; i < normalized.length; i++) {
+    const ch = normalized[i];
+    if (ch === "*" && normalized[i + 1] === "*") {
+      regex += ".*";
+      i++; // skip second *
+      if (normalized[i + 1] === "/") i++; // skip trailing slash
+    } else if (ch === "*") {
+      regex += "[^/]*";
+    } else if (ch === "?") {
+      regex += "[^/]";
+    } else if (".+^${}()|[]".includes(ch)) {
+      regex += "\\" + ch;
+    } else {
+      regex += ch;
+    }
+  }
   return new RegExp("^" + regex + "$");
 }
 

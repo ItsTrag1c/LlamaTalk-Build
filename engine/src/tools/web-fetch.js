@@ -1,6 +1,31 @@
 import { SafetyLevel } from "./base.js";
 import { validateServerUrl } from "../providers/stream.js";
 
+/**
+ * Strip HTML to plain text safely — loops each replacement until stable
+ * to prevent nested/crafted tags from surviving a single pass.
+ */
+function stripHtml(html) {
+  let text = html;
+  let prev;
+  // Remove script blocks (loop: handles <scr<script>ipt>...</script> nesting)
+  do { prev = text; text = text.replace(/<script[\s\S]*?<\/script>/gi, ""); } while (text !== prev);
+  // Remove style blocks
+  do { prev = text; text = text.replace(/<style[\s\S]*?<\/style>/gi, ""); } while (text !== prev);
+  // Remove remaining tags
+  do { prev = text; text = text.replace(/<[^>]+>/g, " "); } while (text !== prev);
+  // Decode entities — decode &amp; last so &amp;lt; doesn't become <
+  text = text
+    .replace(/&nbsp;/g, " ")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&amp;/g, "&")
+    .replace(/\s+/g, " ")
+    .trim();
+  return text;
+}
+
 export const webFetchTool = {
   definition: {
     name: "web_fetch",
@@ -61,7 +86,7 @@ export const webFetchTool = {
       for (let i = 0; i <= MAX_REDIRECTS; i++) {
         res = await fetch(currentUrl, {
           signal: controller.signal,
-          headers: { "User-Agent": "Clank/0.1.0" },
+          headers: { "User-Agent": "Clank-Build/0.1.0" },
           redirect: "manual",
         });
 
@@ -97,17 +122,7 @@ export const webFetchTool = {
 
       // Strip HTML tags for HTML content
       if (contentType.includes("html")) {
-        text = text
-          .replace(/<script[\s\S]*?<\/script>/gi, "")
-          .replace(/<style[\s\S]*?<\/style>/gi, "")
-          .replace(/<[^>]+>/g, " ")
-          .replace(/&nbsp;/g, " ")
-          .replace(/&amp;/g, "&")
-          .replace(/&lt;/g, "<")
-          .replace(/&gt;/g, ">")
-          .replace(/&quot;/g, '"')
-          .replace(/\s+/g, " ")
-          .trim();
+        text = stripHtml(text);
       }
 
       if (text.length > 30000) {

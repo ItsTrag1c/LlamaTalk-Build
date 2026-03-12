@@ -32,7 +32,7 @@ export const webSearchTool = {
       const res = await fetch(url, {
         signal: controller.signal,
         headers: {
-          "User-Agent": "Clank/0.1.0",
+          "User-Agent": "Clank-Build/0.1.0",
           "Accept": "text/html",
         },
       });
@@ -52,7 +52,10 @@ export const webSearchTool = {
       let match;
       while ((match = resultRegex.exec(html)) !== null && results.length < maxResults) {
         const rawUrl = match[1];
-        const title = match[2].replace(/<[^>]+>/g, "").trim();
+        let title = match[2];
+        let _prev;
+        do { _prev = title; title = title.replace(/<[^>]+>/g, ""); } while (title !== _prev);
+        title = title.trim();
 
         // Extract actual URL from DuckDuckGo redirect
         let actualUrl = rawUrl;
@@ -67,7 +70,10 @@ export const webSearchTool = {
       // Try to get snippets
       let snippetIdx = 0;
       while ((match = snippetRegex.exec(html)) !== null && snippetIdx < results.length) {
-        results[snippetIdx].snippet = match[1].replace(/<[^>]+>/g, "").trim();
+        let snip = match[1];
+        let _sp;
+        do { _sp = snip; snip = snip.replace(/<[^>]+>/g, ""); } while (snip !== _sp);
+        results[snippetIdx].snippet = snip.trim();
         snippetIdx++;
       }
 

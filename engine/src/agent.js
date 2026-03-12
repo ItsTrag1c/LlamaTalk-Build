@@ -273,7 +273,6 @@ export class AgentEngine extends EventEmitter {
     this.noMemory = options.noMemory || false;
     this.showThinking = options.showThinking !== false && config.showThinking;
 
-    // Build tool registry
     this.toolRegistry = createToolRegistry();
 
     this.memory = new MemoryManager(config, this.encKey);

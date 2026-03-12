@@ -55,27 +55,30 @@ const DEFAULTS = {
 export function getConfigDir() {
   const appData = process.env.APPDATA;
   if (appData) {
-    // Migration chain: LlamaTalkBuild → ClankBuild → Clank
-    const legacyDir = join(appData, "LlamaTalkBuild");
-    const oldDir = join(appData, "ClankBuild");
     const newDir = join(appData, "Clank");
-    if (existsSync(legacyDir) && !existsSync(oldDir)) {
-      cpSync(legacyDir, oldDir, { recursive: true });
-    }
-    if (existsSync(oldDir) && !existsSync(newDir)) {
-      cpSync(oldDir, newDir, { recursive: true });
+    if (!existsSync(newDir)) {
+      // Migrate from ClankBuild → Clank, or LlamaTalkBuild → Clank
+      const clankBuildDir = join(appData, "ClankBuild");
+      const llamaDir = join(appData, "LlamaTalkBuild");
+      if (existsSync(clankBuildDir)) {
+        cpSync(clankBuildDir, newDir, { recursive: true });
+      } else if (existsSync(llamaDir)) {
+        cpSync(llamaDir, newDir, { recursive: true });
+      }
     }
     return newDir;
   }
-  // Migration chain (non-Windows): .llamabuild → .clankbuild → .clank
-  const legacyDir = join(homedir(), ".llamabuild");
-  const oldDir = join(homedir(), ".clankbuild");
+  // Non-Windows
   const newDir = join(homedir(), ".clank");
-  if (existsSync(legacyDir) && !existsSync(oldDir)) {
-    cpSync(legacyDir, oldDir, { recursive: true });
-  }
-  if (existsSync(oldDir) && !existsSync(newDir)) {
-    cpSync(oldDir, newDir, { recursive: true });
+  if (!existsSync(newDir)) {
+    // Migrate from .clankbuild → .clank, or .llamabuild → .clank
+    const clankBuildDir = join(homedir(), ".clankbuild");
+    const llamaDir = join(homedir(), ".llamabuild");
+    if (existsSync(clankBuildDir)) {
+      cpSync(clankBuildDir, newDir, { recursive: true });
+    } else if (existsSync(llamaDir)) {
+      cpSync(llamaDir, newDir, { recursive: true });
+    }
   }
   return newDir;
 }
@@ -257,7 +260,7 @@ export function needsPinMigration(hash) {
   return !!hash && !hash.startsWith("pbkdf2v1:");
 }
 
-function legacyHashPin(pin, salt = "clankbuild-pin-salt") {
+function legacyHashPin(pin, salt = "clank-pin-salt") {
   return createHash("sha256").update(salt + pin).digest("hex");
 }
 
@@ -272,12 +275,14 @@ export function verifyPin(pin, hash) {
     if (computed.length !== stored.length) return false;
     return timingSafeEqual(computed, stored);
   }
-  // Try new salt first, then fall back to old salt for backward compat
-  const computedNew = Buffer.from(legacyHashPin(pin, "clankbuild-pin-salt"), "hex");
+  // Try current salt first, then legacy salts for backward compat
   const stored = Buffer.from(hash, "hex");
-  if (computedNew.length === stored.length && timingSafeEqual(computedNew, stored)) return true;
-  const computedOld = Buffer.from(legacyHashPin(pin, "llamatalkbuild-pin-salt"), "hex");
-  if (computedOld.length === stored.length && timingSafeEqual(computedOld, stored)) return true;
+  const computedCurrent = Buffer.from(legacyHashPin(pin, "clank-pin-salt"), "hex");
+  if (computedCurrent.length === stored.length && timingSafeEqual(computedCurrent, stored)) return true;
+  const computedClankBuild = Buffer.from(legacyHashPin(pin, "clankbuild-pin-salt"), "hex");
+  if (computedClankBuild.length === stored.length && timingSafeEqual(computedClankBuild, stored)) return true;
+  const computedLlama = Buffer.from(legacyHashPin(pin, "llamatalkbuild-pin-salt"), "hex");
+  if (computedLlama.length === stored.length && timingSafeEqual(computedLlama, stored)) return true;
   return false;
 }
 

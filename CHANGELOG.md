@@ -1,6 +1,15 @@
 # Changelog — Clank
 
-Last updated: 2026-03-11 (v2.5.18)
+Last updated: 2026-03-12 (v2.5.19)
+
+---
+
+## v2.5.19 (2026-03-12)
+
+### Security
+- **Fixed incomplete HTML sanitization** — HTML tag stripping in `web_fetch`, `web_search`, and `generate_file` now loops until stable, preventing crafted nested tags from surviving a single pass.
+- **Fixed double-unescaping in HTML entity decoding** — `&amp;` is now decoded last so sequences like `&amp;lt;` don't become `<`.
+- **Fixed incomplete glob-to-regex escaping** — `glob_files` and `search_files` now use single-pass character-by-character conversion instead of chained `.replace()` calls that could interfere with each other.
 
 ---
 
