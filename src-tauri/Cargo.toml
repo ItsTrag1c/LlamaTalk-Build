@@ -1,12 +1,12 @@
 [package]
-name = "clankbuilddesktop"
+name = "clankdesktop"
 version = "2.4.15"
-description = "Clank Build Desktop — Agentic Coding Assistant"
+description = "Clank Desktop — Agentic Coding Assistant"
 authors = ["ItsTrag1c"]
 edition = "2021"
 
 [lib]
-name = "clankbuilddesktop_lib"
+name = "clankdesktop_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]

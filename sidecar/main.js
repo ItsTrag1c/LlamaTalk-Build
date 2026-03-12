@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Clank Build Desktop — Sidecar Process
+ * Clank Desktop — Sidecar Process
  *
  * Wraps AgentEngine with a newline-delimited JSON protocol over stdin/stdout.
  * The Tauri Rust backend spawns this process and communicates via stdio.
@@ -16,7 +16,7 @@ import { createInterface } from "readline";
 import {
   AgentEngine, loadConfig, saveConfig, SessionManager, getAllLocalModels,
   CLOUD_MODELS, detectBackend, TaskManager, MemoryManager,
-} from "clankbuild-engine";
+} from "clank-engine";
 
 // --- Protocol helpers ---
 

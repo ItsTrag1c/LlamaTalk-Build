@@ -1,4 +1,4 @@
-# Changelog — Clank Build Desktop
+# Changelog — Clank Desktop
 
 Last updated: 2026-03-11 (v2.4.15)
 

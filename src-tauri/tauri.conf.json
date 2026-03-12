@@ -1,7 +1,7 @@
 {
-  "productName": "Clank Build Desktop",
+  "productName": "Clank Desktop",
   "version": "2.4.15",
-  "identifier": "com.clank.build.desktop",
+  "identifier": "com.clank.desktop",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:1421",
@@ -12,7 +12,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "Clank Build",
+        "title": "Clank",
         "width": 1200,
         "height": 800,
         "minWidth": 800,
@@ -37,7 +37,7 @@
       "icons/icon.ico"
     ],
     "externalBin": [
-      "binaries/clankbuild-sidecar"
+      "binaries/clank-sidecar"
     ],
     "windows": {
       "nsis": {

@@ -1,9 +1,9 @@
 {
-  "name": "clankbuild-sidecar",
+  "name": "clank-sidecar",
   "version": "0.1.0",
   "type": "module",
   "main": "main.js",
   "dependencies": {
-    "clankbuild-engine": "file:../../llamatalkbuild-engine"
+    "clank-engine": "file:../../llamatalkbuild-engine"
   }
 }

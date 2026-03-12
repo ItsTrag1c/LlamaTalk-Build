@@ -7,9 +7,9 @@
  *
  * The naming convention for Tauri externalBin is:
  *   {name}-{target-triple}
- * For macOS arm64: clankbuild-sidecar-aarch64-apple-darwin
- * For macOS x64: clankbuild-sidecar-x86_64-apple-darwin
- * For Windows x64: clankbuild-sidecar-x86_64-pc-windows-msvc.exe
+ * For macOS arm64: clank-sidecar-aarch64-apple-darwin
+ * For macOS x64: clank-sidecar-x86_64-apple-darwin
+ * For Windows x64: clank-sidecar-x86_64-pc-windows-msvc.exe
  */
 import { execSync } from "child_process";
 import { mkdirSync, existsSync } from "fs";
@@ -29,7 +29,7 @@ let triple, outName, pkgTarget;
 
 if (platform === "win32") {
   triple = "x86_64-pc-windows-msvc";
-  outName = `clankbuild-sidecar-${triple}.exe`;
+  outName = `clank-sidecar-${triple}.exe`;
   pkgTarget = "node18-win-x64";
 } else if (platform === "darwin") {
   if (arch === "arm64") {
@@ -37,11 +37,11 @@ if (platform === "win32") {
   } else {
     triple = "x86_64-apple-darwin";
   }
-  outName = `clankbuild-sidecar-${triple}`;
+  outName = `clank-sidecar-${triple}`;
   pkgTarget = `node18-macos-${arch === "arm64" ? "arm64" : "x64"}`;
 } else {
   triple = `${arch}-unknown-linux-gnu`;
-  outName = `clankbuild-sidecar-${triple}`;
+  outName = `clank-sidecar-${triple}`;
   pkgTarget = `node18-linux-${arch === "arm64" ? "arm64" : "x64"}`;
 }
 

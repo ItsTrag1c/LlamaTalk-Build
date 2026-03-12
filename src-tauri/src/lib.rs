@@ -57,15 +57,15 @@ struct SidecarMessage {
 fn get_sidecar_name() -> &'static str {
     #[cfg(target_os = "windows")]
     {
-        "clankbuild-sidecar.exe"
+        "clank-sidecar.exe"
     }
     #[cfg(target_os = "macos")]
     {
-        "clankbuild-sidecar"
+        "clank-sidecar"
     }
     #[cfg(not(any(target_os = "windows", target_os = "macos")))]
     {
-        "clankbuild-sidecar"
+        "clank-sidecar"
     }
 }
 
@@ -284,7 +284,7 @@ async fn check_for_desktop_update(
     let current = app.package_info().version.to_string();
 
     let client = reqwest::Client::builder()
-        .user_agent("Clank-Build-Desktop")
+        .user_agent("Clank-Desktop")
         .build()
         .map_err(|e| e.to_string())?;
 
@@ -388,7 +388,7 @@ async fn download_and_install_update(
     }
 
     let client = reqwest::Client::builder()
-        .user_agent("Clank-Build-Desktop")
+        .user_agent("Clank-Desktop")
         .build()
         .map_err(|e| e.to_string())?;
 

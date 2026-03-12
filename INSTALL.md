@@ -47,7 +47,7 @@ llama --version      # check version
 
 ---
 
-## Clank Build — CLI
+## Clank — CLI
 
 An agentic coding assistant with 14 tools, project memory, and plan/build modes.
 
@@ -57,39 +57,39 @@ An agentic coding assistant with 14 tools, project memory, and plan/build modes.
 ```powershell
 irm https://raw.githubusercontent.com/ItsTrag1c/Clank-Build/cli/install.ps1 | iex
 ```
-Downloads the latest release to `%USERPROFILE%\ClankBuild\` and adds it to your PATH. Run with `clankbuild`.
+Downloads the latest release to `%USERPROFILE%\Clank\` and adds it to your PATH. Run with `clank`.
 
 **Installer**
-Download `Clank Build_setup.exe` from [GitHub Releases](https://github.com/ItsTrag1c/Clank-Build/releases/latest). Installs to `C:\Program Files\Clank Build\` and adds `clankbuild` to your system PATH.
+Download `Clank_setup.exe` from [GitHub Releases](https://github.com/ItsTrag1c/Clank-Build/releases/latest). Installs to `C:\Program Files\Clank\` and adds `clank` to your system PATH.
 
 **Standalone EXE**
-Download `ClankBuild.exe` from [GitHub Releases](https://github.com/ItsTrag1c/Clank-Build/releases/latest). Run from anywhere — no install needed.
+Download `Clank.exe` from [GitHub Releases](https://github.com/ItsTrag1c/Clank-Build/releases/latest). Run from anywhere — no install needed.
 
 ### Usage
 
 ```
-clankbuild           # start agent in current directory
-clankbuild -c        # continue last session
-clankbuild --version # check version
+clank           # start agent in current directory
+clank -c        # continue last session
+clank --version # check version
 ```
 
 ---
 
-## Clank Build — Desktop
+## Clank — Desktop
 
-The Build agent wrapped in a desktop GUI.
+The Clank agent wrapped in a desktop GUI.
 
 ### Windows
 
 **Installer (recommended)**
-Download `Clank Build Desktop_x64-setup.exe` from [GitHub Releases](https://github.com/ItsTrag1c/Clank-Build/releases/latest). Installs to `C:\Program Files\Clank Build Desktop\`.
+Download `Clank Desktop_x64-setup.exe` from [GitHub Releases](https://github.com/ItsTrag1c/Clank-Build/releases/latest). Installs to `C:\Program Files\Clank Desktop\`.
 
 **MSI**
-Download `Clank Build Desktop_x64_en-US.msi` from [GitHub Releases](https://github.com/ItsTrag1c/Clank-Build/releases/latest) for MSI-based deployment.
+Download `Clank Desktop_x64_en-US.msi` from [GitHub Releases](https://github.com/ItsTrag1c/Clank-Build/releases/latest) for MSI-based deployment.
 
 ### macOS
 
-Download `Clank Build Desktop_aarch64.dmg` from [GitHub Releases](https://github.com/ItsTrag1c/Clank-Build/releases/latest) and drag to Applications.
+Download `Clank Desktop_aarch64.dmg` from [GitHub Releases](https://github.com/ItsTrag1c/Clank-Build/releases/latest) and drag to Applications.
 
 ---
 
@@ -108,7 +108,7 @@ Compare the hash with the one in `SHA256SUMS.txt`.
 ## Uninstall
 
 - **Installer/MSI apps:** Use Windows Settings > Apps > Installed apps, or run the uninstaller from the install directory.
-- **One-liner installs:** Delete the install folder (`%USERPROFILE%\ClankCLI\` or `%USERPROFILE%\ClankBuild\`) and remove it from your PATH.
+- **One-liner installs:** Delete the install folder (`%USERPROFILE%\ClankCLI\` or `%USERPROFILE%\Clank\`) and remove it from your PATH.
 - **Standalone EXE:** Just delete the file.
 
 ---

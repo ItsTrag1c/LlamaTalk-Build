@@ -1204,7 +1204,7 @@ function TelegramSettings({
 
       {/* Help */}
       <div className="text-xs text-[var(--text-dim)] leading-relaxed">
-        Get a token from <b>@BotFather</b> on Telegram, then run <code className="text-[var(--accent)]">clankbuild --telegram</code> to start.
+        Get a token from <b>@BotFather</b> on Telegram, then run <code className="text-[var(--accent)]">clank --telegram</code> to start.
       </div>
     </div>
   );
