@@ -84,7 +84,7 @@ export interface Session {
   projectRoot?: string;
 }
 
-export type AgentMode = "build" | "plan" | "qa" | "manage";
+export type AgentMode = "build" | "plan" | "qa";
 
 export interface MemoryLoadingEvent {
   status: "start" | "done";
@@ -99,13 +99,4 @@ export interface Task {
 export interface TaskList {
   active: Task[];
   completed: Task[];
-}
-
-export interface SubAgent {
-  id: string;
-  name: string;
-  role: string;
-  model: string | null;
-  tools: string[] | null;
-  enabled: boolean;
 }

@@ -116,10 +116,4 @@ export const engine = {
   addTask: (description: string, dueDate?: string) => engineCall("addTask", { description, dueDate }),
   completeTask: (index: number) => engineCall("completeTask", { index }),
   removeTask: (index: number) => engineCall("removeTask", { index }),
-  listAgents: () => engineCall("listAgents"),
-  createAgent: (name: string, role: string, model?: string, tools?: string[]) =>
-    engineCall("createAgent", { name, role, model, tools }),
-  removeAgent: (name: string) => engineCall("removeAgent", { name }),
-  enableAgent: (name: string) => engineCall("enableAgent", { name }),
-  disableAgent: (name: string) => engineCall("disableAgent", { name }),
 };

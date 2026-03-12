@@ -24,9 +24,8 @@ Clank Build Desktop wraps the Clank Build engine in a desktop interface. Same 14
 ## Features
 
 - **ReAct agent loop** — iterative reason-and-act cycle with streaming + tool calling
-- **Manager/sub-agent architecture** — create specialized sub-agents with their own models and tool access. The main agent delegates, monitors, and reviews. Agents managed via the Agents sidebar tab.
-- **Autonomous job scheduler** — assign recurring or one-shot scheduled tasks to sub-agents using cron expressions or shorthands like `@hourly`, `@daily`, `@every_30m`. Schedules persist across restarts.
-- **4 agent modes** — Build (full agent), Plan (read-only exploration), Q&A (no tools, conversation only), Manage (agent coordination and delegation)
+- **Autonomous job scheduler** — assign recurring or one-shot scheduled tasks using cron expressions or shorthands like `@hourly`, `@daily`, `@every_30m`. Schedules persist across restarts.
+- **3 agent modes** — Build (full agent), Plan (read-only exploration), Q&A (no tools, conversation only)
 - **14 built-in tools** — read_file, write_file, edit_file, list_directory, search_files, glob_files, bash, git, web_fetch, web_search, npm_install, pip_install, install_tool, generate_file
 - **Local models** — connects to [Ollama](https://ollama.com/), llama.cpp, LM Studio, vLLM, and other OpenAI-compatible backends
 - **Cloud models** — Anthropic Claude, Google Gemini, OpenAI GPT, OpenCode (API key required)
@@ -35,7 +34,7 @@ Clank Build Desktop wraps the Clank Build engine in a desktop interface. Same 14
 - **3-tier safety system** — tools classified as Low, Medium, or High risk with confirmation prompts
 - **Task management** — add tasks with due dates, mark complete, see overdue warnings
 - **Session management** — browse, rename, resume, and delete past sessions
-- **Home page dashboard** — landing page with recent sessions, active tasks, agents panel, and quick actions
+- **Home page dashboard** — landing page with recent sessions, active tasks, and quick actions
 - **Telegram bot support** — configure and manage Telegram bot settings from the Settings tab
 - **PIN protection** — optional, PBKDF2-hashed; API keys encrypted at rest (AES-256-GCM)
 - **Zero telemetry** — no analytics, no tracking, no cloud sync of any kind
