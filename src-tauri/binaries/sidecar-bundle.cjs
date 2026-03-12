@@ -3341,11 +3341,11 @@ function stripHtml(html) {
   let prev;
   do {
     prev = text;
-    text = text.replace(/<script[\s\S]*?<\/script\s*>/gi, "");
+    text = text.replace(/<script[\s\S]*?<\/script[^>]*>/gi, "");
   } while (text !== prev);
   do {
     prev = text;
-    text = text.replace(/<style[\s\S]*?<\/style\s*>/gi, "");
+    text = text.replace(/<style[\s\S]*?<\/style[^>]*>/gi, "");
   } while (text !== prev);
   do {
     prev = text;
@@ -3854,7 +3854,7 @@ function sanitizeHtmlBody(html) {
   let prev;
   do {
     prev = safe;
-    safe = safe.replace(/<script[\s\S]*?<\/script\s*>/gi, "");
+    safe = safe.replace(/<script[\s\S]*?<\/script[^>]*>/gi, "");
   } while (safe !== prev);
   do {
     prev = safe;
