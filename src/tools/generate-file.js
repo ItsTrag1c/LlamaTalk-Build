@@ -118,7 +118,7 @@ function sanitizeHtmlBody(html) {
   // Strip <script> tags and their contents — loop until stable to handle nested/crafted tags
   let safe = html;
   let prev;
-  do { prev = safe; safe = safe.replace(/<script[\s\S]*?<\/script\s*>/gi, ""); } while (safe !== prev);
+  do { prev = safe; safe = safe.replace(/<script[\s\S]*?<\/script[^>]*>/gi, ""); } while (safe !== prev);
   // Strip on* event handler attributes (e.g., onclick=, onerror=, onload=)
   do { prev = safe; safe = safe.replace(/\s+on[a-z]+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, ""); } while (safe !== prev);
   return safe;
