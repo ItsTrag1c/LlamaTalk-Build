@@ -1,6 +1,15 @@
 # Changelog — Clank Desktop
 
-Last updated: 2026-03-11 (v2.4.15)
+Last updated: 2026-03-12 (v2.4.16)
+
+---
+
+## v2.4.16 (2026-03-12)
+
+### Security
+- **Fixed incomplete HTML sanitization** — engine update: HTML tag stripping now loops until stable, preventing crafted nested tags from surviving a single pass.
+- **Fixed double-unescaping in HTML entity decoding** — engine update: `&amp;` decoded last to prevent sequences like `&amp;lt;` becoming `<`.
+- **Fixed incomplete glob-to-regex escaping** — engine update: single-pass character-by-character conversion replaces chained `.replace()` calls.
 
 ---
 

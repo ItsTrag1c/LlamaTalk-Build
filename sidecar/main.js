@@ -53,7 +53,7 @@ function sendPrompt(event, data) {
 
 let engine = null;
 let config = null;
-const SIDECAR_VERSION = "2.4.2";
+const SIDECAR_VERSION = "2.4.3";
 
 function ensureEngine(projectRoot) {
   if (!engine) {

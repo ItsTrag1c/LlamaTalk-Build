@@ -3027,9 +3027,23 @@ var searchFilesTool = {
     }
     const maxResults = args.max_results || 50;
     const results = [];
-    const globPattern = args.glob ? new RegExp(
-      "^" + args.glob.replace(/\./g, "\\.").replace(/\*/g, ".*").replace(/\?/g, ".") + "$"
-    ) : null;
+    let globPattern = null;
+    if (args.glob) {
+      let gRe = "";
+      for (let i = 0; i < args.glob.length; i++) {
+        const ch = args.glob[i];
+        if (ch === "*") {
+          gRe += ".*";
+        } else if (ch === "?") {
+          gRe += ".";
+        } else if (".+^${}()|[]\\".includes(ch)) {
+          gRe += "\\" + ch;
+        } else {
+          gRe += ch;
+        }
+      }
+      globPattern = new RegExp("^" + gRe + "$");
+    }
     function walk(dir) {
       if (results.length >= maxResults) return;
       try {
@@ -3088,7 +3102,24 @@ var import_fs15 = require("fs");
 var import_path15 = require("path");
 var IGNORED_DIRS2 = /* @__PURE__ */ new Set(["node_modules", ".git", "dist", "build", "__pycache__", ".next", ".venv", "venv", "target", ".cache"]);
 function globToRegex(pattern) {
-  let regex = pattern.replace(/\\/g, "/").replace(/\./g, "\\.").replace(/\*\*/g, "<<<GLOBSTAR>>>").replace(/\*/g, "[^/]*").replace(/\?/g, "[^/]").replace(/<<<GLOBSTAR>>>/g, ".*");
+  const normalized = pattern.replace(/\\/g, "/");
+  let regex = "";
+  for (let i = 0; i < normalized.length; i++) {
+    const ch = normalized[i];
+    if (ch === "*" && normalized[i + 1] === "*") {
+      regex += ".*";
+      i++;
+      if (normalized[i + 1] === "/") i++;
+    } else if (ch === "*") {
+      regex += "[^/]*";
+    } else if (ch === "?") {
+      regex += "[^/]";
+    } else if (".+^${}()|[]".includes(ch)) {
+      regex += "\\" + ch;
+    } else {
+      regex += ch;
+    }
+  }
   return new RegExp("^" + regex + "$");
 }
 var globFilesTool = {
@@ -3305,6 +3336,24 @@ var gitTool = {
 };
 
 // ../../llamatalkbuild-engine/src/tools/web-fetch.js
+function stripHtml(html) {
+  let text = html;
+  let prev;
+  do {
+    prev = text;
+    text = text.replace(/<script[\s\S]*?<\/script>/gi, "");
+  } while (text !== prev);
+  do {
+    prev = text;
+    text = text.replace(/<style[\s\S]*?<\/style>/gi, "");
+  } while (text !== prev);
+  do {
+    prev = text;
+    text = text.replace(/<[^>]+>/g, " ");
+  } while (text !== prev);
+  text = text.replace(/&nbsp;/g, " ").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&amp;/g, "&").replace(/\s+/g, " ").trim();
+  return text;
+}
 var webFetchTool = {
   definition: {
     name: "web_fetch",
@@ -3380,7 +3429,7 @@ var webFetchTool = {
       const contentType = res.headers.get("content-type") || "";
       let text = await res.text();
       if (contentType.includes("html")) {
-        text = text.replace(/<script[\s\S]*?<\/script>/gi, "").replace(/<style[\s\S]*?<\/style>/gi, "").replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/\s+/g, " ").trim();
+        text = stripHtml(text);
       }
       if (text.length > 3e4) {
         text = text.slice(0, 3e4) + `
@@ -3443,7 +3492,13 @@ var webSearchTool = {
       let match;
       while ((match = resultRegex.exec(html)) !== null && results.length < maxResults) {
         const rawUrl = match[1];
-        const title = match[2].replace(/<[^>]+>/g, "").trim();
+        let title = match[2];
+        let _prev;
+        do {
+          _prev = title;
+          title = title.replace(/<[^>]+>/g, "");
+        } while (title !== _prev);
+        title = title.trim();
         let actualUrl = rawUrl;
         try {
           const parsed = new URL(rawUrl, "https://duckduckgo.com");
@@ -3454,7 +3509,13 @@ var webSearchTool = {
       }
       let snippetIdx = 0;
       while ((match = snippetRegex.exec(html)) !== null && snippetIdx < results.length) {
-        results[snippetIdx].snippet = match[1].replace(/<[^>]+>/g, "").trim();
+        let snip = match[1];
+        let _sp;
+        do {
+          _sp = snip;
+          snip = snip.replace(/<[^>]+>/g, "");
+        } while (snip !== _sp);
+        results[snippetIdx].snippet = snip.trim();
         snippetIdx++;
       }
       if (results.length === 0) {
@@ -3789,8 +3850,16 @@ var generateFileTool = {
   }
 };
 function sanitizeHtmlBody(html) {
-  let safe = html.replace(/<script[\s\S]*?<\/script>/gi, "<!-- script removed for safety -->");
-  safe = safe.replace(/\s+on[a-z]+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, "");
+  let safe = html;
+  let prev;
+  do {
+    prev = safe;
+    safe = safe.replace(/<script[\s\S]*?<\/script>/gi, "");
+  } while (safe !== prev);
+  do {
+    prev = safe;
+    safe = safe.replace(/\s+on[a-z]+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, "");
+  } while (safe !== prev);
   return safe;
 }
 function wrapHtml(content, title) {
@@ -4657,7 +4726,7 @@ function sendPrompt(event, data) {
 }
 var engine = null;
 var config = null;
-var SIDECAR_VERSION = "2.4.2";
+var SIDECAR_VERSION = "2.4.3";
 function ensureEngine(projectRoot) {
   if (!engine) {
     config = loadConfig();
