@@ -15,7 +15,7 @@ function ask(rl, question) {
 export async function runOnboarding(rl, config) {
   printBanner();
 
-  console.log(ORANGE + BOLD + "Welcome to Clank Build!" + RESET);
+  console.log(ORANGE + BOLD + "Welcome to Clank!" + RESET);
   console.log(DIM + "Let's get you set up. This only takes a moment.\n" + RESET);
 
   // Step 1: Name
@@ -157,7 +157,7 @@ export async function runOnboarding(rl, config) {
   } else {
     console.log(GREEN + "  Memory already set up." + RESET);
   }
-  console.log(DIM + "  Clank Build remembers your preferences and patterns across sessions." + RESET);
+  console.log(DIM + "  Clank remembers your preferences and patterns across sessions." + RESET);
   console.log(DIM + "  Use /memory to manage memories.\n" + RESET);
 
   // Step 8: Get to Know You
@@ -165,7 +165,7 @@ export async function runOnboarding(rl, config) {
   console.log(DIM + "Press Enter to skip any question.\n" + RESET);
 
   // Liability notice (condensed)
-  console.log(YELLOW + "  ⚠ Clank Build can read, write, delete files and execute commands." + RESET);
+  console.log(YELLOW + "  ⚠ Clank can read, write, delete files and execute commands." + RESET);
   console.log(DIM + "  Review agent actions carefully. Use MEDIUM/HIGH safety levels.\n" + RESET);
 
   const memory = new MemoryManager(config, encKey);
@@ -178,7 +178,7 @@ export async function runOnboarding(rl, config) {
     config.onboardingDone = true;
     config.onboardingComplete = true;
     config.appVersion = "2.3.0";
-    console.log(ORANGE + BOLD + "All set! Starting Clank Build...\n" + RESET);
+    console.log(ORANGE + BOLD + "All set! Starting Clank...\n" + RESET);
     return encKey;
   }
 
@@ -201,7 +201,7 @@ export async function runOnboarding(rl, config) {
 
   // Step 9: Telegram opt-in
   console.log("");
-  const wantTelegram = await ask(rl, BOLD + "Connect Clank Build to Telegram? " + RESET + DIM + "(y/N) " + RESET);
+  const wantTelegram = await ask(rl, BOLD + "Connect Clank to Telegram? " + RESET + DIM + "(y/N) " + RESET);
   if (wantTelegram.trim().toLowerCase() === "y") {
     console.log(DIM + "  Messages will route through Telegram's servers.\n" + RESET);
     const botToken = await ask(rl, "  Bot token from @BotFather: ");
@@ -213,7 +213,7 @@ export async function runOnboarding(rl, config) {
       console.log(GREEN + "  Token saved." + RESET);
       console.log(`  Access code: ${ORANGE}${code}${RESET}`);
       console.log(DIM + "  Send this code to the bot on Telegram to authenticate." + RESET);
-      console.log(DIM + `\n  Start the bot with: clankbuild --telegram${config.pinHash ? " --pin <pin>" : ""}` + RESET);
+      console.log(DIM + `\n  Start the bot with: clank --telegram${config.pinHash ? " --pin <pin>" : ""}` + RESET);
     } else {
       console.log(DIM + "  Skipped — set up later with /telegram token <token>" + RESET);
     }
@@ -225,7 +225,7 @@ export async function runOnboarding(rl, config) {
   config.onboardingDone = true;
   config.onboardingComplete = true;
   config.appVersion = "2.3.0";
-  console.log(ORANGE + BOLD + "\nAll set! Starting Clank Build...\n" + RESET);
+  console.log(ORANGE + BOLD + "\nAll set! Starting Clank...\n" + RESET);
   return encKey;
 }
 

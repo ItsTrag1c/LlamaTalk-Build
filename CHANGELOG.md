@@ -1,4 +1,4 @@
-# Changelog — Clank Build
+# Changelog — Clank
 
 Last updated: 2026-03-11 (v2.5.18)
 

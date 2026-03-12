@@ -250,7 +250,7 @@ ${BOLD}Settings${RESET}
       const instructions = discoverInstructions(process.cwd());
       if (instructions.length === 0) {
         console.log(`\n  ${theme.dim}No agent instructions found.${theme.reset}`);
-        console.log(`  ${theme.dim}Create .clankbuild/agent/*.md or AGENTS.md to add instructions.${theme.reset}\n`);
+        console.log(`  ${theme.dim}Create .clank/agent/*.md or AGENTS.md to add instructions.${theme.reset}\n`);
         return { handled: true };
       }
       console.log(`\n${BOLD}  Agent Instructions${RESET} ${theme.textMuted}(${instructions.length} file${instructions.length > 1 ? "s" : ""})${theme.reset}\n`);
@@ -706,7 +706,7 @@ ${BOLD}Settings${RESET}
         console.log(`  Access code: ${code || DIM + "None (use /telegram code to generate)" + RESET}`);
         console.log(`  Users:       ${users.length > 0 ? users.join(", ") : "None"}`);
         console.log(`  Status:      ${token ? GREEN + "Configured" + RESET : DIM + "Not configured" + RESET}`);
-        console.log(DIM + `\n  Start with: clankbuild --telegram${config.pinHash ? " --pin <pin>" : ""}` + RESET);
+        console.log(DIM + `\n  Start with: clank --telegram${config.pinHash ? " --pin <pin>" : ""}` + RESET);
         console.log("");
         return { handled: true };
       }
@@ -838,7 +838,7 @@ async function handleUpdate(currentVersion) {
   console.log(`\n  ${BOLD}Checking for updates...${RESET}`);
 
   // Create temp working directory
-  const tmpDir = mkdtempSync(join(tmpdir(), "clankbuild-update-"));
+  const tmpDir = mkdtempSync(join(tmpdir(), "clank-update-"));
 
   try {
     // Clone the repo
@@ -855,7 +855,7 @@ async function handleUpdate(currentVersion) {
     console.log(`  Remote: v${remoteVersion}`);
 
     if (remoteVersion === currentVersion) {
-      console.log(GREEN + `\n  Clank Build v${currentVersion} is already up to date.` + RESET);
+      console.log(GREEN + `\n  Clank v${currentVersion} is already up to date.` + RESET);
       rmSync(tmpDir, { recursive: true, force: true });
       return { handled: true };
     }
@@ -877,8 +877,8 @@ async function handleUpdate(currentVersion) {
       timeout: 300000,
     });
 
-    const builtExe = join(tmpDir, "repo", "dist", `ClankBuild_${remoteVersion}.exe`);
-    const builtSetup = join(tmpDir, "repo", "dist", `Clank Build_${remoteVersion}_setup.exe`);
+    const builtExe = join(tmpDir, "repo", "dist", `Clank_${remoteVersion}.exe`);
+    const builtSetup = join(tmpDir, "repo", "dist", `Clank_${remoteVersion}_setup.exe`);
 
     if (!existsSync(builtExe)) {
       console.log(RED + "  Build failed: output EXE not found." + RESET);
@@ -888,8 +888,8 @@ async function handleUpdate(currentVersion) {
 
     if (isPackaged && installDir) {
       // Replace the running EXE (rename old, copy new)
-      const currentExe = join(installDir, "ClankBuild.exe");
-      const oldExe = join(installDir, "ClankBuild.old.exe");
+      const currentExe = join(installDir, "Clank.exe");
+      const oldExe = join(installDir, "Clank.old.exe");
 
       let replaced = false;
       try {
@@ -927,7 +927,7 @@ async function handleUpdate(currentVersion) {
       if (replaced) {
         // Copy installer too if it exists and we did a direct replace
         if (existsSync(builtSetup)) {
-          const destSetup = join(installDir, `Clank Build_${remoteVersion}_setup.exe`);
+          const destSetup = join(installDir, `Clank_${remoteVersion}_setup.exe`);
           try {
             copyFileSync(builtSetup, destSetup);
           } catch { /* non-critical */ }
@@ -936,9 +936,9 @@ async function handleUpdate(currentVersion) {
         // Clean up old versions (skip files that are locked/in use)
         try {
           for (const f of readdirSync(installDir)) {
-            const isOldExe = f === "ClankBuild.old.exe" || f === "LlamaTalkBuild.old.exe";
-            const isOldSetup = (f.startsWith("Clank Build_") || f.startsWith("LlamaTalk Build_")) && f.endsWith("_setup.exe") && !f.includes(remoteVersion);
-            const isOldStandalone = (f.startsWith("ClankBuild_") || f.startsWith("LlamaTalkBuild_")) && f.endsWith(".exe") && f !== "ClankBuild.exe" && !f.includes(remoteVersion);
+            const isOldExe = f === "Clank.old.exe" || f === "ClankBuild.old.exe" || f === "LlamaTalkBuild.old.exe";
+            const isOldSetup = (f.startsWith("Clank_") || f.startsWith("Clank Build_") || f.startsWith("LlamaTalk Build_")) && f.endsWith("_setup.exe") && !f.includes(remoteVersion);
+            const isOldStandalone = (f.startsWith("Clank_") || f.startsWith("ClankBuild_") || f.startsWith("LlamaTalkBuild_")) && f.endsWith(".exe") && f !== "Clank.exe" && !f.includes(remoteVersion);
             if (isOldExe || isOldSetup || isOldStandalone) {
               try { unlinkSync(join(installDir, f)); } catch { /* in use or locked — cleaned on next launch */ }
             }
@@ -968,7 +968,7 @@ async function handleUpdate(currentVersion) {
       console.log(YELLOW + BOLD + "  What to do now:" + RESET);
       console.log(`  ${BOLD}1.${RESET} Close this session (type ${ORANGE}/quit${RESET} or press Ctrl+C)`);
       console.log(`  ${BOLD}2.${RESET} Run ${ORANGE}git pull${RESET} in the project directory to update source`);
-      console.log(`  ${BOLD}3.${RESET} Restart Clank Build`);
+      console.log(`  ${BOLD}3.${RESET} Restart Clank`);
       console.log("");
       console.log(DIM + `  The current session is still running v${currentVersion}.` + RESET);
       console.log("");

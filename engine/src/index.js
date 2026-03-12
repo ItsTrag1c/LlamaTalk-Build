@@ -1,5 +1,5 @@
 /**
- * clankbuild-engine — Headless agent engine for Clank Build
+ * clank-engine — Headless agent engine for Clank
  *
  * This package provides the core agent loop, tools, providers, and session
  * management as an EventEmitter-based engine. It contains NO terminal UI,

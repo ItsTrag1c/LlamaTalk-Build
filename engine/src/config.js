@@ -55,17 +55,25 @@ const DEFAULTS = {
 export function getConfigDir() {
   const appData = process.env.APPDATA;
   if (appData) {
-    // Auto-migrate old config directory
-    const oldDir = join(appData, "LlamaTalkBuild");
-    const newDir = join(appData, "ClankBuild");
+    // Migration chain: LlamaTalkBuild → ClankBuild → Clank
+    const legacyDir = join(appData, "LlamaTalkBuild");
+    const oldDir = join(appData, "ClankBuild");
+    const newDir = join(appData, "Clank");
+    if (existsSync(legacyDir) && !existsSync(oldDir)) {
+      cpSync(legacyDir, oldDir, { recursive: true });
+    }
     if (existsSync(oldDir) && !existsSync(newDir)) {
       cpSync(oldDir, newDir, { recursive: true });
     }
     return newDir;
   }
-  // Auto-migrate old config directory (non-Windows)
-  const oldDir = join(homedir(), ".llamabuild");
-  const newDir = join(homedir(), ".clankbuild");
+  // Migration chain (non-Windows): .llamabuild → .clankbuild → .clank
+  const legacyDir = join(homedir(), ".llamabuild");
+  const oldDir = join(homedir(), ".clankbuild");
+  const newDir = join(homedir(), ".clank");
+  if (existsSync(legacyDir) && !existsSync(oldDir)) {
+    cpSync(legacyDir, oldDir, { recursive: true });
+  }
   if (existsSync(oldDir) && !existsSync(newDir)) {
     cpSync(oldDir, newDir, { recursive: true });
   }

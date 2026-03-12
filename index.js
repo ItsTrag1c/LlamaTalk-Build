@@ -27,9 +27,9 @@ function startupCleanup() {
     if (!isPackaged) return;
     const installDir = dirname(process.execPath);
     for (const f of readdirSync(installDir)) {
-      const isOldExe = f === "ClankBuild.old.exe" || f === "LlamaTalkBuild.old.exe";
-      const isOldStandalone = (f.startsWith("ClankBuild_") || f.startsWith("LlamaTalkBuild_")) && f.endsWith(".exe") && !f.includes(VERSION);
-      const isOldSetup = (f.startsWith("Clank Build_") || f.startsWith("LlamaTalk Build_")) && f.endsWith("_setup.exe") && !f.includes(VERSION);
+      const isOldExe = f === "Clank.old.exe" || f === "ClankBuild.old.exe" || f === "LlamaTalkBuild.old.exe";
+      const isOldStandalone = (f.startsWith("Clank_") || f.startsWith("ClankBuild_") || f.startsWith("LlamaTalkBuild_")) && f.endsWith(".exe") && !f.includes(VERSION);
+      const isOldSetup = (f.startsWith("Clank_") || f.startsWith("Clank Build_") || f.startsWith("LlamaTalk Build_")) && f.endsWith("_setup.exe") && !f.includes(VERSION);
       if (isOldExe || isOldStandalone || isOldSetup) {
         try { unlinkSync(join(installDir, f)); } catch { /* still locked */ }
       }
@@ -84,10 +84,10 @@ function parseArgs(argv) {
 
 function printHelp() {
   console.log(`
-${ORANGE}${BOLD}Clank Build${RESET} v${VERSION}  —  Agentic coding from the terminal
+${ORANGE}${BOLD}Clank${RESET} v${VERSION}  —  Agentic coding from the terminal
 
 ${BOLD}Usage${RESET}
-  clankbuild [options]
+  clank [options]
 
 ${BOLD}Options${RESET}
   ${ORANGE}-v, --version${RESET}             Print version and exit
@@ -168,8 +168,8 @@ function loadDashboardData(config) {
 async function authenticate(config) {
   if (!pinRequired(config)) return null;
 
-  // Support CLANKBUILD_PIN env var for non-interactive authentication (e.g., CI/scripts)
-  const envPin = process.env.CLANKBUILD_PIN;
+  // Support CLANK_PIN env var for non-interactive authentication (e.g., CI/scripts)
+  const envPin = process.env.CLANK_PIN || process.env.CLANKBUILD_PIN;
   if (envPin) {
     if (verifyPin(envPin, config.pinHash)) {
       if (needsPinMigration(config.pinHash)) {
@@ -179,10 +179,10 @@ async function authenticate(config) {
       saveConfig(config);
       return envPin;
     }
-    console.log(RED + "  CLANKBUILD_PIN env var incorrect. Falling back to interactive prompt." + RESET);
+    console.log(RED + "  CLANK_PIN env var incorrect. Falling back to interactive prompt." + RESET);
   }
 
-  console.log(ORANGE + "\nClank Build" + DIM + `  v${VERSION}` + RESET);
+  console.log(ORANGE + "\nClank" + DIM + `  v${VERSION}` + RESET);
 
   let attempts = 0;
   const maxAttempts = 5;
@@ -255,10 +255,10 @@ async function main() {
     // PIN handling for bot mode (non-interactive)
     let encKey = null;
     if (pinRequired(config)) {
-      // Support --pin flag or CLANKBUILD_PIN env var for non-interactive PIN
-      const pin = args.pin || process.env.CLANKBUILD_PIN;
+      // Support --pin flag or CLANK_PIN env var for non-interactive PIN
+      const pin = args.pin || process.env.CLANK_PIN || process.env.CLANKBUILD_PIN;
       if (!pin) {
-        console.error("Error: PIN is required. Use --pin <pin> or set CLANKBUILD_PIN env var with --telegram.");
+        console.error("Error: PIN is required. Use --pin <pin> or set CLANK_PIN env var with --telegram.");
         process.exit(1);
       }
       if (!verifyPin(pin, config.pinHash)) {
@@ -358,7 +358,7 @@ async function main() {
 
     // First launch liability notice (condensed)
     if (config.onboardingComplete === false) {
-      console.log(YELLOW + "\n  ⚠ Clank Build can read, write, delete files and execute commands." + RESET);
+      console.log(YELLOW + "\n  ⚠ Clank can read, write, delete files and execute commands." + RESET);
       console.log(DIM + "  Review agent actions carefully. Use MEDIUM/HIGH safety levels.\n" + RESET);
     }
 

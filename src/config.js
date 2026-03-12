@@ -43,14 +43,19 @@ const DEFAULTS = {
 export function getConfigDir() {
   const appData = process.env.APPDATA;
   if (appData) {
-    const oldDir = join(appData, "LlamaTalkBuild");
-    const newDir = join(appData, "ClankBuild");
+    // Migration chain: LlamaTalkBuild → ClankBuild → Clank
+    const legacyDir = join(appData, "LlamaTalkBuild");
+    const oldDir = join(appData, "ClankBuild");
+    const newDir = join(appData, "Clank");
+    if (existsSync(legacyDir) && !existsSync(oldDir)) {
+      cpSync(legacyDir, oldDir, { recursive: true });
+    }
     if (existsSync(oldDir) && !existsSync(newDir)) {
       cpSync(oldDir, newDir, { recursive: true });
     }
     return newDir;
   }
-  return join(homedir(), ".clankbuild");
+  return join(homedir(), ".clank");
 }
 
 export function getConfigPath() {

@@ -3,7 +3,7 @@ import { join, relative } from "path";
 
 /**
  * Tracks file changes during a session and writes them to
- * session-changes-clankbuild-YYYY-MM-DD.md in the project root.
+ * session-changes-clank-YYYY-MM-DD.md in the project root.
  * Only writes if actual file modifications (write/edit) occurred.
  */
 export class SessionTracker {
@@ -16,7 +16,7 @@ export class SessionTracker {
   }
 
   get fileName() {
-    return `session-changes-clankbuild-${this.date}.md`;
+    return `session-changes-clank-${this.date}.md`;
   }
 
   get filePath() {
@@ -98,7 +98,7 @@ export class SessionTracker {
         writeFileSync(this.filePath, existing + "\n\n" + sessionBlock, "utf8");
       }
     } else {
-      const header = `# Session Changes — Clank Build\n\nProject: \`${this.projectRoot}\`\n\n`;
+      const header = `# Session Changes — Clank\n\nProject: \`${this.projectRoot}\`\n\n`;
       writeFileSync(this.filePath, header + sessionBlock, "utf8");
     }
   }
@@ -110,7 +110,7 @@ export class SessionTracker {
   _cleanOldFiles() {
     try {
       const files = readdirSync(this.projectRoot);
-      const pattern = /^session-changes-(?:llamabuild|clankbuild)-(\d{4}-\d{2}-\d{2})\.md$/;
+      const pattern = /^session-changes-(?:llamabuild|clankbuild|clank)-(\d{4}-\d{2}-\d{2})\.md$/;
       for (const f of files) {
         const match = f.match(pattern);
         if (match && match[1] !== this.date) {

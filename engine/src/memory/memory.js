@@ -76,10 +76,12 @@ export class MemoryManager {
     return this._read(join(this.globalDir, "MEMORY.md"));
   }
 
-  /** Load project-local .clankbuild.md (falls back to .llamabuild.md) */
+  /** Load project-local .clank.md (fallback chain: .clankbuild.md → .llamabuild.md) */
   loadProject(projectRoot) {
-    const newPath = join(projectRoot, ".clankbuild.md");
-    if (existsSync(newPath)) return this._read(newPath);
+    const clankPath = join(projectRoot, ".clank.md");
+    if (existsSync(clankPath)) return this._read(clankPath);
+    const clankbuildPath = join(projectRoot, ".clankbuild.md");
+    if (existsSync(clankbuildPath)) return this._read(clankbuildPath);
     const oldPath = join(projectRoot, ".llamabuild.md");
     if (existsSync(oldPath)) return this._read(oldPath);
     return null;
@@ -197,7 +199,7 @@ export class MemoryManager {
   buildMemoryBlock(userMessage, projectRoot) {
     const sections = [];
 
-    // Agent instructions (AGENTS.md, .clankbuild/agent/*.md)
+    // Agent instructions (AGENTS.md, .clank/agent/*.md)
     const instructions = this._getInstructions(projectRoot);
     if (instructions) {
       sections.push(instructions);

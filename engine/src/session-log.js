@@ -4,7 +4,7 @@ import { join } from "path";
 export class SessionLog {
   constructor(projectRoot) {
     this.projectRoot = projectRoot;
-    this.filePath = join(projectRoot, ".clankbuild-session.md");
+    this.filePath = join(projectRoot, ".clank-session.md");
     this.steps = [];
     this.sessionStart = new Date();
   }
@@ -46,7 +46,7 @@ export class SessionLog {
         writeFileSync(this.filePath, existing + "\n\n" + sessionBlock, "utf8");
       }
     } else {
-      const header = "# Clank Build Session Log\n\n";
+      const header = "# Clank Session Log\n\n";
       writeFileSync(this.filePath, header + sessionBlock, "utf8");
     }
   }

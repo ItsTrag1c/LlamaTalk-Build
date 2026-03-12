@@ -1,10 +1,10 @@
-# Clank Build — CLI & Desktop
+# Clank — CLI & Desktop
 
 > Agentic coding assistant — terminal and GUI — part of the Clank Suite. **v2.5.14**
 
-Clank Build is an agentic coding assistant — available as a standalone terminal app (CLI) and a desktop GUI. Both versions share the same engine, config, memory, and sessions. It uses a ReAct-style agent loop to help you with coding tasks: it reasons about what to do, uses tools to read/edit files, run commands, and search code, then explains what it did. Works with local models via Ollama and cloud providers.
+Clank is an agentic coding assistant — available as a standalone terminal app (CLI) and a desktop GUI. Both versions share the same engine, config, memory, and sessions. It uses a ReAct-style agent loop to help you with coding tasks: it reasons about what to do, uses tools to read/edit files, run commands, and search code, then explains what it did. Works with local models via Ollama and cloud providers.
 
-> **Warning:** Clank Build can read, write, and delete files, execute shell commands, and modify your system. Review agent actions carefully. We recommend using MEDIUM or HIGH safety levels.
+> **Warning:** Clank can read, write, and delete files, execute shell commands, and modify your system. Review agent actions carefully. We recommend using MEDIUM or HIGH safety levels.
 
 ---
 
@@ -14,7 +14,7 @@ Clank Build is an agentic coding assistant — available as a standalone termina
 irm https://raw.githubusercontent.com/ItsTrag1c/Clank-Build/cli/install.ps1 | iex
 ```
 
-Run this in PowerShell to download and install the latest release. Open a new terminal and type `clankbuild`.
+Run this in PowerShell to download and install the latest release. Open a new terminal and type `clank`.
 
 ---
 
@@ -24,8 +24,8 @@ Run this in PowerShell to download and install the latest release. Open a new te
 
 | File | Description |
 |------|-------------|
-| `Clank Build_x.y.z_setup.exe` | Windows installer — installs to Program Files, adds `clankbuild` to PATH |
-| `ClankBuild_x.y.z.exe` | Standalone EXE — run anywhere, no admin rights needed |
+| `Clank_x.y.z_setup.exe` | Windows installer — installs to Program Files, adds `clank` to PATH |
+| `Clank_x.y.z.exe` | Standalone EXE — run anywhere, no admin rights needed |
 | `checksums.txt` | SHA-256 checksums for verification |
 
 ---
@@ -38,9 +38,9 @@ The desktop version provides the same agentic engine in a windowed interface. Av
 
 | File | Description |
 |------|-------------|
-| `Clank Build Desktop_x.y.z_x64-setup.exe` | Windows installer |
-| `Clank Build Desktop_x.y.z_aarch64.dmg` | macOS Apple Silicon |
-| `Clank Build Desktop_x.y.z_x64_en-US.msi` | Windows MSI |
+| `Clank Desktop_x.y.z_x64-setup.exe` | Windows installer |
+| `Clank Desktop_x.y.z_aarch64.dmg` | macOS Apple Silicon |
+| `Clank Desktop_x.y.z_x64_en-US.msi` | Windows MSI |
 
 ---
 
@@ -53,9 +53,9 @@ The desktop version provides the same agentic engine in a windowed interface. Av
 - **Cloud models** — Anthropic Claude, Google Gemini, OpenAI GPT, OpenCode (API key required)
 - **Native tool-calling** — each provider uses its own tool-call protocol; XML fallback for models without native support
 - **Multi-server support** — connect to multiple local servers simultaneously; models auto-discovered and routed
-- **Persistent memory** — global + topic-based memory files, plus per-project `.clankbuild.md`
+- **Persistent memory** — global + topic-based memory files, plus per-project `.clank.md`
 - **3-tier safety system** — tools classified as Low, Medium, or High risk with confirmation prompts
-- **PIN protection** — optional, PBKDF2-hashed; API keys encrypted at rest (AES-256-GCM); `CLANKBUILD_PIN` env var for headless/CI usage
+- **PIN protection** — optional, PBKDF2-hashed; API keys encrypted at rest (AES-256-GCM); `CLANK_PIN` env var for headless/CI usage
 - **Hardened tool execution** — spawnSync with argument arrays for all shell calls (no string interpolation), HTML sanitization in generate-file, comprehensive destructive command blocking, regex safety limits in search-files
 - **Session tracking** — `/undo` to restore last file change, `/diff` to see all changes
 
@@ -64,7 +64,7 @@ The desktop version provides the same agentic engine in a windowed interface. Av
 ## Usage
 
 ```
-clankbuild [options]
+clank [options]
 ```
 
 | Flag | Description |
@@ -118,7 +118,7 @@ Chat with the Build agent from your phone via Telegram. The agent runs locally �
 1. Get a bot token from [@BotFather](https://t.me/BotFather) on Telegram
 2. Set the token: `/telegram token <token>` (in the CLI) or via Desktop Settings
 3. Generate an access code: `/telegram code`
-4. Start the bot: `clankbuild --telegram`
+4. Start the bot: `clank --telegram`
 5. Send the access code to the bot on Telegram to authenticate
 
 ### Telegram Commands
@@ -143,7 +143,7 @@ See the [Telegram Setup Guide](https://github.com/ItsTrag1c/Clank-Build/wiki/Tel
 
 ## Privacy
 
-All data is stored locally on your device at `%APPDATA%\ClankBuild\`. When a PIN is set, API keys are encrypted at rest using AES-256-GCM. Nothing is collected, tracked, or synced to any server.
+All data is stored locally on your device at `%APPDATA%\Clank\`. When a PIN is set, API keys are encrypted at rest using AES-256-GCM. Nothing is collected, tracked, or synced to any server.
 
 See our [Privacy Policy](https://clanksuite.dev/privacy) for full details.
 

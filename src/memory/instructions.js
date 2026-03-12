@@ -6,8 +6,8 @@ import { homedir } from "os";
  * Instruction discovery system (inspired by OpenCode's AGENTS.md).
  *
  * Discovers and loads instruction files from multiple levels:
- *   1. Global: ~/.clankbuild/agent/*.md (fallback: ~/.llamabuild/agent/)
- *   2. Project: .clankbuild/agent/*.md, .clankbuild.md, AGENTS.md (fallback: .llamabuild/)
+ *   1. Global: ~/.clank/agent/*.md (fallback: ~/.clankbuild/agent/ → ~/.llamabuild/agent/)
+ *   2. Project: .clank/agent/*.md, .clank.md, AGENTS.md (fallback: .clankbuild/ → .llamabuild/)
  *   3. Directory walk: AGENTS.md files up the directory tree
  *
  * Instruction files can have YAML-style frontmatter:
@@ -17,7 +17,7 @@ import { homedir } from "os";
  *   [instruction body]
  */
 
-const INSTRUCTION_FILENAMES = [".clankbuild.md", ".llamabuild.md", "AGENTS.md"];
+const INSTRUCTION_FILENAMES = [".clank.md", ".clankbuild.md", ".llamabuild.md", "AGENTS.md"];
 
 /**
  * Parse frontmatter from a markdown file.
@@ -43,10 +43,11 @@ export function discoverInstructions(projectRoot) {
   const instructions = [];
   const seen = new Set();
 
-  // 1. Global instructions: ~/.clankbuild/agent/*.md (with fallback to ~/.llamabuild/agent/)
-  const globalAgentDirNew = join(homedir(), ".clankbuild", "agent");
+  // 1. Global instructions: ~/.clank/agent/*.md (fallback: ~/.clankbuild/agent/ → ~/.llamabuild/agent/)
+  const globalAgentDirClank = join(homedir(), ".clank", "agent");
+  const globalAgentDirClankBuild = join(homedir(), ".clankbuild", "agent");
   const globalAgentDirOld = join(homedir(), ".llamabuild", "agent");
-  const globalAgentDir = existsSync(globalAgentDirNew) ? globalAgentDirNew : globalAgentDirOld;
+  const globalAgentDir = existsSync(globalAgentDirClank) ? globalAgentDirClank : existsSync(globalAgentDirClankBuild) ? globalAgentDirClankBuild : globalAgentDirOld;
   if (existsSync(globalAgentDir)) {
     try {
       for (const f of readdirSync(globalAgentDir)) {
@@ -72,9 +73,10 @@ export function discoverInstructions(projectRoot) {
   }
 
   // Global AGENTS.md
-  const globalAgentsMdNew = join(homedir(), ".clankbuild", "AGENTS.md");
+  const globalAgentsMdClank = join(homedir(), ".clank", "AGENTS.md");
+  const globalAgentsMdClankBuild = join(homedir(), ".clankbuild", "AGENTS.md");
   const globalAgentsMdOld = join(homedir(), ".llamabuild", "AGENTS.md");
-  const globalAgentsMd = existsSync(globalAgentsMdNew) ? globalAgentsMdNew : globalAgentsMdOld;
+  const globalAgentsMd = existsSync(globalAgentsMdClank) ? globalAgentsMdClank : existsSync(globalAgentsMdClankBuild) ? globalAgentsMdClankBuild : globalAgentsMdOld;
   if (existsSync(globalAgentsMd) && !seen.has(globalAgentsMd)) {
     seen.add(globalAgentsMd);
     try {
@@ -86,10 +88,11 @@ export function discoverInstructions(projectRoot) {
     } catch { /* skip */ }
   }
 
-  // 2. Project-level: .clankbuild/agent/*.md (with fallback to .llamabuild/agent/)
-  const projectAgentDirNew = join(projectRoot, ".clankbuild", "agent");
+  // 2. Project-level: .clank/agent/*.md (fallback: .clankbuild/agent/ → .llamabuild/agent/)
+  const projectAgentDirClank = join(projectRoot, ".clank", "agent");
+  const projectAgentDirClankBuild = join(projectRoot, ".clankbuild", "agent");
   const projectAgentDirOld = join(projectRoot, ".llamabuild", "agent");
-  const projectAgentDir = existsSync(projectAgentDirNew) ? projectAgentDirNew : projectAgentDirOld;
+  const projectAgentDir = existsSync(projectAgentDirClank) ? projectAgentDirClank : existsSync(projectAgentDirClankBuild) ? projectAgentDirClankBuild : projectAgentDirOld;
   if (existsSync(projectAgentDir)) {
     try {
       for (const f of readdirSync(projectAgentDir)) {
@@ -114,7 +117,7 @@ export function discoverInstructions(projectRoot) {
     } catch { /* dir not readable */ }
   }
 
-  // 3. Project root instruction files: .clankbuild.md, .llamabuild.md (fallback), AGENTS.md
+  // 3. Project root instruction files: .clank.md, .clankbuild.md, .llamabuild.md (fallback), AGENTS.md
   for (const name of INSTRUCTION_FILENAMES) {
     const fullPath = join(projectRoot, name);
     if (existsSync(fullPath) && !seen.has(fullPath)) {

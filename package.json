@@ -1,10 +1,10 @@
 {
-  "name": "clankbuild",
+  "name": "clank",
   "version": "2.5.18",
   "author": "ItsTrag1c",
   "type": "module",
   "bin": {
-    "clankbuild": "./index.js"
+    "clank": "./index.js"
   },
   "scripts": {
     "start": "node index.js",
@@ -15,7 +15,7 @@
   },
   "dependencies": {
     "grammy": "^1.35.0",
-    "clankbuild-engine": "file:./engine"
+    "clank-engine": "file:./engine"
   },
   "devDependencies": {
     "esbuild": "^0.25.0",
