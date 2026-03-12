@@ -10,7 +10,7 @@ Clank Desktop wraps the Clank engine in a desktop interface. Same 14 tools, same
 
 ## Download
 
-**[→ Latest Release](https://github.com/ItsTrag1c/Clank-Build/releases/latest)**
+**[→ Latest Release](https://github.com/ItsTrag1c/Clank/releases/latest)**
 
 | File | Description |
 |------|-------------|
@@ -43,7 +43,7 @@ Clank Desktop wraps the Clank engine in a desktop interface. Same 14 tools, same
 
 ## Install
 
-1. Download the latest installer from [Releases](https://github.com/ItsTrag1c/Clank-Build/releases/latest)
+1. Download the latest installer from [Releases](https://github.com/ItsTrag1c/Clank/releases/latest)
 2. Run the installer — a UAC prompt will appear (installs to `C:\Program Files\Clank Desktop\`)
 3. Launch from the **Start Menu**
 
@@ -57,7 +57,7 @@ Prefer the terminal? **Clank CLI** provides the same agent engine from the comma
 
 Install with PowerShell:
 ```powershell
-irm https://raw.githubusercontent.com/ItsTrag1c/Clank-Build/cli/install.ps1 | iex
+irm https://raw.githubusercontent.com/ItsTrag1c/Clank/cli/install.ps1 | iex
 ```
 
 ---

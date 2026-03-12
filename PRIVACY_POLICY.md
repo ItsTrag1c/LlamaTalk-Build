@@ -121,7 +121,7 @@ You remain in full control of which providers are enabled and can disable them a
 
 Clank Chat (Desktop and CLI) and Clank Build CLI check for new versions automatically when the app starts. This is the only automatic network activity these apps perform. Here is exactly what happens:
 
-1. A single HTTPS GET request is made to the public GitHub Releases API (`https://api.github.com/repos/ItsTrag1c/Clank-Chat/releases/latest` or `.../Clank-Build/...`)
+1. A single HTTPS GET request is made to the public GitHub Releases API (`https://api.github.com/repos/ItsTrag1c/Clank-Chat/releases/latest` or `.../Clank/...`)
 2. The request includes only a `User-Agent` header identifying the app (e.g. "Clank Desktop") — **no user data, device identifiers, or analytics are sent**
 3. If a newer version is found, a notification appears in the app (Desktop: orange dot on Settings tab; CLI: dim hint after the banner)
 4. **No update is downloaded or installed without your explicit confirmation**

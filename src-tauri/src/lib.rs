@@ -290,7 +290,7 @@ async fn check_for_desktop_update(
 
     // Fetch releases and find the latest desktop release (tag: desktop-vX.Y.Z)
     let releases: Vec<serde_json::Value> = client
-        .get("https://api.github.com/repos/ItsTrag1c/Clank-Build/releases")
+        .get("https://api.github.com/repos/ItsTrag1c/Clank/releases")
         .send()
         .await
         .map_err(|e| e.to_string())?
@@ -374,7 +374,7 @@ async fn download_and_install_update(
     use tokio::io::AsyncWriteExt;
 
     // Security: Validate download URL is from our GitHub releases only
-    if !download_url.starts_with("https://github.com/ItsTrag1c/Clank-Build/releases/download/") {
+    if !download_url.starts_with("https://github.com/ItsTrag1c/Clank/releases/download/") {
         return Err("Invalid download URL: must be from official GitHub releases".to_string());
     }
 
