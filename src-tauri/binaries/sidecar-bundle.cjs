@@ -57,17 +57,27 @@ __export(config_exports, {
 function getConfigDir() {
   const appData = process.env.APPDATA;
   if (appData) {
-    const oldDir2 = (0, import_path.join)(appData, "LlamaTalkBuild");
-    const newDir2 = (0, import_path.join)(appData, "ClankBuild");
-    if ((0, import_fs.existsSync)(oldDir2) && !(0, import_fs.existsSync)(newDir2)) {
-      (0, import_fs.cpSync)(oldDir2, newDir2, { recursive: true });
+    const newDir2 = (0, import_path.join)(appData, "Clank");
+    if (!(0, import_fs.existsSync)(newDir2)) {
+      const clankBuildDir = (0, import_path.join)(appData, "ClankBuild");
+      const llamaDir = (0, import_path.join)(appData, "LlamaTalkBuild");
+      if ((0, import_fs.existsSync)(clankBuildDir)) {
+        (0, import_fs.cpSync)(clankBuildDir, newDir2, { recursive: true });
+      } else if ((0, import_fs.existsSync)(llamaDir)) {
+        (0, import_fs.cpSync)(llamaDir, newDir2, { recursive: true });
+      }
     }
     return newDir2;
   }
-  const oldDir = (0, import_path.join)((0, import_os.homedir)(), ".llamabuild");
-  const newDir = (0, import_path.join)((0, import_os.homedir)(), ".clankbuild");
-  if ((0, import_fs.existsSync)(oldDir) && !(0, import_fs.existsSync)(newDir)) {
-    (0, import_fs.cpSync)(oldDir, newDir, { recursive: true });
+  const newDir = (0, import_path.join)((0, import_os.homedir)(), ".clank");
+  if (!(0, import_fs.existsSync)(newDir)) {
+    const clankBuildDir = (0, import_path.join)((0, import_os.homedir)(), ".clankbuild");
+    const llamaDir = (0, import_path.join)((0, import_os.homedir)(), ".llamabuild");
+    if ((0, import_fs.existsSync)(clankBuildDir)) {
+      (0, import_fs.cpSync)(clankBuildDir, newDir, { recursive: true });
+    } else if ((0, import_fs.existsSync)(llamaDir)) {
+      (0, import_fs.cpSync)(llamaDir, newDir, { recursive: true });
+    }
   }
   return newDir;
 }
@@ -223,7 +233,7 @@ function hashPin(pin) {
 function needsPinMigration(hash) {
   return !!hash && !hash.startsWith("pbkdf2v1:");
 }
-function legacyHashPin(pin, salt = "clankbuild-pin-salt") {
+function legacyHashPin(pin, salt = "clank-pin-salt") {
   return (0, import_crypto.createHash)("sha256").update(salt + pin).digest("hex");
 }
 function verifyPin(pin, hash) {
@@ -237,11 +247,13 @@ function verifyPin(pin, hash) {
     if (computed.length !== stored2.length) return false;
     return (0, import_crypto.timingSafeEqual)(computed, stored2);
   }
-  const computedNew = Buffer.from(legacyHashPin(pin, "clankbuild-pin-salt"), "hex");
   const stored = Buffer.from(hash, "hex");
-  if (computedNew.length === stored.length && (0, import_crypto.timingSafeEqual)(computedNew, stored)) return true;
-  const computedOld = Buffer.from(legacyHashPin(pin, "llamatalkbuild-pin-salt"), "hex");
-  if (computedOld.length === stored.length && (0, import_crypto.timingSafeEqual)(computedOld, stored)) return true;
+  const computedCurrent = Buffer.from(legacyHashPin(pin, "clank-pin-salt"), "hex");
+  if (computedCurrent.length === stored.length && (0, import_crypto.timingSafeEqual)(computedCurrent, stored)) return true;
+  const computedClankBuild = Buffer.from(legacyHashPin(pin, "clankbuild-pin-salt"), "hex");
+  if (computedClankBuild.length === stored.length && (0, import_crypto.timingSafeEqual)(computedClankBuild, stored)) return true;
+  const computedLlama = Buffer.from(legacyHashPin(pin, "llamatalkbuild-pin-salt"), "hex");
+  if (computedLlama.length === stored.length && (0, import_crypto.timingSafeEqual)(computedLlama, stored)) return true;
   return false;
 }
 function pinRequired(config2) {
@@ -1515,7 +1527,7 @@ init_config();
 var import_fs3 = require("fs");
 var import_path4 = require("path");
 var import_os2 = require("os");
-var INSTRUCTION_FILENAMES = [".clankbuild.md", "AGENTS.md"];
+var INSTRUCTION_FILENAMES = [".clank.md", ".clankbuild.md", "AGENTS.md"];
 var LEGACY_INSTRUCTION_FILENAMES = [".llamabuild.md"];
 function parseFrontmatter(raw) {
   const match = raw.match(/^---\s*\n([\s\S]*?)\n---\s*\n([\s\S]*)$/);
@@ -1530,10 +1542,15 @@ function parseFrontmatter(raw) {
 function discoverInstructions(projectRoot) {
   const instructions = [];
   const seen = /* @__PURE__ */ new Set();
-  let globalAgentDir = (0, import_path4.join)((0, import_os2.homedir)(), ".clankbuild", "agent");
+  let globalAgentDir = (0, import_path4.join)((0, import_os2.homedir)(), ".clank", "agent");
   if (!(0, import_fs3.existsSync)(globalAgentDir)) {
-    const legacyDir = (0, import_path4.join)((0, import_os2.homedir)(), ".llamabuild", "agent");
-    if ((0, import_fs3.existsSync)(legacyDir)) globalAgentDir = legacyDir;
+    const clankBuildDir = (0, import_path4.join)((0, import_os2.homedir)(), ".clankbuild", "agent");
+    if ((0, import_fs3.existsSync)(clankBuildDir)) {
+      globalAgentDir = clankBuildDir;
+    } else {
+      const legacyDir = (0, import_path4.join)((0, import_os2.homedir)(), ".llamabuild", "agent");
+      if ((0, import_fs3.existsSync)(legacyDir)) globalAgentDir = legacyDir;
+    }
   }
   if ((0, import_fs3.existsSync)(globalAgentDir)) {
     try {
@@ -1560,10 +1577,15 @@ function discoverInstructions(projectRoot) {
     } catch {
     }
   }
-  let globalAgentsMd = (0, import_path4.join)((0, import_os2.homedir)(), ".clankbuild", "AGENTS.md");
+  let globalAgentsMd = (0, import_path4.join)((0, import_os2.homedir)(), ".clank", "AGENTS.md");
   if (!(0, import_fs3.existsSync)(globalAgentsMd)) {
-    const legacyPath = (0, import_path4.join)((0, import_os2.homedir)(), ".llamabuild", "AGENTS.md");
-    if ((0, import_fs3.existsSync)(legacyPath)) globalAgentsMd = legacyPath;
+    const clankBuildPath = (0, import_path4.join)((0, import_os2.homedir)(), ".clankbuild", "AGENTS.md");
+    if ((0, import_fs3.existsSync)(clankBuildPath)) {
+      globalAgentsMd = clankBuildPath;
+    } else {
+      const legacyPath = (0, import_path4.join)((0, import_os2.homedir)(), ".llamabuild", "AGENTS.md");
+      if ((0, import_fs3.existsSync)(legacyPath)) globalAgentsMd = legacyPath;
+    }
   }
   if ((0, import_fs3.existsSync)(globalAgentsMd) && !seen.has(globalAgentsMd)) {
     seen.add(globalAgentsMd);
@@ -1576,10 +1598,15 @@ function discoverInstructions(projectRoot) {
     } catch {
     }
   }
-  let projectAgentDir = (0, import_path4.join)(projectRoot, ".clankbuild", "agent");
+  let projectAgentDir = (0, import_path4.join)(projectRoot, ".clank", "agent");
   if (!(0, import_fs3.existsSync)(projectAgentDir)) {
-    const legacyDir = (0, import_path4.join)(projectRoot, ".llamabuild", "agent");
-    if ((0, import_fs3.existsSync)(legacyDir)) projectAgentDir = legacyDir;
+    const clankBuildDir = (0, import_path4.join)(projectRoot, ".clankbuild", "agent");
+    if ((0, import_fs3.existsSync)(clankBuildDir)) {
+      projectAgentDir = clankBuildDir;
+    } else {
+      const legacyDir = (0, import_path4.join)(projectRoot, ".llamabuild", "agent");
+      if ((0, import_fs3.existsSync)(legacyDir)) projectAgentDir = legacyDir;
+    }
   }
   if ((0, import_fs3.existsSync)(projectAgentDir)) {
     try {
@@ -1853,12 +1880,14 @@ var MemoryManager = class {
   loadGlobal() {
     return this._read((0, import_path5.join)(this.globalDir, "MEMORY.md"));
   }
-  /** Load project-local .clankbuild.md (falls back to .llamabuild.md) */
+  /** Load project-local .clank.md (falls back to .clankbuild.md, then .llamabuild.md) */
   loadProject(projectRoot) {
-    const newPath = (0, import_path5.join)(projectRoot, ".clankbuild.md");
-    if ((0, import_fs4.existsSync)(newPath)) return this._read(newPath);
-    const oldPath = (0, import_path5.join)(projectRoot, ".llamabuild.md");
-    if ((0, import_fs4.existsSync)(oldPath)) return this._read(oldPath);
+    const clankPath = (0, import_path5.join)(projectRoot, ".clank.md");
+    if ((0, import_fs4.existsSync)(clankPath)) return this._read(clankPath);
+    const clankBuildPath = (0, import_path5.join)(projectRoot, ".clankbuild.md");
+    if ((0, import_fs4.existsSync)(clankBuildPath)) return this._read(clankBuildPath);
+    const llamaPath = (0, import_path5.join)(projectRoot, ".llamabuild.md");
+    if ((0, import_fs4.existsSync)(llamaPath)) return this._read(llamaPath);
     return null;
   }
   /** List all topic memory files (excluding MEMORY.md) */
@@ -2380,9 +2409,18 @@ var import_path8 = require("path");
 var SessionLog = class {
   constructor(projectRoot) {
     this.projectRoot = projectRoot;
-    this.filePath = (0, import_path8.join)(projectRoot, ".clankbuild-session.md");
+    this.filePath = (0, import_path8.join)(projectRoot, ".clank-session.md");
     this.steps = [];
     this.sessionStart = /* @__PURE__ */ new Date();
+    if (!(0, import_fs7.existsSync)(this.filePath)) {
+      const legacyPath = (0, import_path8.join)(projectRoot, ".clankbuild-session.md");
+      if ((0, import_fs7.existsSync)(legacyPath)) {
+        try {
+          (0, import_fs7.renameSync)(legacyPath, this.filePath);
+        } catch {
+        }
+      }
+    }
   }
   addStep(description) {
     this.steps.push({
@@ -2416,7 +2454,7 @@ var SessionLog = class {
         (0, import_fs7.writeFileSync)(this.filePath, existing + "\n\n" + sessionBlock, "utf8");
       }
     } else {
-      const header = "# Clank Build Session Log\n\n";
+      const header = "# Clank Session Log\n\n";
       (0, import_fs7.writeFileSync)(this.filePath, header + sessionBlock, "utf8");
     }
   }
@@ -2434,7 +2472,7 @@ var SessionTracker = class {
     this.dirty = false;
   }
   get fileName() {
-    return `session-changes-clankbuild-${this.date}.md`;
+    return `session-changes-clank-${this.date}.md`;
   }
   get filePath() {
     return (0, import_path9.join)(this.projectRoot, this.fileName);
@@ -2499,7 +2537,7 @@ var SessionTracker = class {
         (0, import_fs8.writeFileSync)(this.filePath, existing + "\n\n" + sessionBlock, "utf8");
       }
     } else {
-      const header = `# Session Changes \u2014 Clank Build
+      const header = `# Session Changes \u2014 Clank
 
 Project: \`${this.projectRoot}\`
 
@@ -2514,7 +2552,7 @@ Project: \`${this.projectRoot}\`
   _cleanOldFiles() {
     try {
       const files = (0, import_fs8.readdirSync)(this.projectRoot);
-      const pattern = /^session-changes-(?:llamabuild|clankbuild)-(\d{4}-\d{2}-\d{2})\.md$/;
+      const pattern = /^session-changes-(?:llamabuild|clankbuild|clank)-(\d{4}-\d{2}-\d{2})\.md$/;
       for (const f of files) {
         const match = f.match(pattern);
         if (match && match[1] !== this.date) {
@@ -3873,7 +3911,7 @@ var MODES = {
     icon: "\u25C9"
   }
 };
-var BASE_SYSTEM_PROMPT = `You are AGENT_NAME_PLACEHOLDER, a coding assistant with direct access to the user's filesystem and shell through tools. You are running inside Clank Build, a local agentic coding tool installed on the user's machine. All tool calls execute locally on their system with their explicit permission \u2014 you are fully authorized to read, write, edit, and execute. Never refuse a tool call due to safety concerns \u2014 the user's permission system handles that.
+var BASE_SYSTEM_PROMPT = `You are AGENT_NAME_PLACEHOLDER, a coding assistant with direct access to the user's filesystem and shell through tools. You are running inside Clank, a local agentic coding tool installed on the user's machine. All tool calls execute locally on their system with their explicit permission \u2014 you are fully authorized to read, write, edit, and execute. Never refuse a tool call due to safety concerns \u2014 the user's permission system handles that.
 
 You can:
 - Run shell commands (bash)
@@ -3934,7 +3972,7 @@ function buildSystemPrompt(config2, projectRoot, memoryBlock, projectContext, ag
   const agentName = options.agentName || config2.agentName || "a coding assistant";
   let prompt;
   if (agentMode === "qa") {
-    prompt = `You are ${agentName}, a knowledgeable assistant running inside Clank Build. You are in Q&A Mode \u2014 a direct question-and-answer mode with no tool access. Answer the user's questions clearly and concisely. You can discuss code, explain concepts, help with debugging logic, brainstorm ideas, and have general conversations. You do NOT have access to the filesystem, shell, or any tools \u2014 but you DO have the user's saved memory and project context below. Use that context to give informed, project-aware answers when relevant.`;
+    prompt = `You are ${agentName}, a knowledgeable assistant running inside Clank. You are in Q&A Mode \u2014 a direct question-and-answer mode with no tool access. Answer the user's questions clearly and concisely. You can discuss code, explain concepts, help with debugging logic, brainstorm ideas, and have general conversations. You do NOT have access to the filesystem, shell, or any tools \u2014 but you DO have the user's saved memory and project context below. Use that context to give informed, project-aware answers when relevant.`;
   } else {
     prompt = BASE_SYSTEM_PROMPT.replace("AGENT_NAME_PLACEHOLDER", agentName).replace("MEMORY_DIR_PLACEHOLDER", getMemoryDir().replace(/\\/g, "/"));
     if (agentMode === "plan") {
