@@ -2,7 +2,7 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync, chmodSync, cpSync }
 import { dirname, join } from "path";
 import { createHash, timingSafeEqual, pbkdf2Sync, randomBytes, createCipheriv, createDecipheriv } from "crypto";
 import { homedir } from "os";
-import { execSync } from "child_process";
+import { execSync, execFileSync } from "child_process";
 
 const DEFAULTS = {
   profileName: "",
@@ -131,10 +131,9 @@ export function loadConfig() {
 function applyFilePermissions(filePath) {
   if (process.platform === "win32") {
     try {
-      execSync(
-        `icacls "${filePath}" /inheritance:r /grant:r "${process.env.USERNAME}:F"`,
-        { stdio: "ignore" }
-      );
+      execFileSync("icacls", [
+        filePath, "/inheritance:r", "/grant:r", `${process.env.USERNAME}:F`
+      ], { stdio: "ignore" });
     } catch { /* non-fatal */ }
   } else {
     // Unix/macOS: owner read/write only (0600)
