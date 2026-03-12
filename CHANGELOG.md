@@ -1,6 +1,13 @@
 # Changelog — Clank Build
 
-Last updated: 2026-03-11 (v2.5.17)
+Last updated: 2026-03-11 (v2.5.18)
+
+---
+
+## v2.5.18 (2026-03-11)
+
+### Changes
+- **Removed sub-agent system** — temporarily rolling back the manager/sub-agent architecture, manage mode, delegation tools, scheduler, and all sub-agent management while the feature is being stabilized.
 
 ---
 
