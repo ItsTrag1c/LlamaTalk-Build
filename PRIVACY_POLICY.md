@@ -1,13 +1,13 @@
 # Clank — Privacy Policy
 
 **Effective Date:** March 2, 2026
-**Last Updated:** March 10, 2026 (rev. 9)
+**Last Updated:** March 12, 2026 (rev. 11)
 
 ---
 
 ## Overview
 
-The Clank suite consists of four applications: **Clank Chat Desktop** (also known as Clank Desktop), a desktop application for conversing with local and cloud AI models; **Clank Chat CLI** (also known as ClankCLI), a terminal companion that provides the same capability from any CMD or PowerShell window; **Clank Build CLI**, an agentic coding assistant with file tools, project memory, and multi-provider support; and **Clank Build Desktop**, the same agentic engine in a windowed interface.
+The Clank suite consists of two applications: **Clank CLI**, an agentic coding assistant with file tools, project memory, and multi-provider support; and **Clank Desktop**, the same agentic engine in a windowed interface with a sidecar architecture.
 
 **The short version:** All your data stays on your computer. We don't collect, share, or transmit any information about you or your conversations — except when you explicitly choose to use a cloud AI provider, in which case only your messages are sent to that provider's servers as described below.
 
@@ -15,14 +15,25 @@ The Clank suite consists of four applications: **Clank Chat Desktop** (also know
 
 ## Data We Collect and Store
 
+### Clank CLI
+
+Clank CLI stores the following data **locally on your device only**, in `%APPDATA%\Clank\`:
+
+- **Config** (`config.json`) — Your name, hashed PIN, server URLs, per-model system prompts, model nicknames, and session preferences. When a PIN is set, cloud API keys are **encrypted at rest** using AES-256-GCM with a key derived from your PIN.
+- **Memory** (`memory/`) — Persistent project knowledge stored as Markdown files. Global `MEMORY.md` plus topic files. When a PIN is set, memory files are **encrypted at rest** using AES-256-GCM.
+- **Project memory** (`.clank.md`) — Per-project context file stored in the project directory you're working in.
+- **Session logs** (`.clank-session.md`) — Per-project session activity log in the project directory.
+
+Config files are restricted to the current Windows user via file system permissions. Memory files containing sensitive project information are encrypted when a PIN is set.
+
 ### Clank Desktop
 
-Clank Desktop stores the following data **locally on your device only**:
+Clank Desktop stores data in the same `%APPDATA%\Clank\` directory and shares config, memory, sessions, and API keys with the CLI version. Both versions can be installed side-by-side — data stays in sync.
+
+Additional Desktop-specific storage:
 
 - **Profile credentials** — Your PIN hash and security question hashes are stored in the **Windows Credential Manager**, a secure OS-level keystore. Your username and non-sensitive settings are stored in the app's localStorage.
-- **Conversations** — Full message history of all your chats, stored in localStorage. When a profile with a PIN is active, conversations are **encrypted at rest** using AES-256-GCM. The encryption key is stored in Windows Credential Manager — it never touches the filesystem.
 - **Cloud API keys** — Stored in the **Windows Credential Manager** (or macOS Keychain), the same secure OS-level keystore used for your PIN. Keys are sent exclusively to their respective AI provider over HTTPS and are never included in profile exports.
-- **Export audit trail** — Timestamp of your most recent profile export (`lastExportTime`), displayed in Settings.
 - **Settings** — Your preferences including:
   - Ollama server URL
   - Selected AI model and display name (nickname)
@@ -36,40 +47,11 @@ Clank Desktop stores the following data **locally on your device only**:
   - Enabled cloud providers
   - Detected backend type (Ollama or OpenAI-compatible)
 
-**Deletion log:** When you clear your data via "Clear Data & Users," a one-line timestamped entry is appended to `Clank-deletion-log.txt` in your application data folder. This file exists solely to give you an audit record of your own deletions and is never transmitted anywhere.
-
-### ClankCLI
-
-ClankCLI stores the following data **locally on your device only**, in `%APPDATA%\ClankCLI\`:
-
-- **Config** (`config.json`) — Your name, hashed PIN, Ollama URL, per-model system prompts, model nicknames, and session preferences. When a PIN is set, cloud API keys are **encrypted at rest** using AES-256-GCM with a key derived from your PIN. Without a PIN, API keys are stored in plaintext.
-- **Conversation history** (`history.json`) — Messages from the current session, used for crash recovery only. When a PIN is set, history is **encrypted at rest** using the same AES-256-GCM key.
-
-Both files are restricted to the current Windows user via file system permissions (`icacls`). Other users on the same machine cannot read them.
-
-### Clank Build
-
-Clank Build stores the following data **locally on your device only**, in `%APPDATA%\ClankBuild\`:
-
-- **Config** (`config.json`) — Your name, hashed PIN, server URLs, per-model system prompts, model nicknames, and session preferences. When a PIN is set, cloud API keys are **encrypted at rest** using AES-256-GCM with a key derived from your PIN.
-- **Memory** (`memory/`) — Persistent project knowledge stored as Markdown files. Global `MEMORY.md` plus topic files. When a PIN is set, memory files are **encrypted at rest** using AES-256-GCM.
-- **Project memory** (`.clankbuild.md`) — Per-project context file stored in the project directory you're working in.
-- **Session logs** (`.clankbuild-session.md`) — Per-project session activity log in the project directory.
-
-Config files are restricted to the current Windows user via file system permissions. Memory files containing sensitive project information are encrypted when a PIN is set.
-
-Clank Build Desktop (the GUI version) stores data in the same `%APPDATA%\ClankBuild\` directory and shares config, memory, sessions, and API keys with the CLI version. Both versions can be installed side-by-side — data stays in sync.
-
-**Session history (Chat CLI):** Conversation history is cleared automatically when you exit Clank Chat CLI cleanly. If the application exits unexpectedly, the previous session's messages remain in `history.json` and are available on the next launch for recovery. Closing normally always starts a fresh session.
-
 ### Data Retention
 
-- **Desktop conversations** — Retained until you delete them via the trash icon or "Clear Data & Users"
-- **CLI conversation history** — Cleared on every clean exit; only persists between sessions in the event of a crash
+- **Profile & Settings (CLI)** — Retained in `%APPDATA%\Clank\config.json` until you uninstall or manually delete the file
 - **Profile & Settings (Desktop)** — Retained until you click "Clear Data & Users"
-- **Profile & Settings (CLI)** — Retained in `config.json` until you uninstall or manually delete the file
-- **Profile & Settings (Build)** — Retained in `%APPDATA%\ClankBuild\config.json` until you uninstall or manually delete the file
-- **Memory (Build)** — Retained in `%APPDATA%\ClankBuild\memory\` until you manually delete files or use memory management commands
+- **Memory** — Retained in `%APPDATA%\Clank\memory\` until you manually delete files or use memory management commands
 - **Exported profiles** — If you export your profile, the resulting JSON file is stored wherever you save it — you are responsible for managing that file
 
 ---
@@ -110,7 +92,7 @@ When you send a message to a cloud model:
 
 1. Your message is transmitted to the selected provider's servers over HTTPS
 2. The provider's own privacy policy and data handling practices apply to that message
-3. Clank Chat Desktop displays a notice in the chat area identifying which provider will receive your message, and updates that notice when you switch models
+3. Clank Desktop displays a notice in the chat area identifying which provider will receive your message, and updates that notice when you switch models
 4. Your API keys are stored locally — they are **never** sent anywhere except directly to the API endpoint of the provider they belong to
 5. API keys are **never** included in exported profile files
 6. Token usage metadata returned by the provider (input/output token counts) is used **locally only** for display — it is never stored or transmitted
@@ -119,9 +101,9 @@ You remain in full control of which providers are enabled and can disable them a
 
 ### Automatic Update Checks
 
-Clank Chat (Desktop and CLI) and Clank Build CLI check for new versions automatically when the app starts. This is the only automatic network activity these apps perform. Here is exactly what happens:
+Clank (CLI and Desktop) checks for new versions automatically when the app starts. This is the only automatic network activity the apps perform. Here is exactly what happens:
 
-1. A single HTTPS GET request is made to the public GitHub Releases API (`https://api.github.com/repos/ItsTrag1c/Clank-Chat/releases/latest` or `.../Clank/...`)
+1. A single HTTPS GET request is made to the public GitHub Releases API (`https://api.github.com/repos/ItsTrag1c/Clank/releases/latest`)
 2. The request includes only a `User-Agent` header identifying the app (e.g. "Clank Desktop") — **no user data, device identifiers, or analytics are sent**
 3. If a newer version is found, a notification appears in the app (Desktop: orange dot on Settings tab; CLI: dim hint after the banner)
 4. **No update is downloaded or installed without your explicit confirmation**
@@ -141,7 +123,6 @@ GitHub will log the IP address of the request as with any public API call — th
 ### Importing Profiles
 
 - When you import a profile from a file, Clank validates the JSON structure and applies your data locally
-- ClankCLI restricts imports to `.json` files only
 - No data is sent to external servers during import
 
 ---
@@ -150,17 +131,17 @@ GitHub will log the IP address of the request as with any public API call — th
 
 ### Data Encryption at Rest
 
-- **Conversations (Desktop)** — When a profile with a PIN is active, all conversations are encrypted using AES-256-GCM before being written to storage. The encryption key is a random 256-bit key generated at profile creation and stored in Windows Credential Manager. Users without a PIN have their conversations stored as plaintext JSON.
 - **API Keys (CLI)** — When a PIN is set, all cloud API keys are encrypted in `config.json` using AES-256-GCM with a key derived from your PIN via PBKDF2. Without a PIN, keys remain in plaintext.
-- **Conversation History (CLI)** — When a PIN is set, `history.json` is encrypted with the same derived key. Changing your PIN re-encrypts all data with a new key. Removing your PIN decrypts all data back to plaintext.
-- **File Permissions (CLI)** — After every write to `config.json` or `history.json`, file permissions are restricted to the current Windows user only, preventing other users on a shared system from reading your data.
+- **Memory Files (CLI)** — When a PIN is set, memory files are encrypted with the same derived key. Changing your PIN re-encrypts all data with a new key. Removing your PIN decrypts all data back to plaintext.
+- **API Keys (Desktop)** — Stored in the OS credential store (Windows Credential Manager / macOS Keychain) rather than on the filesystem.
+- **File Permissions (CLI)** — After every write to `config.json`, file permissions are restricted to the current Windows user only, preventing other users on a shared system from reading your data.
 
 ### Authentication
 
-- **PIN Hashing** — PINs in both apps are hashed with PBKDF2 (100,000 iterations, SHA-256, random 16-byte per-user salt). Your plaintext PIN is never stored. Legacy hashes from earlier versions are automatically migrated to PBKDF2.
-- **PIN Minimum Length (CLI)** — PINs must be at least 4 characters. Both the setup wizard and the PIN change command enforce this minimum.
-- **Timing-Safe PIN Comparison (CLI)** — PIN verification uses `crypto.timingSafeEqual` to prevent timing side-channel attacks.
-- **Credential Storage (Desktop)** — PIN hashes, security question hashes, the conversation encryption key, and cloud API keys are all stored in the OS credential store (Windows Credential Manager / macOS Keychain) rather than in the app's localStorage. A strict allowlist limits which keys the app can read or write.
+- **PIN Hashing** — PINs are hashed with PBKDF2 (100,000 iterations, SHA-256, random 16-byte per-user salt). Your plaintext PIN is never stored. Legacy hashes from earlier versions are automatically migrated to PBKDF2.
+- **PIN Minimum Length** — PINs must be at least 4 characters. Both the setup wizard and the PIN change command enforce this minimum.
+- **Timing-Safe PIN Comparison** — PIN verification uses `crypto.timingSafeEqual` to prevent timing side-channel attacks.
+- **Credential Storage (Desktop)** — PIN hashes, security question hashes, and cloud API keys are all stored in the OS credential store (Windows Credential Manager / macOS Keychain) rather than in the app's localStorage. A strict allowlist limits which keys the app can read or write.
 - **Security Questions (Desktop)** — Security question answers are hashed with SHA-256 and a unique salt before storage. Plaintext answers are never stored.
 - **PIN Rate Limiting (Desktop)** — After repeated failed PIN attempts, progressive lockout delays (5 s → 15 s → 30 s → 60 s) are enforced to resist brute-force attacks.
 - **Session Inactivity Timeout (CLI)** — After a configurable period of inactivity (default: 30 minutes), the session locks and requires PIN re-entry before continuing. This prevents unattended terminals from remaining unlocked.
@@ -175,12 +156,16 @@ GitHub will log the IP address of the request as with any public API call — th
 - **Cloud URL Allowlist (Desktop)** — Outbound API requests are restricted to a hardcoded domain allowlist (Anthropic, Google, OpenAI endpoints). Requests to unlisted domains are rejected. HTTP redirects are disabled to prevent redirect-based SSRF.
 - **Update Integrity** — Software updates downloaded from GitHub are verified against SHA-256 checksums using a fail-closed model: if the checksum cannot be retrieved or does not match, the download is rejected. The release URL is validated against a strict GitHub domain pattern before any download begins.
 - **Stream Cancellation** — Both apps support cancelling an in-progress response. Desktop's Stop button and CLI's Esc key immediately cancel the active stream on the server side, ensuring no orphaned requests continue. Partial responses are preserved in the conversation.
-- **API Key Exclusion from Exports** — Cloud API keys are stripped from all exported profile files in both apps.
-- **Import Validation** — Imported profiles are validated for type, format, and value constraints before being applied. The CLI restricts imports to `.json` files only.
-- **Path Traversal Protection (Build)** — All file operations validate paths to prevent directory traversal attacks. Symbolic link resolution and `..` path segments are checked before any read or write.
-- **Destructive Command Detection (Build)** — The bash tool detects destructive commands (`rm -rf`, `format`, `del /s`, etc.) and elevates them to high-risk confirmation regardless of the tool's base safety level.
-- **Tool Safety Levels (Build)** — Every tool is classified as Low, Medium, or High risk. Low-risk tools (read-only) auto-approve by default. Medium-risk tools (file mutations) prompt for confirmation. High-risk tools (bash, system commands) always require explicit approval. Users can adjust these thresholds in settings.
-- **File Operation Tracking (Build)** — All file changes made during a session are tracked with before/after snapshots. The `/undo` command restores the last file change, and `/diff` shows all changes made in the current session.
+- **API Key Exclusion from Exports** — Cloud API keys are stripped from all exported profile files.
+- **Import Validation** — Imported profiles are validated for type, format, and value constraints before being applied.
+- **Path Traversal Protection** — All file operations validate paths to prevent directory traversal attacks. Symbolic link resolution and `..` path segments are checked before any read or write.
+- **Destructive Command Detection** — The bash tool detects destructive commands (`rm -rf`, `format`, `del /s`, `net user`, `reg delete`, `certutil`, `diskpart`, pipe-to-shell patterns, etc.) and elevates them to high-risk confirmation regardless of the tool's base safety level.
+- **Shell Execution Hardening** — All tool shell calls use `spawnSync`/`execFileSync` with argument arrays instead of string interpolation, preventing shell injection. Shell mode is disabled for package install operations. Internal utilities like file permission enforcement also use argument arrays.
+- **HTML Sanitization** — HTML stripping in web_fetch, web_search, and generate_file uses loop-based replacement that runs until stable, preventing crafted nested tags (e.g., `<scr<script>ipt>`) from surviving. Closing tag patterns match arbitrary whitespace and attributes. Entity decoding orders `&amp;` last to prevent double-unescaping. Event handler attributes (`on*`) are also stripped.
+- **Glob-to-Regex Safety** — Glob patterns in glob_files and search_files are converted to regex via single-pass character-by-character conversion, preventing chained `.replace()` calls from interfering with each other.
+- **Regex Safety** — Search patterns are limited to 500 characters with error handling for malformed expressions, preventing ReDoS attacks.
+- **Tool Safety Levels** — Every tool is classified as Low, Medium, or High risk. Low-risk tools (read-only) auto-approve by default. Medium-risk tools (file mutations) prompt for confirmation. High-risk tools (bash, system commands) always require explicit approval. Users can adjust these thresholds in settings.
+- **File Operation Tracking** — All file changes made during a session are tracked with before/after snapshots. The `/undo` command restores the last file change, and `/diff` shows all changes made in the current session.
 
 ---
 
@@ -189,7 +174,7 @@ GitHub will log the IP address of the request as with any public API call — th
 The Clank suite undergoes periodic internal security and dependency audits covering:
 
 - Authentication controls (PIN hashing, encryption, and credential storage)
-- Data-at-rest encryption (conversations, API keys, history files)
+- Data-at-rest encryption (API keys, memory files)
 - Input validation across all user-supplied data
 - Network security (URL validation, scheme enforcement, request timeouts)
 - Dependency auditing for vulnerabilities, telemetry, or unexpected network behavior
@@ -203,9 +188,8 @@ Audit findings are documented internally. No critical vulnerabilities have been 
 You have full control over your data:
 
 - **Access** — Export your profile and conversations at any time
-- **Deletion (Desktop)** — Delete individual conversations via the trash icon, or clear all data via "Clear Data & Users"
-- **Deletion (CLI)** — Delete `%APPDATA%\ClankCLI\config.json` and `history.json` to remove all stored data; or uninstall the application
-- **Deletion (Build)** — Delete `%APPDATA%\ClankBuild\` to remove all stored data including memory; or uninstall the application
+- **Deletion (Desktop)** — Clear all data via "Clear Data & Users"
+- **Deletion (CLI)** — Delete `%APPDATA%\Clank\` to remove all stored data including memory; or uninstall the application
 - **Portability** — Your exported profile JSON can be imported into another Clank installation on another device
 - **Encryption control (CLI)** — Set a PIN to enable encryption; remove your PIN to revert to plaintext storage
 
@@ -213,22 +197,11 @@ You have full control over your data:
 
 ## Third-Party Dependencies
 
+### Clank CLI
+
+- No runtime dependencies — built on Node.js built-in modules only
+
 ### Clank Desktop
-
-- **React** (UI framework)
-- **Tauri** (desktop framework)
-- **Vite** (build tool)
-- **Ollama API** (local AI integration)
-
-### ClankCLI
-
-- No runtime dependencies — built on Node.js built-in modules only
-
-### Clank Build CLI
-
-- No runtime dependencies — built on Node.js built-in modules only
-
-### Clank Build Desktop
 
 - **React** (UI framework)
 - **Tauri** (desktop framework)
@@ -260,7 +233,7 @@ Created by **ItsTrag1c**. For questions, visit the project repository.
 
 Clank is designed with privacy-by-default principles consistent with:
 
-- **GDPR** — Right to access (export), right to deletion (clear data), data minimization (no unnecessary collection), storage limitation (CLI auto-clears history)
+- **GDPR** — Right to access (export), right to deletion (clear data), data minimization (no unnecessary collection), storage limitation
 - **CCPA** — Right to know, right to delete, right to opt-out of sale (Clank doesn't sell data)
 - **General Privacy Best Practices** — Transparency, user control, encryption at rest, secure credential storage
 
@@ -277,7 +250,9 @@ Clank is designed with privacy-by-default principles consistent with:
 - **2026-03-06 (rev. 6)** — Desktop v0.15.0 security hardening. Cloud API keys moved from localStorage to OS credential store (Windows Credential Manager / macOS Keychain). Added credential key allowlist. Added PIN rate limiting with progressive lockout. Added cloud URL domain allowlist and disabled HTTP redirects. Updated integrity verification to fail-closed model with GitHub URL validation. Google API keys now sent via header instead of URL parameter. Added macOS Keychain references throughout.
 - **2026-03-07 (rev. 7)** — Added Clank Build as third application. Documented Build data storage (config, memory, session logs), data retention, deletion, and encryption. Updated overview to cover all apps. Added OpenCode cloud provider support (Desktop v0.16.0). Website launched at clanksuite.dev.
 - **2026-03-08 (rev. 8)** — Expanded to four applications (Build CLI + Build Desktop). Added Build-specific security: path traversal protection, destructive command detection, tool safety levels (low/medium/high), file operation tracking. Added Build Desktop to third-party dependencies. Fixed update check URLs to current repo names. Added OpenCode to all cloud provider references.
-- **2026-03-10 (rev. 9)** — Build Desktop v2.4.3: auto-updater now performs SHA-256 checksum verification on downloaded installers via the Rust backend (previously the checksum URL was not passed through). No change to what data is collected or stored.
+- **2026-03-10 (rev. 9)** — Build v2.5.5 security hardening. Added shell execution hardening (spawnSync argument arrays), HTML sanitization for generated files, regex safety limits, expanded destructive command patterns. Website hosted on GitHub Pages at clanksuite.dev.
+- **2026-03-12 (rev. 10)** — Consolidated from four apps to two. Clank Chat (Desktop + CLI) archived. "Clank Build" renamed to "Clank". Updated all app names, config paths, and data storage references. Clank config dir changed from `%APPDATA%\ClankBuild\` to `%APPDATA%\Clank\`. Project memory file changed from `.clankbuild.md` to `.clank.md`. Removed Chat-specific sections (ClankCLI, Chat Desktop). Merged Desktop storage details under unified Clank Desktop section.
+- **2026-03-12 (rev. 11)** — Security hardening update (CLI v2.5.19, Desktop v2.4.16). HTML sanitization upgraded to loop-based stripping with closing tag attribute matching and safe entity decode ordering. Glob-to-regex conversion rewritten as single-pass to prevent chained replacement interference. File permission enforcement (`applyFilePermissions`) switched from `execSync` to `execFileSync` to prevent shell injection via crafted file paths. Added Glob-to-Regex Safety to security documentation.
 
 ---
 

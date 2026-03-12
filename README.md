@@ -24,7 +24,6 @@ Clank Desktop wraps the Clank engine in a desktop interface. Same 14 tools, same
 ## Features
 
 - **ReAct agent loop** — iterative reason-and-act cycle with streaming + tool calling
-- **Autonomous job scheduler** — assign recurring or one-shot scheduled tasks using cron expressions or shorthands like `@hourly`, `@daily`, `@every_30m`. Schedules persist across restarts.
 - **3 agent modes** — Build (full agent), Plan (read-only exploration), Q&A (no tools, conversation only)
 - **14 built-in tools** — read_file, write_file, edit_file, list_directory, search_files, glob_files, bash, git, web_fetch, web_search, npm_install, pip_install, install_tool, generate_file
 - **Local models** — connects to [Ollama](https://ollama.com/), llama.cpp, LM Studio, vLLM, and other OpenAI-compatible backends
