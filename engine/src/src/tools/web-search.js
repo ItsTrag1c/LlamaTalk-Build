@@ -32,7 +32,7 @@ export const webSearchTool = {
       const res = await fetch(url, {
         signal: controller.signal,
         headers: {
-          "User-Agent": "Clank/0.1.0",
+          "User-Agent": "Clank-Build/0.1.0",
           "Accept": "text/html",
         },
       });

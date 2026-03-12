@@ -829,7 +829,7 @@ ${BOLD}Settings${RESET}
   }
 }
 
-const REPO_URL = "https://github.com/ItsTrag1c/Clank-Build.git";
+const REPO_URL = "https://github.com/ItsTrag1c/Clank.git";
 
 async function handleUpdate(currentVersion) {
   const isPackaged = process.execPath.endsWith(".exe") && !process.execPath.includes("node");

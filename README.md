@@ -11,7 +11,7 @@ Clank is an agentic coding assistant — available as a standalone terminal app 
 ## Install
 
 ```powershell
-irm https://raw.githubusercontent.com/ItsTrag1c/Clank-Build/cli/install.ps1 | iex
+irm https://raw.githubusercontent.com/ItsTrag1c/Clank/cli/install.ps1 | iex
 ```
 
 Run this in PowerShell to download and install the latest release. Open a new terminal and type `clank`.
@@ -20,7 +20,7 @@ Run this in PowerShell to download and install the latest release. Open a new te
 
 ## Download
 
-**[→ Latest Release](https://github.com/ItsTrag1c/Clank-Build/releases/latest)**
+**[→ Latest Release](https://github.com/ItsTrag1c/Clank/releases/latest)**
 
 | File | Description |
 |------|-------------|
@@ -34,7 +34,7 @@ Run this in PowerShell to download and install the latest release. Open a new te
 
 The desktop version provides the same agentic engine in a windowed interface. Available on Windows and macOS.
 
-**[→ Latest Desktop Release](https://github.com/ItsTrag1c/Clank-Build/releases/latest)**
+**[→ Latest Desktop Release](https://github.com/ItsTrag1c/Clank/releases/latest)**
 
 | File | Description |
 |------|-------------|
@@ -137,7 +137,7 @@ Chat with the Build agent from your phone via Telegram. The agent runs locally �
 | `/trust` | Toggle auto-approve |
 | `/cancel` | Cancel current operation |
 
-See the [Telegram Setup Guide](https://github.com/ItsTrag1c/Clank-Build/wiki/Telegram-Setup) for detailed instructions.
+See the [Telegram Setup Guide](https://github.com/ItsTrag1c/Clank/wiki/Telegram-Setup) for detailed instructions.
 
 ---
 

@@ -1,0 +1,222 @@
+import { AnthropicProvider } from "./anthropic.js";
+import { OpenAIProvider } from "./openai.js";
+import { OllamaProvider } from "./ollama.js";
+import { GoogleProvider } from "./google.js";
+import { PromptFallbackProvider } from "./prompt-fallback.js";
+import { validateServerUrl, fetchWithTimeout } from "./stream.js";
+
+export const CLOUD_MODELS = {
+  anthropic: ["claude-opus-4-5", "claude-sonnet-4-5", "claude-3-5-haiku-20241022"],
+  google:    ["gemini-2.0-flash", "gemini-2.0-flash-lite", "gemini-1.5-pro", "gemini-1.5-flash"],
+  openai:    ["gpt-4o", "gpt-4o-mini", "o1", "o3-mini"],
+  opencode:  ["claude-opus-4-6", "claude-sonnet-4-6", "gpt-5.4-pro", "gpt-5.4", "gpt-5.3-codex", "gpt-5.3-codex-spark", "gemini-3.1-pro", "gemini-3-pro", "gemini-3-flash", "minimax-m2.5", "kimi-k2.5", "big-pickle"],
+};
+
+export function getProviderName(model, config) {
+  for (const [provider, models] of Object.entries(CLOUD_MODELS)) {
+    if (models.includes(model)) {
+      if (config.enabledProviders?.[provider]) return provider;
+    }
+  }
+  return "ollama";
+}
+
+/**
+ * Get the provider adapter instance + formatting helpers for the current model.
+ * Returns { provider: BaseProvider, providerName: string, formatAssistantToolUse, formatToolResult }
+ */
+export function getProviderForModel(config) {
+  const model = config.selectedModel;
+  const providerName = getProviderName(model, config);
+
+  if (providerName === "anthropic") {
+    return {
+      provider: new AnthropicProvider(config),
+      providerName: "anthropic",
+      formatAssistantToolUse: AnthropicProvider.formatAssistantToolUse,
+      formatToolResult: AnthropicProvider.formatToolResult,
+    };
+  }
+
+  if (providerName === "google") {
+    return {
+      provider: new GoogleProvider(config),
+      providerName: "google",
+      formatAssistantToolUse: GoogleProvider.formatAssistantToolUse,
+      formatToolResult: GoogleProvider.formatToolResult,
+    };
+  }
+
+  if (providerName === "openai") {
+    return {
+      provider: new OpenAIProvider(config, {
+        baseUrl: "https://api.openai.com",
+        apiKey: config.apiKey_openai,
+        isCloud: true,
+      }),
+      providerName: "openai",
+      formatAssistantToolUse: OpenAIProvider.formatAssistantToolUse,
+      formatToolResult: OpenAIProvider.formatToolResult,
+    };
+  }
+
+  if (providerName === "opencode") {
+    return {
+      provider: new OpenAIProvider(config, {
+        baseUrl: "https://opencode.ai/zen",
+        apiKey: config.apiKey_opencode,
+        isCloud: true,
+      }),
+      providerName: "opencode",
+      formatAssistantToolUse: OpenAIProvider.formatAssistantToolUse,
+      formatToolResult: OpenAIProvider.formatToolResult,
+    };
+  }
+
+  // Local model (Ollama or OpenAI-compatible)
+  const serverUrl = config.modelServerMap?.[model] || config.ollamaUrl;
+  let bt = config.backendType || "ollama";
+  if (config.serverBackendMap?.[serverUrl]) {
+    bt = config.serverBackendMap[serverUrl];
+  }
+
+  if (bt === "openai-compatible") {
+    const provider = new OpenAIProvider(config, {
+      baseUrl: serverUrl,
+      apiKey: null,
+      isCloud: false,
+    });
+    // Check if the model supports native tools; if not, use fallback
+    // For OpenAI-compatible servers, most support function calling
+    return {
+      provider,
+      providerName: "openai-compatible",
+      formatAssistantToolUse: OpenAIProvider.formatAssistantToolUse,
+      formatToolResult: OpenAIProvider.formatToolResult,
+    };
+  }
+
+  // Ollama native
+  const ollamaProvider = new OllamaProvider(config, { baseUrl: serverUrl });
+  if (!ollamaProvider.supportsTools(model)) {
+    // Wrap in prompt fallback for models without native tool support
+    const fallback = new PromptFallbackProvider(ollamaProvider);
+    return {
+      provider: fallback,
+      providerName: "ollama-fallback",
+      formatAssistantToolUse: PromptFallbackProvider.formatAssistantToolUse,
+      formatToolResult: PromptFallbackProvider.formatToolResult,
+    };
+  }
+
+  return {
+    provider: ollamaProvider,
+    providerName: "ollama",
+    formatAssistantToolUse: OllamaProvider.formatAssistantToolUse,
+    formatToolResult: OllamaProvider.formatToolResult,
+  };
+}
+
+// --- Server detection (from CLI api.js) ---
+
+export async function detectBackend(url) {
+  validateServerUrl(url);
+  const base = url.replace(/\/$/, "");
+
+  let looksOllama = false;
+  try {
+    const res = await fetchWithTimeout(`${base}/api/tags`, {}, 10_000);
+    if (res.ok) {
+      const data = await res.json().catch(() => null);
+      if (data && Array.isArray(data.models)) looksOllama = true;
+    }
+  } catch { /* try next */ }
+
+  if (looksOllama) {
+    // Always use native Ollama provider — it properly checks supportsTools()
+    // and falls back to PromptFallbackProvider for models without native tool calling.
+    // Modern Ollama exposes /v1/models too, but routing through OpenAIProvider
+    // bypasses the tool capability check and breaks models without function calling.
+    return "ollama";
+  }
+
+  try {
+    const res = await fetchWithTimeout(`${base}/v1/models`, {}, 10_000);
+    if (res.ok) return "openai-compatible";
+  } catch { /* neither responded */ }
+
+  return "unknown";
+}
+
+export async function getOllamaModels(url) {
+  validateServerUrl(url);
+  const base = url.replace(/\/$/, "");
+  const res = await fetchWithTimeout(`${base}/api/tags`, {}, 10_000);
+  if (!res.ok) throw new Error(`Ollama returned ${res.status}`);
+  const data = await res.json();
+  return (data.models || []).map((m) => m.name);
+}
+
+export async function getRunningOllamaModels(url) {
+  validateServerUrl(url);
+  const base = url.replace(/\/$/, "");
+  const res = await fetchWithTimeout(`${base}/api/ps`, {}, 5_000);
+  if (!res.ok) throw new Error(`Ollama returned ${res.status}`);
+  const data = await res.json();
+  return (data.models || []).map((m) => m.name);
+}
+
+export async function getOpenAICompatModels(url) {
+  const base = url.replace(/\/$/, "");
+  const res = await fetchWithTimeout(`${base}/v1/models`, {}, 10_000);
+  if (!res.ok) throw new Error(`Server returned ${res.status}`);
+  const data = await res.json();
+  return (data.data || []).map((m) => m.id);
+}
+
+export async function getAllLocalModels(config) {
+  const servers = [config.ollamaUrl, ...(config.localServers || [])];
+  const allModels = [];
+  const runningModels = new Set();
+  const modelServerMap = {};
+  const serverBackendMap = {};
+  const seen = new Set();
+
+  // Query all servers in parallel
+  const results = await Promise.allSettled(servers.map(async (serverUrl) => {
+    const base = serverUrl.replace(/\/$/, "");
+    const bt = await detectBackend(base);
+    if (bt === "unknown") return null;
+
+    let models = [];
+    if (bt === "openai-compatible") {
+      models = await getOpenAICompatModels(base);
+    } else {
+      models = await getOllamaModels(base);
+    }
+
+    let running = [];
+    if (bt === "ollama") {
+      try { running = await getRunningOllamaModels(base); } catch { /* ignore */ }
+    }
+
+    return { base, bt, models, running };
+  }));
+
+  for (const r of results) {
+    if (r.status !== "fulfilled" || !r.value) continue;
+    const { base, bt, models, running } = r.value;
+    serverBackendMap[base] = bt;
+
+    for (const m of models) {
+      if (!seen.has(m)) {
+        seen.add(m);
+        allModels.push(m);
+        modelServerMap[m] = base;
+      }
+    }
+    for (const m of running) runningModels.add(m);
+  }
+
+  return { allModels, runningModels, modelServerMap, serverBackendMap };
+}

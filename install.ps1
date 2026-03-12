@@ -1,9 +1,9 @@
 # Clank — PowerShell installer
-# Usage: irm https://raw.githubusercontent.com/ItsTrag1c/Clank-Build/master/install.ps1 | iex
+# Usage: irm https://raw.githubusercontent.com/ItsTrag1c/Clank/master/install.ps1 | iex
 
 $ErrorActionPreference = "Stop"
 
-$repo = "ItsTrag1c/Clank-Build"
+$repo = "ItsTrag1c/Clank"
 $installDir = Join-Path $HOME "Clank"
 
 Write-Host ""
