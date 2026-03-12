@@ -16,7 +16,7 @@ export const searchFilesTool = {
         pattern: { type: "string", description: "Regex pattern to search for" },
         path: { type: "string", description: "Directory to search in (default: project root)" },
         glob: { type: "string", description: "File glob pattern to filter (e.g., '*.js', '*.ts')" },
-        max_results: { type: "number", description: "Maximum results to return (default: 50)" },
+        max_results: { type: "integer", description: "Maximum results to return (default: 50)" },
       },
       required: ["pattern"],
     },
@@ -58,10 +58,19 @@ export const searchFilesTool = {
     const maxResults = args.max_results || 50;
     const results = [];
 
-    // Simple glob matching
-    const globPattern = args.glob ? new RegExp(
-      "^" + args.glob.replace(/\./g, "\\.").replace(/\*/g, ".*").replace(/\?/g, ".") + "$"
-    ) : null;
+    // Single-pass glob-to-regex (avoids chained replace interference)
+    let globPattern = null;
+    if (args.glob) {
+      let gRe = "";
+      for (let i = 0; i < args.glob.length; i++) {
+        const ch = args.glob[i];
+        if (ch === "*") { gRe += ".*"; }
+        else if (ch === "?") { gRe += "."; }
+        else if (".+^${}()|[]\\".includes(ch)) { gRe += "\\" + ch; }
+        else { gRe += ch; }
+      }
+      globPattern = new RegExp("^" + gRe + "$");
+    }
 
     function walk(dir) {
       if (results.length >= maxResults) return;

@@ -48,7 +48,7 @@ export const generateFileTool = {
 
   validate(args, context) {
     if (!args.path) return { ok: false, error: "path is required" };
-    if (args.content === undefined) return { ok: false, error: "content is required" };
+    if (args.content == null || typeof args.content !== "string") return { ok: false, error: "content is required and must be a string" };
     const { valid, error } = validatePath(args.path, context.projectRoot, { allowExternal: true });
     if (!valid) return { ok: false, error };
 
@@ -115,10 +115,12 @@ export const generateFileTool = {
 };
 
 function sanitizeHtmlBody(html) {
-  // Strip <script> tags and their contents
-  let safe = html.replace(/<script[\s\S]*?<\/script>/gi, "<!-- script removed for safety -->");
+  // Strip <script> tags and their contents — loop until stable to handle nested/crafted tags
+  let safe = html;
+  let prev;
+  do { prev = safe; safe = safe.replace(/<script[\s\S]*?<\/script\s*>/gi, ""); } while (safe !== prev);
   // Strip on* event handler attributes (e.g., onclick=, onerror=, onload=)
-  safe = safe.replace(/\s+on[a-z]+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, "");
+  do { prev = safe; safe = safe.replace(/\s+on[a-z]+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, ""); } while (safe !== prev);
   return safe;
 }
 

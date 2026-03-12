@@ -9,9 +9,9 @@ function stripHtml(html) {
   let text = html;
   let prev;
   // Remove script blocks (loop: handles <scr<script>ipt>...</script> nesting)
-  do { prev = text; text = text.replace(/<script[\s\S]*?<\/script>/gi, ""); } while (text !== prev);
+  do { prev = text; text = text.replace(/<script[\s\S]*?<\/script\s*>/gi, ""); } while (text !== prev);
   // Remove style blocks
-  do { prev = text; text = text.replace(/<style[\s\S]*?<\/style>/gi, ""); } while (text !== prev);
+  do { prev = text; text = text.replace(/<style[\s\S]*?<\/style\s*>/gi, ""); } while (text !== prev);
   // Remove remaining tags
   do { prev = text; text = text.replace(/<[^>]+>/g, " "); } while (text !== prev);
   // Decode entities — decode &amp; last so &amp;lt; doesn't become <
