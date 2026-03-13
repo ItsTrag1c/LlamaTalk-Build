@@ -324,6 +324,18 @@ var init_config = __esm({
       showToolCalls: true,
       contextStrategy: "truncate",
       memoryEnabled: true,
+      // Local model optimizations (Ollama / OpenAI-compatible)
+      localOptimizations: {
+        enabled: true,
+        compactPrompt: true,
+        toolTier: "auto",
+        // "full" | "core" | "auto"
+        memoryBudgetPercent: 15,
+        // % of context reserved for memory
+        contextThreshold: 60,
+        // compaction trigger (vs 80 for cloud)
+        maxResponseTokens: 4096
+      },
       // Telegram
       telegramBotToken: "",
       telegramAllowedUsers: [],
@@ -692,12 +704,14 @@ var OpenAIProvider = class extends BaseProvider {
         msgs.push({ role: m.role, content: m.content });
       }
     }
+    const localOpts = !this.isCloud && this.config.localOptimizations?.enabled ? this.config.localOptimizations : null;
     const reqBody = {
       model,
       messages: msgs,
       temperature,
       stream: true,
-      stream_options: { include_usage: true }
+      stream_options: { include_usage: true },
+      ...localOpts?.maxResponseTokens && { max_tokens: localOpts.maxResponseTokens }
     };
     if (tools && tools.length > 0) {
       reqBody.tools = this.formatTools(tools);
@@ -802,6 +816,7 @@ var OpenAIProvider = class extends BaseProvider {
 };
 
 // ../../llamatalkbuild-engine/src/providers/ollama.js
+var _contextWindowCache = /* @__PURE__ */ new Map();
 var TOOL_CAPABLE_PATTERNS = [
   /(?:^|\/)llama3\.[1-9]/,
   /(?:^|\/)llama-3\.[1-9]/,
@@ -829,7 +844,43 @@ var OllamaProvider = class extends BaseProvider {
     }));
   }
   contextWindow() {
+    const model = this.config.selectedModel;
+    if (model && _contextWindowCache.has(model)) {
+      return _contextWindowCache.get(model);
+    }
     return 32768;
+  }
+  /**
+   * Query Ollama's /api/show endpoint to detect the model's actual context window.
+   * Caches the result per model so it's only fetched once per session.
+   */
+  async detectContextWindow(model) {
+    if (!model) return;
+    if (_contextWindowCache.has(model)) return _contextWindowCache.get(model);
+    try {
+      const base = this.baseUrl.replace(/\/$/, "");
+      const res = await fetchWithTimeout(
+        `${base}/api/show`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: model })
+        },
+        1e4
+      );
+      if (!res.ok) return;
+      const data = await res.json();
+      let ctxLen = data.model_info?.["general.context_length"];
+      if (!ctxLen && data.parameters) {
+        const match = data.parameters.match(/num_ctx\s+(\d+)/);
+        if (match) ctxLen = parseInt(match[1], 10);
+      }
+      if (ctxLen && ctxLen > 0) {
+        _contextWindowCache.set(model, ctxLen);
+        return ctxLen;
+      }
+    } catch {
+    }
   }
   supportsTools(model) {
     const name = (model || "").toLowerCase();
@@ -855,11 +906,15 @@ var OllamaProvider = class extends BaseProvider {
         msgs.push({ role: m.role, content: m.content });
       }
     }
+    const localOpts = this.config.localOptimizations?.enabled ? this.config.localOptimizations : null;
     const reqBody = {
       model,
       messages: msgs,
       stream: true,
-      options: { temperature }
+      options: {
+        temperature,
+        ...localOpts?.maxResponseTokens && { num_predict: localOpts.maxResponseTokens }
+      }
     };
     if (tools && tools.length > 0 && this.supportsTools(model)) {
       reqBody.tools = this.formatTools(tools);
@@ -1084,11 +1139,29 @@ var PromptFallbackProvider = class {
   contextWindow() {
     return this.inner.contextWindow();
   }
+  /** Delegate context window detection to inner provider (e.g. Ollama) */
+  async detectContextWindow(model) {
+    if (this.inner.detectContextWindow) {
+      return this.inner.detectContextWindow(model);
+    }
+  }
   estimateTokens(messages) {
     return this.inner.estimateTokens(messages);
   }
   formatToolsAsPrompt(tools) {
     if (!tools || tools.length === 0) return "";
+    const useCompact = this.config?.localOptimizations?.compactPrompt;
+    if (useCompact) {
+      let block2 = `
+Tools \u2014 respond with <tool_call>{"name":"...","arguments":{...}}</tool_call>:
+`;
+      for (const t of tools) {
+        const params = t.parameters?.required?.join(", ") || Object.keys(t.parameters?.properties || {}).join(", ");
+        block2 += `- ${t.name}(${params}) \u2014 ${t.description.split(".")[0]}
+`;
+      }
+      return block2;
+    }
     let block = `
 You have access to the following tools. To use a tool, respond with a <tool_call> block:
 
@@ -1990,34 +2063,49 @@ ${trimmed.join("\n")}
    * Build the full memory block for system prompt injection.
    * Now includes agent instructions (OpenCode-style).
    */
-  buildMemoryBlock(userMessage, projectRoot) {
+  /**
+   * Build the full memory block for system prompt injection.
+   * @param {string} userMessage - Current user message for relevance matching
+   * @param {string} projectRoot - Project root path
+   * @param {number} [budgetChars] - Optional character budget for local models.
+   *   When set, lower-priority sections are trimmed or dropped to fit.
+   */
+  buildMemoryBlock(userMessage, projectRoot, budgetChars) {
     const sections = [];
+    let usedChars = 0;
+    const addSection = (label, content, priority) => {
+      if (!content) return;
+      const section = `## ${label}
+${content}`;
+      if (budgetChars) {
+        const remaining = budgetChars - usedChars;
+        if (remaining <= 0) return;
+        if (section.length > remaining) {
+          sections.push(section.slice(0, remaining) + "\n... [trimmed to fit context budget]");
+          usedChars = budgetChars;
+          return;
+        }
+      }
+      sections.push(section);
+      usedChars += section.length;
+    };
     const instructions = this._getInstructions(projectRoot);
     if (instructions) {
       sections.push(instructions);
-    }
-    const global = this.loadGlobal();
-    if (global) {
-      sections.push(`## Global Memory
-${global}`);
+      usedChars += instructions.length;
     }
     const project = this.loadProject(projectRoot);
-    if (project) {
-      sections.push(`## Project Memory
-${project}`);
-    }
+    addSection("Project Memory", project, 2);
+    const global = this.loadGlobal();
+    addSection("Global Memory", global, 3);
     const relevant = this.findRelevant(userMessage);
     if (relevant.length > 0) {
       const topicBlock = relevant.map((r) => `### ${r.topic}
 ${r.content}`).join("\n\n");
-      sections.push(`## Relevant Context
-${topicBlock}`);
+      addSection("Relevant Context", topicBlock, 4);
     }
     const sessionSummaries = this._loadSessionSummaries();
-    if (sessionSummaries) {
-      sections.push(`## Recent Session History
-${sessionSummaries}`);
-    }
+    addSection("Recent Session History", sessionSummaries, 5);
     if (sections.length === 0) return "";
     return `# Memory & Instructions
 
@@ -4041,11 +4129,14 @@ generate_file(path, content, format, title) \u2014 Generate a document file (md,
 - Memory directory access is always allowed without extra confirmation.`;
 function buildSystemPrompt(config2, projectRoot, memoryBlock, projectContext, agentMode, options = {}) {
   const agentName = options.agentName || config2.agentName || "a coding assistant";
+  const isLocal = options.isLocal || false;
+  const useCompact = isLocal && config2.localOptimizations?.compactPrompt;
   let prompt;
   if (agentMode === "qa") {
     prompt = `You are ${agentName}, a knowledgeable assistant running inside Clank. You are in Q&A Mode \u2014 a direct question-and-answer mode with no tool access. Answer the user's questions clearly and concisely. You can discuss code, explain concepts, help with debugging logic, brainstorm ideas, and have general conversations. You do NOT have access to the filesystem, shell, or any tools \u2014 but you DO have the user's saved memory and project context below. Use that context to give informed, project-aware answers when relevant.`;
   } else {
-    prompt = BASE_SYSTEM_PROMPT.replace("AGENT_NAME_PLACEHOLDER", agentName).replace("MEMORY_DIR_PLACEHOLDER", getMemoryDir().replace(/\\/g, "/"));
+    const basePrompt = useCompact ? COMPACT_SYSTEM_PROMPT : BASE_SYSTEM_PROMPT;
+    prompt = basePrompt.replace("AGENT_NAME_PLACEHOLDER", agentName).replace("MEMORY_DIR_PLACEHOLDER", getMemoryDir().replace(/\\/g, "/"));
     if (agentMode === "plan") {
       prompt += `
 
@@ -4081,6 +4172,19 @@ ${projectContext}`;
 - Date: ${(/* @__PURE__ */ new Date()).toISOString().split("T")[0]}`;
   return prompt;
 }
+var COMPACT_SYSTEM_PROMPT = `You are AGENT_NAME_PLACEHOLDER, a coding assistant with direct access to the user's filesystem and shell through tools. You are running inside Clank, a local agentic coding tool. All tool calls execute locally with the user's permission.
+
+## Rules
+- Use tools to complete tasks. Never decline \u2014 the permission system handles safety.
+- Be brief. Users see tool details in the sidebar \u2014 don't repeat file contents or arguments.
+- Read files before editing. Use exact text for old_text in edits.
+- Prefer small precise edits over rewriting entire files.
+- Keep responses brief and concise.
+
+## Memory
+- Save user preferences, project conventions, and important patterns to memory.
+- Memory directory: MEMORY_DIR_PLACEHOLDER
+- Use write_file or edit_file with absolute paths to save/update memory files.`;
 var ALL_TOOLS = [
   readFileTool,
   writeFileTool,
@@ -4097,6 +4201,27 @@ var ALL_TOOLS = [
   installToolTool,
   generateFileTool
 ];
+var CORE_TOOLS = [
+  readFileTool,
+  writeFileTool,
+  editFileTool,
+  listDirectoryTool,
+  searchFilesTool,
+  globFilesTool,
+  bashTool,
+  gitTool
+];
+var TOOL_KEYWORDS = {
+  install: [npmInstallTool, pipInstallTool, installToolTool],
+  npm: [npmInstallTool],
+  pip: [pipInstallTool],
+  web: [webFetchTool, webSearchTool],
+  fetch: [webFetchTool],
+  "search online": [webSearchTool],
+  browse: [webFetchTool],
+  generate: [generateFileTool],
+  pdf: [generateFileTool]
+};
 var VALID_TOOL_NAMES = ALL_TOOLS.map((t) => t.definition.name);
 function resolveToolNames(input) {
   if (!input || !Array.isArray(input) || input.length === 0) return null;
@@ -4349,9 +4474,16 @@ var AgentEngine = class extends import_events.EventEmitter {
       this.sessionMgr.autoTitle(this.conversationId, text);
       this.firstMessageSent = true;
     }
+    const { provider, providerName, formatAssistantToolUse, formatToolResult } = getProviderForModel(this.config);
+    const isLocal = ["ollama", "ollama-fallback", "openai-compatible"].includes(providerName);
+    const localOpts = isLocal && this.config.localOptimizations?.enabled ? this.config.localOptimizations : null;
+    if (provider.detectContextWindow) {
+      await provider.detectContextWindow(this.config.selectedModel);
+    }
     let memoryBlock = "";
     this.emit("memory-loading", { status: "start" });
-    memoryBlock = this.memory.buildMemoryBlock(text, this.projectRoot);
+    const memBudget = localOpts ? Math.floor(provider.contextWindow() * 4 * (localOpts.memoryBudgetPercent / 100)) : void 0;
+    memoryBlock = this.memory.buildMemoryBlock(text, this.projectRoot, memBudget);
     const taskBlock = this.taskManager.buildTaskBlock();
     if (taskBlock) {
       memoryBlock = memoryBlock ? `${memoryBlock}
@@ -4363,18 +4495,47 @@ ${taskBlock}` : taskBlock;
     if (!this.config.memoryEnabled || this.noMemory) {
       memoryBlock = "";
     }
-    const { provider, providerName, formatAssistantToolUse, formatToolResult } = getProviderForModel(this.config);
     let iterationCount = 0;
     let lastUsage = null;
     let contextPercent = null;
     const contextLimit = provider.contextWindow();
-    const CONTEXT_THRESHOLD = this.config.contextThreshold || 80;
-    const toolDefs = this.agentMode === "qa" ? null : this.toolRegistry.getDefinitions();
+    const CONTEXT_THRESHOLD = isLocal ? localOpts?.contextThreshold || 60 : this.config.contextThreshold || 80;
+    const toolTier = localOpts?.toolTier || "full";
+    const useAutoTier = isLocal && toolTier === "auto";
+    const useCoreOnly = isLocal && toolTier === "core";
+    let localToolRegistry = null;
+    if (useCoreOnly) {
+      localToolRegistry = new ToolRegistry();
+      for (const tool of CORE_TOOLS) localToolRegistry.register(tool);
+    }
+    const getToolDefs = (userText) => {
+      if (this.agentMode === "qa") return null;
+      if (!isLocal || toolTier === "full") return this.toolRegistry.getDefinitions();
+      if (useCoreOnly) return localToolRegistry.getDefinitions();
+      const registry = new ToolRegistry();
+      for (const tool of CORE_TOOLS) registry.register(tool);
+      if (userText) {
+        const lower = userText.toLowerCase();
+        const added = /* @__PURE__ */ new Set();
+        for (const [keyword, tools] of Object.entries(TOOL_KEYWORDS)) {
+          if (lower.includes(keyword)) {
+            for (const tool of tools) {
+              if (!added.has(tool.definition.name)) {
+                registry.register(tool);
+                added.add(tool.definition.name);
+              }
+            }
+          }
+        }
+      }
+      return registry.getDefinitions();
+    };
     const turnStartTime = Date.now();
     const maxIter = this.agentMode === "qa" ? 1 : this.config.maxIterations || 50;
     while (iterationCount < maxIter) {
       const systemPrompt = buildSystemPrompt(this.config, this.projectRoot, memoryBlock, this.projectContext, this.agentMode, {
-        agentName: this.config.agentName || void 0
+        agentName: this.config.agentName || void 0,
+        isLocal
       });
       if (lastUsage && lastUsage.promptTokens > 0) {
         contextPercent = Math.round(lastUsage.promptTokens / contextLimit * 100);
@@ -4397,6 +4558,8 @@ ${taskBlock}` : taskBlock;
       const streamStartTime = Date.now();
       let firstTokenTime = null;
       try {
+        const lastUserMsg = [...this.messages].reverse().find((m) => m.role === "user");
+        const toolDefs = getToolDefs(lastUserMsg?.content || text);
         const stream = provider.stream(this.messages, systemPrompt, toolDefs, this.controller.signal);
         let firstToken = true;
         for await (const event of stream) {
@@ -4553,8 +4716,9 @@ ${taskBlock}` : taskBlock;
               break;
             }
             const clean = result.replace(ANSI_RE, "");
-            const truncated = clean.length > 3e4 ? clean.slice(0, 3e4) + `
-... [truncated, ${clean.length - 3e4} more chars]` : clean;
+            const maxResultChars = Math.min(3e4, Math.floor(contextLimit * 4 * 0.25));
+            const truncated = clean.length > maxResultChars ? clean.slice(0, maxResultChars) + `
+... [truncated, ${clean.length - maxResultChars} more chars]` : clean;
             const summary = result.split("\n")[0].slice(0, 100);
             this.emit("tool-result", { id: tc.id, name: tc.name, success: true, summary, fullResult: truncated });
             this.messages.push(formatToolResult(tc.id, truncated, tc.name));

@@ -1,6 +1,13 @@
 # Changelog — Clank Desktop
 
-Last updated: 2026-03-12 (v2.4.16)
+Last updated: 2026-03-12 (v2.4.17)
+
+---
+
+## v2.4.17 (2026-03-12)
+
+### Improvements
+- **Local model efficiency optimizations** — engine update: reduces context overhead by 50-80% for local LLMs (Ollama/LM Studio). Auto-detects context window, adaptive result truncation, compact prompts, tiered tool sets, memory budgeting, and earlier compaction. Configurable via `localOptimizations` in config. Cloud models unaffected.
 
 ---
 

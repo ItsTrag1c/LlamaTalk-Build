@@ -1,8 +1,8 @@
 # Clank Desktop
 
-> Agentic coding assistant with a desktop GUI — part of the Clank Suite.
+> Agentic assistant with a desktop GUI — powered by local models and cloud providers.
 
-Clank Desktop wraps the Clank engine in a desktop interface. Same 14 tools, same ReAct agent loop, same memory and session system — with a visual experience. Built with React, Tailwind CSS, and Tauri (Rust backend).
+Clank Desktop wraps the Clank engine in a desktop interface. Same 14 tools, same ReAct agent loop, same memory and session system — with a visual experience built on React, Tailwind CSS, and Tauri.
 
 > **Warning:** Clank can read, write, and delete files, execute shell commands, and modify your system. Review agent actions carefully. We recommend using MEDIUM or HIGH safety levels.
 
@@ -26,8 +26,7 @@ Clank Desktop wraps the Clank engine in a desktop interface. Same 14 tools, same
 - **ReAct agent loop** — iterative reason-and-act cycle with streaming + tool calling
 - **3 agent modes** — Build (full agent), Plan (read-only exploration), Q&A (no tools, conversation only)
 - **14 built-in tools** — read_file, write_file, edit_file, list_directory, search_files, glob_files, bash, git, web_fetch, web_search, npm_install, pip_install, install_tool, generate_file
-- **Local models** — connects to [Ollama](https://ollama.com/), llama.cpp, LM Studio, vLLM, and other OpenAI-compatible backends
-- **Cloud models** — Anthropic Claude, Google Gemini, OpenAI GPT, OpenCode (API key required)
+- **Local models & cloud providers** — Ollama, llama.cpp, LM Studio, vLLM, Claude, Gemini, OpenAI, and any OpenAI-compatible backend
 - **Multi-server support** — connect to multiple local servers simultaneously; models auto-discovered and routed
 - **Persistent memory** — global + topic-based memory files, plus per-project `.clank.md`
 - **3-tier safety system** — tools classified as Low, Medium, or High risk with confirmation prompts
