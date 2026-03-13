@@ -39,7 +39,7 @@ If you discover a security vulnerability in Clank, **please report it privately*
 
 ## Security Model
 
-Clank is a local-first agentic coding assistant. Its security model assumes:
+Clank is a local-first agentic assistant. Its security model assumes:
 
 - **The user is the operator.** Clank runs with the user's file system and shell permissions. All destructive or sensitive tool calls require explicit confirmation.
 - **The LLM is untrusted input.** Model outputs drive tool calls, but every tool call passes through validation, path traversal checks, and the safety confirmation system before executing.

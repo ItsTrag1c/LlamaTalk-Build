@@ -1,8 +1,8 @@
 # Clank — CLI & Desktop
 
-> Agentic coding assistant — terminal and GUI — part of the Clank Suite. **v2.5.19**
+> Agentic assistant — terminal and GUI — powered by local models and cloud providers. **v2.5.20**
 
-Clank is an agentic coding assistant — available as a standalone terminal app (CLI) and a desktop GUI. Both versions share the same engine, config, memory, and sessions. It uses a ReAct-style agent loop to help you with coding tasks: it reasons about what to do, uses tools to read/edit files, run commands, and search code, then explains what it did. Works with local models via Ollama and cloud providers.
+Clank is an agentic assistant available as a standalone terminal app (CLI) and a desktop GUI. Both versions share the same engine, config, memory, and sessions. It uses a ReAct-style agent loop with 14 built-in tools to reason, act, and iterate — reading files, writing code, running commands, searching your codebase, fetching the web, and more. Connect it to local models (Ollama, llama.cpp, LM Studio, vLLM) or cloud providers (Claude, Gemini, OpenAI) and point it at a problem.
 
 > **Warning:** Clank can read, write, and delete files, execute shell commands, and modify your system. Review agent actions carefully. We recommend using MEDIUM or HIGH safety levels.
 
@@ -49,8 +49,7 @@ The desktop version provides the same agentic engine in a windowed interface. Av
 - **ReAct agent loop** — iterative reason-and-act cycle with streaming + tool calling
 - **3 agent modes** — Build (full agent), Plan (read-only exploration), Q&A (no tools, conversation only)
 - **14 built-in tools** — read_file, write_file, edit_file, list_directory, search_files, glob_files, bash, git, web_fetch, web_search, npm_install, pip_install, install_tool, generate_file
-- **Local models** — connects to [Ollama](https://ollama.com/), llama.cpp, LM Studio, vLLM, and other OpenAI-compatible backends
-- **Cloud models** — Anthropic Claude, Google Gemini, OpenAI GPT, OpenCode (API key required)
+- **Local models & cloud providers** — Ollama, llama.cpp, LM Studio, vLLM, Claude, Gemini, OpenAI, and any OpenAI-compatible backend
 - **Native tool-calling** — each provider uses its own tool-call protocol; XML fallback for models without native support
 - **Multi-server support** — connect to multiple local servers simultaneously; models auto-discovered and routed
 - **Persistent memory** — global + topic-based memory files, plus per-project `.clank.md`
@@ -153,4 +152,4 @@ See our [Privacy Policy](https://clanksuite.dev/privacy) for full details.
 
 [MIT](LICENSE)
 
-Part of the [Clank Suite](https://clanksuite.dev) — CLI & Desktop — Created by [ItsTrag1c](https://github.com/ItsTrag1c).
+Part of the [Clank Suite](https://clanksuite.dev) — Created by [ItsTrag1c](https://github.com/ItsTrag1c).

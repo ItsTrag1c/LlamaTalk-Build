@@ -196,39 +196,59 @@ export class MemoryManager {
    * Build the full memory block for system prompt injection.
    * Now includes agent instructions (OpenCode-style).
    */
-  buildMemoryBlock(userMessage, projectRoot) {
+  /**
+   * Build the full memory block for system prompt injection.
+   * @param {string} userMessage - Current user message for relevance matching
+   * @param {string} projectRoot - Project root path
+   * @param {number} [budgetChars] - Optional character budget for local models.
+   *   When set, lower-priority sections are trimmed or dropped to fit.
+   */
+  buildMemoryBlock(userMessage, projectRoot, budgetChars) {
     const sections = [];
+    let usedChars = 0;
 
-    // Agent instructions (AGENTS.md, .clank/agent/*.md)
+    const addSection = (label, content, priority) => {
+      if (!content) return;
+      const section = `## ${label}\n${content}`;
+      if (budgetChars) {
+        const remaining = budgetChars - usedChars;
+        if (remaining <= 0) return;
+        if (section.length > remaining) {
+          // Truncate to fit budget
+          sections.push(section.slice(0, remaining) + "\n... [trimmed to fit context budget]");
+          usedChars = budgetChars;
+          return;
+        }
+      }
+      sections.push(section);
+      usedChars += section.length;
+    };
+
+    // Priority 1 (highest): Agent instructions — always included
     const instructions = this._getInstructions(projectRoot);
     if (instructions) {
       sections.push(instructions);
+      usedChars += instructions.length;
     }
 
-    // Global memory
-    const global = this.loadGlobal();
-    if (global) {
-      sections.push(`## Global Memory\n${global}`);
-    }
-
-    // Project memory
+    // Priority 2: Project memory — always included
     const project = this.loadProject(projectRoot);
-    if (project) {
-      sections.push(`## Project Memory\n${project}`);
-    }
+    addSection("Project Memory", project, 2);
 
-    // Relevant topic memories
+    // Priority 3: Global memory — included up to budget remainder
+    const global = this.loadGlobal();
+    addSection("Global Memory", global, 3);
+
+    // Priority 4: Relevant topic memories — only if budget allows
     const relevant = this.findRelevant(userMessage);
     if (relevant.length > 0) {
       const topicBlock = relevant.map((r) => `### ${r.topic}\n${r.content}`).join("\n\n");
-      sections.push(`## Relevant Context\n${topicBlock}`);
+      addSection("Relevant Context", topicBlock, 4);
     }
 
-    // Recent session history
+    // Priority 5 (lowest): Recent session history — only if budget allows
     const sessionSummaries = this._loadSessionSummaries();
-    if (sessionSummaries) {
-      sections.push(`## Recent Session History\n${sessionSummaries}`);
-    }
+    addSection("Recent Session History", sessionSummaries, 5);
 
     if (sections.length === 0) return "";
     return `# Memory & Instructions\n\n${sections.join("\n\n")}`;

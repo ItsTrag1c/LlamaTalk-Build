@@ -14,12 +14,31 @@ export class PromptFallbackProvider {
     return this.inner.contextWindow();
   }
 
+  /** Delegate context window detection to inner provider (e.g. Ollama) */
+  async detectContextWindow(model) {
+    if (this.inner.detectContextWindow) {
+      return this.inner.detectContextWindow(model);
+    }
+  }
+
   estimateTokens(messages) {
     return this.inner.estimateTokens(messages);
   }
 
   formatToolsAsPrompt(tools) {
     if (!tools || tools.length === 0) return "";
+
+    const useCompact = this.config?.localOptimizations?.compactPrompt;
+
+    if (useCompact) {
+      // Compact one-liner-per-tool format — saves ~1200-1800 tokens
+      let block = `\nTools — respond with <tool_call>{"name":"...","arguments":{...}}</tool_call>:\n`;
+      for (const t of tools) {
+        const params = t.parameters?.required?.join(", ") || Object.keys(t.parameters?.properties || {}).join(", ");
+        block += `- ${t.name}(${params}) — ${t.description.split(".")[0]}\n`;
+      }
+      return block;
+    }
 
     let block = `\nYou have access to the following tools. To use a tool, respond with a <tool_call> block:\n\n`;
     block += `<tool_call>\n{"name": "tool_name", "arguments": {"param1": "value1"}}\n</tool_call>\n\n`;

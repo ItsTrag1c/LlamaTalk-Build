@@ -1,5 +1,8 @@
 import { BaseProvider } from "./base.js";
-import { streamRequest, streamLines, validateServerUrl } from "./stream.js";
+import { streamRequest, streamLines, validateServerUrl, fetchWithTimeout } from "./stream.js";
+
+// Cache for detected context windows (model → token count)
+const _contextWindowCache = new Map();
 
 // Models known to support tool calling
 // Patterns match after optional "namespace/" prefix (e.g. "Qwen/Qwen2.5-Coder")
@@ -32,7 +35,51 @@ export class OllamaProvider extends BaseProvider {
   }
 
   contextWindow() {
-    return 32768; // most Ollama models
+    // Return cached detected value, or fall back to 32768
+    const model = this.config.selectedModel;
+    if (model && _contextWindowCache.has(model)) {
+      return _contextWindowCache.get(model);
+    }
+    return 32768;
+  }
+
+  /**
+   * Query Ollama's /api/show endpoint to detect the model's actual context window.
+   * Caches the result per model so it's only fetched once per session.
+   */
+  async detectContextWindow(model) {
+    if (!model) return;
+    if (_contextWindowCache.has(model)) return _contextWindowCache.get(model);
+
+    try {
+      const base = this.baseUrl.replace(/\/$/, "");
+      const res = await fetchWithTimeout(
+        `${base}/api/show`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: model }),
+        },
+        10_000
+      );
+      if (!res.ok) return;
+
+      const data = await res.json();
+
+      // Try model_info first (newer Ollama versions)
+      let ctxLen = data.model_info?.["general.context_length"];
+
+      // Fall back to parameters.num_ctx
+      if (!ctxLen && data.parameters) {
+        const match = data.parameters.match(/num_ctx\s+(\d+)/);
+        if (match) ctxLen = parseInt(match[1], 10);
+      }
+
+      if (ctxLen && ctxLen > 0) {
+        _contextWindowCache.set(model, ctxLen);
+        return ctxLen;
+      }
+    } catch { /* non-fatal — fall back to default */ }
   }
 
   supportsTools(model) {
@@ -68,11 +115,17 @@ export class OllamaProvider extends BaseProvider {
       }
     }
 
+    // Apply local optimization settings if available
+    const localOpts = this.config.localOptimizations?.enabled ? this.config.localOptimizations : null;
+
     const reqBody = {
       model,
       messages: msgs,
       stream: true,
-      options: { temperature },
+      options: {
+        temperature,
+        ...(localOpts?.maxResponseTokens && { num_predict: localOpts.maxResponseTokens }),
+      },
     };
 
     // Only include tools if model supports them

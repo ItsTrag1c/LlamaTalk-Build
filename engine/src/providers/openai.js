@@ -58,12 +58,18 @@ export class OpenAIProvider extends BaseProvider {
       }
     }
 
+    // Apply response length cap for local models
+    const localOpts = !this.isCloud && this.config.localOptimizations?.enabled
+      ? this.config.localOptimizations
+      : null;
+
     const reqBody = {
       model,
       messages: msgs,
       temperature,
       stream: true,
       stream_options: { include_usage: true },
+      ...(localOpts?.maxResponseTokens && { max_tokens: localOpts.maxResponseTokens }),
     };
     if (tools && tools.length > 0) {
       reqBody.tools = this.formatTools(tools);

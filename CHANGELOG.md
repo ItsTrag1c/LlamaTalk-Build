@@ -1,6 +1,22 @@
 # Changelog — Clank
 
-Last updated: 2026-03-12 (v2.5.19)
+Last updated: 2026-03-12 (v2.5.20)
+
+---
+
+## v2.5.20 (2026-03-12)
+
+### Improvements
+- **Local model efficiency optimizations** — comprehensive engine changes that reduce context overhead by 50-80% for local LLMs (Ollama/LM Studio):
+  - **Auto-detect context window** — queries Ollama's `/api/show` to use the model's real context size instead of hardcoded 32K.
+  - **Adaptive tool result truncation** — caps results to 25% of context window instead of a flat 30K chars.
+  - **Response length cap** — adds `num_predict`/`max_tokens` for local models (default 4096) to prevent unbounded generation.
+  - **Compact system prompt** — condensed prompt variant removes Tool Reference section and shortens Rules, saving ~400 tokens/turn.
+  - **Tiered tool sets** — `auto` mode sends only 8 core tools by default, dynamically adding extended tools when keywords are detected (saves 600-3000 tokens/turn).
+  - **Compact fallback tool format** — one-liner-per-tool format for prompt-fallback models, saving ~1200-1800 tokens.
+  - **Memory budget management** — prioritized memory sections with character budget to prevent context crowding on small models.
+  - **Earlier compaction threshold** — local models compact at 60% context usage (vs 80% for cloud), leaving more room for responses.
+- All optimizations are configurable via `localOptimizations` in config. Cloud models are completely unaffected.
 
 ---
 

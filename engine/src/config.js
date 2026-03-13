@@ -42,6 +42,16 @@ const DEFAULTS = {
   contextStrategy: "truncate",
   memoryEnabled: true,
 
+  // Local model optimizations (Ollama / OpenAI-compatible)
+  localOptimizations: {
+    enabled: true,
+    compactPrompt: true,
+    toolTier: "auto",          // "full" | "core" | "auto"
+    memoryBudgetPercent: 15,   // % of context reserved for memory
+    contextThreshold: 60,      // compaction trigger (vs 80 for cloud)
+    maxResponseTokens: 4096,
+  },
+
   // Telegram
   telegramBotToken: "",
   telegramAllowedUsers: [],

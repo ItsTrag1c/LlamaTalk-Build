@@ -49,7 +49,7 @@ llama --version      # check version
 
 ## Clank — CLI
 
-An agentic coding assistant with 14 tools, project memory, and plan/build modes.
+An agentic assistant with 14 tools, project memory, and plan/build modes. Works with local models and cloud providers.
 
 ### Windows
 

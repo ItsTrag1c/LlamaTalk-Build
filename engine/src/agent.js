@@ -112,12 +112,15 @@ generate_file(path, content, format, title) — Generate a document file (md, tx
 
 function buildSystemPrompt(config, projectRoot, memoryBlock, projectContext, agentMode, options = {}) {
   const agentName = options.agentName || config.agentName || "a coding assistant";
+  const isLocal = options.isLocal || false;
+  const useCompact = isLocal && config.localOptimizations?.compactPrompt;
   let prompt;
 
   if (agentMode === "qa") {
     prompt = `You are ${agentName}, a knowledgeable assistant running inside Clank. You are in Q&A Mode — a direct question-and-answer mode with no tool access. Answer the user's questions clearly and concisely. You can discuss code, explain concepts, help with debugging logic, brainstorm ideas, and have general conversations. You do NOT have access to the filesystem, shell, or any tools — but you DO have the user's saved memory and project context below. Use that context to give informed, project-aware answers when relevant.`;
   } else {
-    prompt = BASE_SYSTEM_PROMPT
+    const basePrompt = useCompact ? COMPACT_SYSTEM_PROMPT : BASE_SYSTEM_PROMPT;
+    prompt = basePrompt
       .replace("AGENT_NAME_PLACEHOLDER", agentName)
       .replace("MEMORY_DIR_PLACEHOLDER", getMemoryDir().replace(/\\/g, "/"));
 
@@ -149,12 +152,52 @@ Do NOT attempt to write, edit, or execute commands — those calls will be rejec
   return prompt;
 }
 
+// Compact system prompt for local models — removes Tool Reference section and condenses Rules
+const COMPACT_SYSTEM_PROMPT = `You are AGENT_NAME_PLACEHOLDER, a coding assistant with direct access to the user's filesystem and shell through tools. You are running inside Clank, a local agentic coding tool. All tool calls execute locally with the user's permission.
+
+## Rules
+- Use tools to complete tasks. Never decline — the permission system handles safety.
+- Be brief. Users see tool details in the sidebar — don't repeat file contents or arguments.
+- Read files before editing. Use exact text for old_text in edits.
+- Prefer small precise edits over rewriting entire files.
+- Keep responses brief and concise.
+
+## Memory
+- Save user preferences, project conventions, and important patterns to memory.
+- Memory directory: MEMORY_DIR_PLACEHOLDER
+- Use write_file or edit_file with absolute paths to save/update memory files.`;
+
 const ALL_TOOLS = [
   readFileTool, writeFileTool, editFileTool, listDirectoryTool,
   searchFilesTool, globFilesTool, bashTool, gitTool,
   webFetchTool, webSearchTool, npmInstallTool, pipInstallTool,
   installToolTool, generateFileTool,
 ];
+
+// Core tools always available for local models in "auto" tier
+const CORE_TOOLS = [
+  readFileTool, writeFileTool, editFileTool, listDirectoryTool,
+  searchFilesTool, globFilesTool, bashTool, gitTool,
+];
+
+// Extended tools dynamically added when keywords detected
+const EXTENDED_TOOLS = [
+  webFetchTool, webSearchTool, npmInstallTool, pipInstallTool,
+  installToolTool, generateFileTool,
+];
+
+// Keyword → extended tools mapping for dynamic tool injection
+const TOOL_KEYWORDS = {
+  install:  [npmInstallTool, pipInstallTool, installToolTool],
+  npm:      [npmInstallTool],
+  pip:      [pipInstallTool],
+  web:      [webFetchTool, webSearchTool],
+  fetch:    [webFetchTool],
+  "search online": [webSearchTool],
+  browse:   [webFetchTool],
+  generate: [generateFileTool],
+  pdf:      [generateFileTool],
+};
 
 const VALID_TOOL_NAMES = ALL_TOOLS.map((t) => t.definition.name);
 
@@ -440,10 +483,30 @@ export class AgentEngine extends EventEmitter {
       this.firstMessageSent = true;
     }
 
+    // Get provider (early — needed for memory budget and context detection)
+    const { provider, providerName, formatAssistantToolUse, formatToolResult } = getProviderForModel(this.config);
+
+    // Determine if this is a local provider (Ollama or OpenAI-compatible)
+    const isLocal = ["ollama", "ollama-fallback", "openai-compatible"].includes(providerName);
+    const localOpts = isLocal && this.config.localOptimizations?.enabled
+      ? this.config.localOptimizations
+      : null;
+
+    // Auto-detect context window for Ollama models
+    if (provider.detectContextWindow) {
+      await provider.detectContextWindow(this.config.selectedModel);
+    }
+
     // Build memory block — always load, but only inject into prompt if enabled
     let memoryBlock = "";
     this.emit("memory-loading", { status: "start" });
-    memoryBlock = this.memory.buildMemoryBlock(text, this.projectRoot);
+
+    // Compute memory budget for local models (% of context window in chars)
+    const memBudget = localOpts
+      ? Math.floor(provider.contextWindow() * 4 * (localOpts.memoryBudgetPercent / 100))
+      : undefined;
+
+    memoryBlock = this.memory.buildMemoryBlock(text, this.projectRoot, memBudget);
     // Append task block
     const taskBlock = this.taskManager.buildTaskBlock();
     if (taskBlock) {
@@ -457,22 +520,59 @@ export class AgentEngine extends EventEmitter {
       memoryBlock = "";
     }
 
-    // Get provider
-    const { provider, providerName, formatAssistantToolUse, formatToolResult } = getProviderForModel(this.config);
-
     // Agent loop
     let iterationCount = 0;
     let lastUsage = null;
     let contextPercent = null;
     const contextLimit = provider.contextWindow();
-    const CONTEXT_THRESHOLD = this.config.contextThreshold || 80;
-    const toolDefs = this.agentMode === "qa" ? null : this.toolRegistry.getDefinitions();
+    const CONTEXT_THRESHOLD = isLocal
+      ? (localOpts?.contextThreshold || 60)
+      : (this.config.contextThreshold || 80);
+    // Tool tier selection for local models
+    const toolTier = localOpts?.toolTier || "full";
+    const useAutoTier = isLocal && toolTier === "auto";
+    const useCoreOnly = isLocal && toolTier === "core";
+
+    // Build tool registry for tiered tool sets
+    let localToolRegistry = null;
+    if (useCoreOnly) {
+      localToolRegistry = new ToolRegistry();
+      for (const tool of CORE_TOOLS) localToolRegistry.register(tool);
+    }
+
+    const getToolDefs = (userText) => {
+      if (this.agentMode === "qa") return null;
+      if (!isLocal || toolTier === "full") return this.toolRegistry.getDefinitions();
+      if (useCoreOnly) return localToolRegistry.getDefinitions();
+
+      // Auto tier: start with core tools, add extended based on keywords
+      const registry = new ToolRegistry();
+      for (const tool of CORE_TOOLS) registry.register(tool);
+
+      if (userText) {
+        const lower = userText.toLowerCase();
+        const added = new Set();
+        for (const [keyword, tools] of Object.entries(TOOL_KEYWORDS)) {
+          if (lower.includes(keyword)) {
+            for (const tool of tools) {
+              if (!added.has(tool.definition.name)) {
+                registry.register(tool);
+                added.add(tool.definition.name);
+              }
+            }
+          }
+        }
+      }
+      return registry.getDefinitions();
+    };
+
     const turnStartTime = Date.now();
     const maxIter = this.agentMode === "qa" ? 1 : (this.config.maxIterations || 50);
 
     while (iterationCount < maxIter) {
       const systemPrompt = buildSystemPrompt(this.config, this.projectRoot, memoryBlock, this.projectContext, this.agentMode, {
         agentName: this.config.agentName || undefined,
+        isLocal,
       });
 
       // Context compression check
@@ -501,6 +601,9 @@ export class AgentEngine extends EventEmitter {
       let firstTokenTime = null;
 
       try {
+        // Get tool definitions — for local auto-tier, scan the latest user message for keywords
+        const lastUserMsg = [...this.messages].reverse().find((m) => m.role === "user");
+        const toolDefs = getToolDefs(lastUserMsg?.content || text);
         const stream = provider.stream(this.messages, systemPrompt, toolDefs, this.controller.signal);
 
         let firstToken = true;
@@ -688,8 +791,10 @@ export class AgentEngine extends EventEmitter {
             }
 
             const clean = result.replace(ANSI_RE, "");
-            const truncated = clean.length > 30000
-              ? clean.slice(0, 30000) + `\n... [truncated, ${clean.length - 30000} more chars]`
+            // Cap any single tool result to 25% of context window (in chars ≈ tokens×4)
+            const maxResultChars = Math.min(30000, Math.floor(contextLimit * 4 * 0.25));
+            const truncated = clean.length > maxResultChars
+              ? clean.slice(0, maxResultChars) + `\n... [truncated, ${clean.length - maxResultChars} more chars]`
               : clean;
 
             const summary = result.split("\n")[0].slice(0, 100);

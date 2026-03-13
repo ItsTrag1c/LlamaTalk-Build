@@ -7,7 +7,7 @@
 
 ## Overview
 
-The Clank suite consists of two applications: **Clank CLI**, an agentic coding assistant with file tools, project memory, and multi-provider support; and **Clank Desktop**, the same agentic engine in a windowed interface with a sidecar architecture.
+The Clank suite consists of two applications: **Clank CLI**, an agentic assistant with file tools, project memory, and multi-provider support; and **Clank Desktop**, the same agentic engine in a windowed interface with a sidecar architecture.
 
 **The short version:** All your data stays on your computer. We don't collect, share, or transmit any information about you or your conversations — except when you explicitly choose to use a cloud AI provider, in which case only your messages are sent to that provider's servers as described below.
 
