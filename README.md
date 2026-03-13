@@ -10,11 +10,22 @@ Clank is an agentic assistant available as a standalone terminal app (CLI) and a
 
 ## Install
 
+### Windows
+
 ```powershell
 irm https://raw.githubusercontent.com/ItsTrag1c/Clank/cli/install.ps1 | iex
 ```
 
 Run this in PowerShell to download and install the latest release. Open a new terminal and type `clank`.
+
+### macOS
+
+Download the `Clank` binary from the latest release, make it executable, and move it to your PATH:
+
+```bash
+chmod +x Clank
+sudo mv Clank /usr/local/bin/clank
+```
 
 ---
 
@@ -22,17 +33,18 @@ Run this in PowerShell to download and install the latest release. Open a new te
 
 **[→ Latest Release](https://github.com/ItsTrag1c/Clank/releases/latest)**
 
-| File | Description |
-|------|-------------|
-| `Clank_x.y.z_setup.exe` | Windows installer — installs to Program Files, adds `clank` to PATH |
-| `Clank_x.y.z.exe` | Standalone EXE — run anywhere, no admin rights needed |
-| `checksums.txt` | SHA-256 checksums for verification |
+| File | Platform | Description |
+|------|----------|-------------|
+| `Clank_x.y.z_setup.exe` | Windows | Installer — installs to Program Files, adds `clank` to PATH |
+| `Clank_x.y.z.exe` | Windows | Standalone EXE — run anywhere, no admin rights needed |
+| `Clank` | macOS | Standalone binary (Apple Silicon) |
+| `SHA256SUMS.txt` | — | SHA-256 checksums for verification |
 
 ---
 
 ## Desktop App
 
-The desktop version provides the same agentic engine in a windowed interface. Available on Windows and macOS.
+The desktop version provides the same agentic engine in a windowed interface. Available on Windows and macOS, same as the CLI.
 
 **[→ Latest Desktop Release](https://github.com/ItsTrag1c/Clank/releases/latest)**
 
@@ -143,7 +155,7 @@ See the [Telegram Setup Guide](https://github.com/ItsTrag1c/Clank/wiki/Telegram-
 
 ## Privacy
 
-All data is stored locally on your device at `%APPDATA%\Clank\`. When a PIN is set, API keys are encrypted at rest using AES-256-GCM. Nothing is collected, tracked, or synced to any server.
+All data is stored locally on your device (`%APPDATA%\Clank\` on Windows, `~/.clank/` on macOS). When a PIN is set, API keys are encrypted at rest using AES-256-GCM. Nothing is collected, tracked, or synced to any server.
 
 See our [Privacy Policy](https://clanksuite.dev/privacy) for full details.
 

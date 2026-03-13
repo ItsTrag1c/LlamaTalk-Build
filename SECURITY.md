@@ -51,7 +51,7 @@ Clank is a local-first agentic assistant. Its security model assumes:
 |---------|-------------|
 | **3-tier tool safety** | Every tool is classified Low / Medium / High risk with appropriate confirmation prompts |
 | **Path traversal protection** | All file operations validate and resolve paths before read/write |
-| **Destructive command detection** | Shell commands are checked against patterns (`rm -rf`, `format`, `del /s`, pipe-to-shell, etc.) and elevated to high-risk |
+| **Destructive command detection** | Shell commands are checked against patterns (`rm -rf`, `format`, `del /s`, `diskpart`, pipe-to-shell, etc.) and elevated to high-risk |
 | **Shell injection prevention** | All shell calls use `spawnSync`/`execFileSync` with argument arrays — no string interpolation |
 | **HTML sanitization** | Loop-based tag stripping, safe entity decoding, event handler removal |
 | **PIN + encryption** | Optional PIN enables AES-256-GCM encryption of API keys and memory at rest |
