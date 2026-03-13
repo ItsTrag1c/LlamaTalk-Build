@@ -20,8 +20,12 @@ Run this in PowerShell to download and install the latest release. Open a new te
 
 ### macOS
 
-Download the `Clank` binary from the latest release, make it executable, and move it to your PATH:
+**Homebrew (recommended):**
+```bash
+brew install clankai/clank/clank
+```
 
+**Manual install** — download the `Clank` binary from the latest release:
 ```bash
 chmod +x Clank
 sudo mv Clank /usr/local/bin/clank
