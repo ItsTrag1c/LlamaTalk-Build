@@ -64,7 +64,7 @@ Clank Desktop wraps the Clank engine in a desktop interface. Same 14 tools, same
 
 ## CLI Version
 
-Prefer the terminal? **Clank CLI** provides the same agent engine from the command line. Both versions share the same config, memory, sessions, and API keys.
+Prefer the terminal? **Clank CLI** provides the same agent engine from the command line. Available on Windows and macOS. Both versions share the same config, memory, sessions, and API keys.
 
 **macOS (Homebrew):**
 ```bash
@@ -76,13 +76,18 @@ brew install clankai/clank/clank
 irm https://raw.githubusercontent.com/ItsTrag1c/Clank/cli/install.ps1 | iex
 ```
 
+**macOS (manual)** — download the `Clank` binary from [Releases](https://github.com/ItsTrag1c/Clank/releases/latest), then:
+```bash
+chmod +x Clank && sudo mv Clank /usr/local/bin/clank
+```
+
 **Current CLI Version:** v2.5.20
 
 ---
 
 ## Privacy
 
-All data is stored locally on your device at `%APPDATA%\Clank\`. When a PIN is set, API keys are encrypted at rest using AES-256-GCM. Nothing is collected, tracked, or synced to any server.
+All data is stored locally on your device (`%APPDATA%\Clank\` on Windows, `~/.clank/` on macOS). When a PIN is set, API keys are encrypted at rest using AES-256-GCM. Nothing is collected, tracked, or synced to any server.
 
 See our [Privacy Policy](https://clanksuite.dev/privacy) for full details.
 

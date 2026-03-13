@@ -1,7 +1,7 @@
 # Clank — Privacy Policy
 
 **Effective Date:** March 2, 2026
-**Last Updated:** March 12, 2026 (rev. 12)
+**Last Updated:** March 13, 2026 (rev. 13)
 
 ---
 
@@ -17,18 +17,18 @@ The Clank suite consists of two applications: **Clank CLI**, an agentic assistan
 
 ### Clank CLI
 
-Clank CLI stores the following data **locally on your device only**, in `%APPDATA%\Clank\`:
+Clank CLI stores the following data **locally on your device only**, in `%APPDATA%\Clank\` (Windows) or `~/.clank/` (macOS):
 
 - **Config** (`config.json`) — Your name, hashed PIN, server URLs, per-model system prompts, model nicknames, and session preferences. When a PIN is set, cloud API keys are **encrypted at rest** using AES-256-GCM with a key derived from your PIN.
 - **Memory** (`memory/`) — Persistent project knowledge stored as Markdown files. Global `MEMORY.md` plus topic files. When a PIN is set, memory files are **encrypted at rest** using AES-256-GCM.
 - **Project memory** (`.clank.md`) — Per-project context file stored in the project directory you're working in.
 - **Session logs** (`.clank-session.md`) — Per-project session activity log in the project directory.
 
-Config files are restricted to the current Windows user via file system permissions. Memory files containing sensitive project information are encrypted when a PIN is set.
+Config files are restricted to the current user via file system permissions (Windows ACLs or Unix `chmod 0600`). Memory files containing sensitive project information are encrypted when a PIN is set.
 
 ### Clank Desktop
 
-Clank Desktop stores data in the same `%APPDATA%\Clank\` directory and shares config, memory, sessions, and API keys with the CLI version. Both versions can be installed side-by-side — data stays in sync.
+Clank Desktop stores data in the same config directory (`%APPDATA%\Clank\` on Windows, `~/.clank/` on macOS) and shares config, memory, sessions, and API keys with the CLI version. Both versions can be installed side-by-side — data stays in sync.
 
 Additional Desktop-specific storage:
 
@@ -49,9 +49,9 @@ Additional Desktop-specific storage:
 
 ### Data Retention
 
-- **Profile & Settings (CLI)** — Retained in `%APPDATA%\Clank\config.json` until you uninstall or manually delete the file
+- **Profile & Settings (CLI)** — Retained in `config.json` within the config directory until you uninstall or manually delete the file
 - **Profile & Settings (Desktop)** — Retained until you click "Clear Data & Users"
-- **Memory** — Retained in `%APPDATA%\Clank\memory\` until you manually delete files or use memory management commands
+- **Memory** — Retained in the `memory/` subdirectory of the config directory until you manually delete files or use memory management commands
 - **Exported profiles** — If you export your profile, the resulting JSON file is stored wherever you save it — you are responsible for managing that file
 
 ---
@@ -135,7 +135,7 @@ GitHub will log the IP address of the request as with any public API call — th
 - **API Keys (CLI)** — When a PIN is set, all cloud API keys are encrypted in `config.json` using AES-256-GCM with a key derived from your PIN via PBKDF2. Without a PIN, keys remain in plaintext.
 - **Memory Files (CLI)** — When a PIN is set, memory files are encrypted with the same derived key. Changing your PIN re-encrypts all data with a new key. Removing your PIN decrypts all data back to plaintext.
 - **API Keys (Desktop)** — Stored in the OS credential store (Windows Credential Manager / macOS Keychain) rather than on the filesystem.
-- **File Permissions (CLI)** — After every write to `config.json`, file permissions are restricted to the current Windows user only, preventing other users on a shared system from reading your data.
+- **File Permissions (CLI)** — After every write to `config.json`, file permissions are restricted to the current user only (Windows ACLs or Unix `chmod 0600`), preventing other users on a shared system from reading your data.
 
 ### Authentication
 
@@ -190,7 +190,7 @@ You have full control over your data:
 
 - **Access** — Export your profile and conversations at any time
 - **Deletion (Desktop)** — Clear all data via "Clear Data & Users"
-- **Deletion (CLI)** — Delete `%APPDATA%\Clank\` to remove all stored data including memory; or uninstall the application
+- **Deletion (CLI)** — Delete the config directory (`%APPDATA%\Clank\` on Windows, `~/.clank/` on macOS) to remove all stored data including memory; or uninstall the application
 - **Portability** — Your exported profile JSON can be imported into another Clank installation on another device
 - **Encryption control (CLI)** — Set a PIN to enable encryption; remove your PIN to revert to plaintext storage
 
@@ -255,6 +255,7 @@ Clank is designed with privacy-by-default principles consistent with:
 - **2026-03-12 (rev. 10)** — Consolidated from four apps to two. Clank Chat (Desktop + CLI) archived. "Clank Build" renamed to "Clank". Updated all app names, config paths, and data storage references. Clank config dir changed from `%APPDATA%\ClankBuild\` to `%APPDATA%\Clank\`. Project memory file changed from `.clankbuild.md` to `.clank.md`. Removed Chat-specific sections (ClankCLI, Chat Desktop). Merged Desktop storage details under unified Clank Desktop section.
 - **2026-03-12 (rev. 11)** — Security hardening update (CLI v2.5.19, Desktop v2.4.16). HTML sanitization upgraded to loop-based stripping with closing tag attribute matching and safe entity decode ordering. Glob-to-regex conversion rewritten as single-pass to prevent chained replacement interference. File permission enforcement (`applyFilePermissions`) switched from `execSync` to `execFileSync` to prevent shell injection via crafted file paths. Added Glob-to-Regex Safety to security documentation.
 - **2026-03-12 (rev. 12)** — Local model optimizations (CLI v2.5.20, Desktop v2.4.17). Documented Ollama `/api/show` model metadata query under Local AI Models section — a new local-only network request used to auto-detect context window size. No user data or device identifiers are sent. Updated READMEs with local model optimization feature.
+- **2026-03-13 (rev. 13)** — macOS support for Clank CLI. Updated all data storage paths to include macOS equivalent (`~/.clank/`). Updated file permission references to cover both Windows ACLs and Unix `chmod 0600`. Updated deletion instructions with cross-platform paths.
 
 ---
 
