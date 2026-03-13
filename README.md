@@ -14,10 +14,12 @@ Clank Desktop wraps the Clank engine in a desktop interface. Same 14 tools, same
 
 | File | Description |
 |------|-------------|
-| `Clank Desktop_x.y.z_x64-setup.exe` | Windows NSIS installer |
-| `Clank Desktop_x.y.z_x64_en-US.msi` | Windows MSI installer |
-| `Clank Desktop_x.y.z_aarch64.dmg` | macOS Apple Silicon |
+| `Clank.Desktop_2.4.17_x64-setup.exe` | Windows NSIS installer |
+| `Clank.Desktop_2.4.17_x64_en-US.msi` | Windows MSI installer |
+| `Clank.Desktop_2.4.17_aarch64.dmg` | macOS Apple Silicon |
 | `SHA256SUMS.txt` | SHA-256 checksums for verification |
+
+**macOS Apple Silicon (M1-M4):** Direct download — [Clank.Desktop_2.4.17_aarch64.dmg](https://github.com/ItsTrag1c/Clank/releases/download/v2.5.20/Clank.Desktop_2.4.17_aarch64.dmg)
 
 ---
 
@@ -42,6 +44,16 @@ Clank Desktop wraps the Clank engine in a desktop interface. Same 14 tools, same
 
 ## Install
 
+### macOS
+
+1. Download [Clank.Desktop_2.4.17_aarch64.dmg](https://github.com/ItsTrag1c/Clank/releases/download/v2.5.20/Clank.Desktop_2.4.17_aarch64.dmg)
+2. Open the `.dmg` file and drag **Clank Desktop** to your Applications folder
+3. Launch from **Applications** or Spotlight
+
+**Requirements:** macOS 12.0+ (Apple Silicon M1-M4). [Ollama](https://ollama.com/) is required for local models — cloud models work without it.
+
+### Windows
+
 1. Download the latest installer from [Releases](https://github.com/ItsTrag1c/Clank/releases/latest)
 2. Run the installer — a UAC prompt will appear (installs to `C:\Program Files\Clank Desktop\`)
 3. Launch from the **Start Menu**
@@ -54,10 +66,17 @@ Clank Desktop wraps the Clank engine in a desktop interface. Same 14 tools, same
 
 Prefer the terminal? **Clank CLI** provides the same agent engine from the command line. Both versions share the same config, memory, sessions, and API keys.
 
-Install with PowerShell:
+**macOS (Homebrew):**
+```bash
+brew install clankai/clank/clank
+```
+
+**Windows (PowerShell):**
 ```powershell
 irm https://raw.githubusercontent.com/ItsTrag1c/Clank/cli/install.ps1 | iex
 ```
+
+**Current CLI Version:** v2.5.20
 
 ---
 
