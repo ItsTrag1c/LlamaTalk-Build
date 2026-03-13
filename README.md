@@ -27,6 +27,7 @@ Clank Desktop wraps the Clank engine in a desktop interface. Same 14 tools, same
 - **3 agent modes** — Build (full agent), Plan (read-only exploration), Q&A (no tools, conversation only)
 - **14 built-in tools** — read_file, write_file, edit_file, list_directory, search_files, glob_files, bash, git, web_fetch, web_search, npm_install, pip_install, install_tool, generate_file
 - **Local models & cloud providers** — Ollama, llama.cpp, LM Studio, vLLM, Claude, Gemini, OpenAI, and any OpenAI-compatible backend
+- **Local model optimizations** — auto-detects context window size, adaptive result truncation, compact system prompts, tiered tool sets, memory budgeting, and earlier compaction — reducing context overhead by 50-80% for local LLMs. Configurable via `localOptimizations` in config; cloud models unaffected.
 - **Multi-server support** — connect to multiple local servers simultaneously; models auto-discovered and routed
 - **Persistent memory** — global + topic-based memory files, plus per-project `.clank.md`
 - **3-tier safety system** — tools classified as Low, Medium, or High risk with confirmation prompts

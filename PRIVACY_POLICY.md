@@ -1,7 +1,7 @@
 # Clank — Privacy Policy
 
 **Effective Date:** March 2, 2026
-**Last Updated:** March 12, 2026 (rev. 11)
+**Last Updated:** March 12, 2026 (rev. 12)
 
 ---
 
@@ -83,6 +83,7 @@ When you send a message to a local model:
 3. Your message is **not** logged, recorded, or shared externally
 4. The response is received locally and stored in your conversation history
 5. Token usage metadata returned by the server (token counts, generation speed) is used **locally only** for the real-time TK/S display — it is never transmitted anywhere
+6. When using Ollama, Clank may query your local server's `/api/show` endpoint to retrieve model metadata (context window size, parameter count). This request is sent **only to your local Ollama server** and contains only the model name — no conversation data, user data, or device identifiers are included. The metadata is used locally to optimize context management.
 
 ### Cloud AI Providers (Optional)
 
@@ -253,6 +254,7 @@ Clank is designed with privacy-by-default principles consistent with:
 - **2026-03-10 (rev. 9)** — Build v2.5.5 security hardening. Added shell execution hardening (spawnSync argument arrays), HTML sanitization for generated files, regex safety limits, expanded destructive command patterns. Website hosted on GitHub Pages at clanksuite.dev.
 - **2026-03-12 (rev. 10)** — Consolidated from four apps to two. Clank Chat (Desktop + CLI) archived. "Clank Build" renamed to "Clank". Updated all app names, config paths, and data storage references. Clank config dir changed from `%APPDATA%\ClankBuild\` to `%APPDATA%\Clank\`. Project memory file changed from `.clankbuild.md` to `.clank.md`. Removed Chat-specific sections (ClankCLI, Chat Desktop). Merged Desktop storage details under unified Clank Desktop section.
 - **2026-03-12 (rev. 11)** — Security hardening update (CLI v2.5.19, Desktop v2.4.16). HTML sanitization upgraded to loop-based stripping with closing tag attribute matching and safe entity decode ordering. Glob-to-regex conversion rewritten as single-pass to prevent chained replacement interference. File permission enforcement (`applyFilePermissions`) switched from `execSync` to `execFileSync` to prevent shell injection via crafted file paths. Added Glob-to-Regex Safety to security documentation.
+- **2026-03-12 (rev. 12)** — Local model optimizations (CLI v2.5.20, Desktop v2.4.17). Documented Ollama `/api/show` model metadata query under Local AI Models section — a new local-only network request used to auto-detect context window size. No user data or device identifiers are sent. Updated READMEs with local model optimization feature.
 
 ---
 
