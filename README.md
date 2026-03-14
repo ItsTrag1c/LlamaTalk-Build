@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/banner.png" alt="Clank Suite" width="100%" />
+</p>
+
 # Clank — CLI & Desktop
 
 > Agentic assistant — terminal and GUI — powered by local models and cloud providers. **v2.5.20**
