@@ -97,6 +97,12 @@ See our [Privacy Policy](https://clanksuite.dev/privacy) for full details.
 
 ---
 
+## Community
+
+- [X (@ClankSuite)](https://x.com/ClankSuite)
+- [Reddit (r/ClankSuite)](https://reddit.com/r/ClankSuite)
+- [GitHub](https://github.com/ItsTrag1c/Clank)
+
 ## Changelog
 
 See [CHANGELOG.md](CHANGELOG.md).

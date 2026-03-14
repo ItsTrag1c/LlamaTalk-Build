@@ -1,6 +1,6 @@
 {
   "productName": "Clank Desktop",
-  "version": "2.4.17",
+  "version": "2.4.18",
   "identifier": "com.clank.desktop",
   "build": {
     "frontendDist": "../dist",

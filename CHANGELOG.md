@@ -1,6 +1,16 @@
 # Changelog — Clank Desktop
 
-Last updated: 2026-03-12 (v2.4.17)
+Last updated: 2026-03-14 (v2.4.18)
+
+---
+
+## v2.4.18 (2026-03-14)
+
+### Features
+- **Q&A mode web search** — engine update: Q&A mode now has access to `web_search` and `web_fetch` tools for looking up current information and verifying facts.
+
+### Other
+- Added community links (X, Reddit) to README.
 
 ---
 
