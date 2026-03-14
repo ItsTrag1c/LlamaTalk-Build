@@ -1,6 +1,16 @@
 # Changelog — Clank
 
-Last updated: 2026-03-12 (v2.5.20)
+Last updated: 2026-03-14 (v2.5.21)
+
+---
+
+## v2.5.21 (2026-03-14)
+
+### Features
+- **Q&A mode web search** — Q&A mode now has access to `web_search` and `web_fetch` tools, so the agent can look up current information, verify facts, and research topics instead of relying solely on its training data.
+
+### Other
+- Added community links (X, Reddit) to README.
 
 ---
 

@@ -4,7 +4,7 @@
 
 # Clank — CLI & Desktop
 
-> Agentic assistant — terminal and GUI — powered by local models and cloud providers. **v2.5.20**
+> Agentic assistant — terminal and GUI — powered by local models and cloud providers. **v2.5.21**
 
 Clank is an agentic assistant available as a standalone terminal app (CLI) and a desktop GUI. Both versions share the same engine, config, memory, and sessions. It uses a ReAct-style agent loop with 14 built-in tools to reason, act, and iterate — reading files, writing code, running commands, searching your codebase, fetching the web, and more. Connect it to local models (Ollama, llama.cpp, LM Studio, vLLM) or cloud providers (Claude, Gemini, OpenAI) and point it at a problem.
 
@@ -67,7 +67,7 @@ The desktop version provides the same agentic engine in a windowed interface. Av
 ## Features
 
 - **ReAct agent loop** — iterative reason-and-act cycle with streaming + tool calling
-- **3 agent modes** — Build (full agent), Plan (read-only exploration), Q&A (no tools, conversation only)
+- **3 agent modes** — Build (full agent), Plan (read-only exploration), Q&A (web search + conversation)
 - **14 built-in tools** — read_file, write_file, edit_file, list_directory, search_files, glob_files, bash, git, web_fetch, web_search, npm_install, pip_install, install_tool, generate_file
 - **Local models & cloud providers** — Ollama, llama.cpp, LM Studio, vLLM, Claude, Gemini, OpenAI, and any OpenAI-compatible backend
 - **Local model optimizations** — auto-detects context window size, adaptive result truncation, compact system prompts, tiered tool sets, memory budgeting, and earlier compaction — reducing context overhead by 50-80% for local LLMs. Configurable via `localOptimizations` in config; cloud models unaffected.
@@ -168,6 +168,12 @@ All data is stored locally on your device (`%APPDATA%\Clank\` on Windows, `~/.cl
 See our [Privacy Policy](https://clanksuite.dev/privacy) for full details.
 
 ---
+
+## Community
+
+- [X (@ClankSuite)](https://x.com/ClankSuite)
+- [Reddit (r/ClankSuite)](https://reddit.com/r/ClankSuite)
+- [GitHub](https://github.com/ItsTrag1c/Clank)
 
 ## License
 

@@ -117,7 +117,7 @@ function buildSystemPrompt(config, projectRoot, memoryBlock, projectContext, age
   let prompt;
 
   if (agentMode === "qa") {
-    prompt = `You are ${agentName}, a knowledgeable assistant running inside Clank. You are in Q&A Mode — a direct question-and-answer mode with no tool access. Answer the user's questions clearly and concisely. You can discuss code, explain concepts, help with debugging logic, brainstorm ideas, and have general conversations. You do NOT have access to the filesystem, shell, or any tools — but you DO have the user's saved memory and project context below. Use that context to give informed, project-aware answers when relevant.`;
+    prompt = `You are ${agentName}, a knowledgeable assistant running inside Clank. You are in Q&A Mode — a direct question-and-answer mode with limited tool access. Answer the user's questions clearly and concisely. You can discuss code, explain concepts, help with debugging logic, brainstorm ideas, and have general conversations. You have access to web_search and web_fetch tools — use them to look up current information, verify facts, or research topics the user asks about. You do NOT have access to the filesystem, shell, or other tools — but you DO have the user's saved memory and project context below. Use that context to give informed, project-aware answers when relevant.`;
   } else {
     const basePrompt = useCompact ? COMPACT_SYSTEM_PROMPT : BASE_SYSTEM_PROMPT;
     prompt = basePrompt
@@ -541,7 +541,12 @@ export class AgentEngine extends EventEmitter {
     }
 
     const getToolDefs = (userText) => {
-      if (this.agentMode === "qa") return null;
+      if (this.agentMode === "qa") {
+        const qaRegistry = new ToolRegistry();
+        qaRegistry.register(webSearchTool);
+        qaRegistry.register(webFetchTool);
+        return qaRegistry.getDefinitions();
+      }
       if (!isLocal || toolTier === "full") return this.toolRegistry.getDefinitions();
       if (useCoreOnly) return localToolRegistry.getDefinitions();
 
@@ -567,7 +572,7 @@ export class AgentEngine extends EventEmitter {
     };
 
     const turnStartTime = Date.now();
-    const maxIter = this.agentMode === "qa" ? 1 : (this.config.maxIterations || 50);
+    const maxIter = this.agentMode === "qa" ? 5 : (this.config.maxIterations || 50);
 
     while (iterationCount < maxIter) {
       const systemPrompt = buildSystemPrompt(this.config, this.projectRoot, memoryBlock, this.projectContext, this.agentMode, {
