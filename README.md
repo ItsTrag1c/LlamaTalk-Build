@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/banner.png" alt="Clank Suite" width="100%" />
+</p>
+
 # Clank Desktop
 
 > Agentic assistant with a desktop GUI — powered by local models and cloud providers.
