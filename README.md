@@ -174,3 +174,5 @@ See our [Privacy Policy](https://clanksuite.dev/privacy) for full details.
 [MIT](LICENSE)
 
 Part of the [Clank Suite](https://clanksuite.dev) — Created by [ItsTrag1c](https://github.com/ItsTrag1c).
+
+Follow us: [Reddit](https://www.reddit.com/user/ClankSuite) · [X](https://x.com/ClankSuite)
