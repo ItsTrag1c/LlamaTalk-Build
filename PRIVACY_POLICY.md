@@ -1,7 +1,7 @@
 # Clank — Privacy Policy
 
 **Effective Date:** March 2, 2026
-**Last Updated:** March 13, 2026 (rev. 13)
+**Last Updated:** March 14, 2026 (rev. 14)
 
 ---
 
@@ -256,6 +256,7 @@ Clank is designed with privacy-by-default principles consistent with:
 - **2026-03-12 (rev. 11)** — Security hardening update (CLI v2.5.19, Desktop v2.4.16). HTML sanitization upgraded to loop-based stripping with closing tag attribute matching and safe entity decode ordering. Glob-to-regex conversion rewritten as single-pass to prevent chained replacement interference. File permission enforcement (`applyFilePermissions`) switched from `execSync` to `execFileSync` to prevent shell injection via crafted file paths. Added Glob-to-Regex Safety to security documentation.
 - **2026-03-12 (rev. 12)** — Local model optimizations (CLI v2.5.20, Desktop v2.4.17). Documented Ollama `/api/show` model metadata query under Local AI Models section — a new local-only network request used to auto-detect context window size. No user data or device identifiers are sent. Updated READMEs with local model optimization feature.
 - **2026-03-13 (rev. 13)** — macOS support for Clank CLI. Updated all data storage paths to include macOS equivalent (`~/.clank/`). Updated file permission references to cover both Windows ACLs and Unix `chmod 0600`. Updated deletion instructions with cross-platform paths.
+- **2026-03-14 (rev. 14)** — Q&A mode web search (CLI v2.5.21, Desktop v2.4.18). Q&A mode now has access to `web_search` and `web_fetch` tools — the same tools already available in Build and Plan modes. No new data flows or external services; same DuckDuckGo search and SSRF-protected web fetch.
 
 ---
 

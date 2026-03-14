@@ -18,19 +18,19 @@ Clank Desktop wraps the Clank engine in a desktop interface. Same 14 tools, same
 
 | File | Description |
 |------|-------------|
-| `Clank.Desktop_2.4.17_x64-setup.exe` | Windows NSIS installer |
-| `Clank.Desktop_2.4.17_x64_en-US.msi` | Windows MSI installer |
-| `Clank.Desktop_2.4.17_aarch64.dmg` | macOS Apple Silicon |
+| `Clank.Desktop_2.4.18_x64-setup.exe` | Windows NSIS installer |
+| `Clank.Desktop_2.4.18_x64_en-US.msi` | Windows MSI installer |
+| `Clank.Desktop_2.4.18_aarch64.dmg` | macOS Apple Silicon |
 | `SHA256SUMS.txt` | SHA-256 checksums for verification |
 
-**macOS Apple Silicon (M1-M4):** Direct download — [Clank.Desktop_2.4.17_aarch64.dmg](https://github.com/ItsTrag1c/Clank/releases/download/v2.5.20/Clank.Desktop_2.4.17_aarch64.dmg)
+**macOS Apple Silicon (M1-M4):** Direct download — [Clank.Desktop_2.4.18_aarch64.dmg](https://github.com/ItsTrag1c/Clank/releases/download/v2.5.21/Clank.Desktop_2.4.18_aarch64.dmg)
 
 ---
 
 ## Features
 
 - **ReAct agent loop** — iterative reason-and-act cycle with streaming + tool calling
-- **3 agent modes** — Build (full agent), Plan (read-only exploration), Q&A (no tools, conversation only)
+- **3 agent modes** — Build (full agent), Plan (read-only exploration), Q&A (web search + conversation)
 - **14 built-in tools** — read_file, write_file, edit_file, list_directory, search_files, glob_files, bash, git, web_fetch, web_search, npm_install, pip_install, install_tool, generate_file
 - **Local models & cloud providers** — Ollama, llama.cpp, LM Studio, vLLM, Claude, Gemini, OpenAI, and any OpenAI-compatible backend
 - **Local model optimizations** — auto-detects context window size, adaptive result truncation, compact system prompts, tiered tool sets, memory budgeting, and earlier compaction — reducing context overhead by 50-80% for local LLMs. Configurable via `localOptimizations` in config; cloud models unaffected.
@@ -50,7 +50,7 @@ Clank Desktop wraps the Clank engine in a desktop interface. Same 14 tools, same
 
 ### macOS
 
-1. Download [Clank.Desktop_2.4.17_aarch64.dmg](https://github.com/ItsTrag1c/Clank/releases/download/v2.5.20/Clank.Desktop_2.4.17_aarch64.dmg)
+1. Download [Clank.Desktop_2.4.18_aarch64.dmg](https://github.com/ItsTrag1c/Clank/releases/download/v2.5.21/Clank.Desktop_2.4.18_aarch64.dmg)
 2. Open the `.dmg` file and drag **Clank Desktop** to your Applications folder
 3. Launch from **Applications** or Spotlight
 
@@ -85,7 +85,7 @@ irm https://raw.githubusercontent.com/ItsTrag1c/Clank/cli/install.ps1 | iex
 chmod +x Clank && sudo mv Clank /usr/local/bin/clank
 ```
 
-**Current CLI Version:** v2.5.20
+**Current CLI Version:** v2.5.21
 
 ---
 
